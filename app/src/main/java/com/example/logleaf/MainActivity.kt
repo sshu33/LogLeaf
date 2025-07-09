@@ -39,7 +39,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             LogLeafTheme {
-                // ★ AppEntryを呼び出す、本来のロジックに戻す
                 AppEntry(
                     onLogout = {
                         val intent = packageManager.getLaunchIntentForPackage(packageName)
