@@ -1,0 +1,214 @@
+package com.example.logleaf.ui.components
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
+import androidx.navigation.compose.currentBackStackEntryAsState
+import com.example.logleaf.R
+import com.example.logleaf.ui.screens.Screen
+import com.example.logleaf.ui.theme.NoticeGreen
+
+
+@Composable
+fun SettingsSectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 8.dp)
+    )
+}
+
+@Composable
+fun SettingsMenuItem(
+    icon: ImageVector,
+    title: String,
+    onClick: () -> Unit,
+    // ★★★ タイトルの横に表示する、オプショナルなコンテンツ ★★★
+    statusContent: (@Composable () -> Unit)? = null,
+    // ★★★ 右端に表示する、オプショナルなコンテンツ ★★★
+    trailingContent: (@Composable () -> Unit)? = { // デフォルトは矢印アイコン
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 1. 左端のアイコン
+        Icon(
+            imageVector = icon,
+            contentDescription = title,
+            modifier = Modifier.size(24.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+
+        // 2. 中央のコンテンツ（タイトルと状態表示）
+        Row(
+            modifier = Modifier.weight(1f), // ★ 残りのスペースを全て使う
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge
+            )
+            // statusContentが提供されていれば、タイトルの横に表示
+            if (statusContent != null) {
+                Spacer(modifier = Modifier.width(8.dp))
+                statusContent()
+            }
+        }
+
+        // 3. 右端のコンテンツ（デフォルトは矢印）
+        if (trailingContent != null) {
+            Spacer(modifier = Modifier.width(8.dp))
+            trailingContent()
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class) // ★ BadgedBoxのために追加
+@Composable
+fun BottomNavigationBar(
+    navController: NavController,
+    showSettingsBadge: Boolean
+) {
+    val items = listOf(Screen.Timeline, Screen.Calendar, Screen.Search, Screen.Settings)
+    Surface(shadowElevation = 4.dp) {
+        NavigationBar(
+            modifier = Modifier.height(56.dp),
+            containerColor = Color(0xFFB0E0E6)
+        ) {
+            val navBackStackEntry by navController.currentBackStackEntryAsState()
+            val currentRoute = navBackStackEntry?.destination?.route
+            items.forEach { screen ->
+                // ★★★ この行を復活させる ★★★
+                val interactionSource = remember { MutableInteractionSource() }
+
+                NavigationBarItem(
+                    icon = {
+                        if (screen.route == "settings") {
+                            BadgedBox(
+                                badge = {
+                                    if (showSettingsBadge) {
+                                        Icon(
+                                            painter = painterResource(id = R.drawable.ic_sync2),
+                                            contentDescription = "再認証が必要です",
+                                            modifier = Modifier
+                                                .size(16.dp)
+                                                .offset(x = (-1).dp, y = 12.dp),
+                                            tint = NoticeGreen
+                                        )
+                                    }
+                                }
+                                // ★★★ BadgedBox自身のmodifierは削除する ★★★
+                            ) {
+                                // 歯車アイコンは、offsetの影響を受けずに中央に表示される
+                                Icon(
+                                    imageVector = screen.icon,
+                                    contentDescription = screen.label,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                        } else {
+                            Icon(
+                                imageVector = screen.icon,
+                                contentDescription = screen.label,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                    },
+                    label = { },
+                    selected = currentRoute?.startsWith(screen.route) == true,
+                    onClick = {
+                        if (screen.route != "search") {
+                            navController.navigate(screen.route) {
+                                popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                    },
+                    // ★★★ この行を復活させる ★★★
+                    interactionSource = interactionSource,
+                    colors = NavigationBarItemDefaults.colors(
+                        indicatorColor = Color.Transparent
+                    )
+                )
+            }
+        }
+    }
+}
+
+/**
+ * アプリ内で共通して使用する、リスト項目用のカード
+ * @param onClick カードがタップされた時の動作
+ * @param content カードの内部に表示するコンテンツ（Icon, Text, Spacerなど）
+ */
+@Composable
+fun ListCard(
+    onClick: () -> Unit,
+    content: @Composable RowScope.() -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                // ★★★ 高さを60.dpに固定し、縦のpaddingを削除 ★★★
+                .height(60.dp)
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            content = content
+        )
+    }
+}
