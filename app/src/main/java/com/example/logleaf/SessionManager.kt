@@ -124,9 +124,17 @@ class SessionManager(context: Context) {
             val jsonString = json.encodeToString(accounts)
             Log.d("SessionManager", "保存するJSON: $jsonString")
 
-            prefs.edit()
+            val success = prefs.edit()
                 .putString(KEY_ACCOUNTS_JSON, jsonString)
-                .apply()
+                .commit() // .apply() から .commit() に変更
+
+            // 書き込みが成功したかどうかの結果をログに出力
+            if (success) {
+                Log.d("SessionManager", "SharedPreferencesへの保存に成功しました (commit)")
+            } else {
+                Log.e("SessionManager", "SharedPreferencesへの保存に失敗しました (commit)")
+            }
+
         } catch (e: Exception) {
             Log.e("SessionManager", "アカウント保存中にエラー: ${e.message}", e)
         }
