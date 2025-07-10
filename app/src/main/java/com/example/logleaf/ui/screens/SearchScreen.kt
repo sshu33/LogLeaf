@@ -1,16 +1,24 @@
 package com.example.logleaf.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import com.example.logleaf.R
 import com.example.logleaf.ui.components.SearchResultPostItem
 import com.example.logleaf.ui.theme.SnsType
 
@@ -81,58 +89,107 @@ fun SearchTopBar(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // 検索バー (全体の ⅗ 程度の幅)
-        OutlinedTextField(
+        // --- 検索バー ---
+        TextField(
             value = query,
             onValueChange = onQueryChanged,
-            modifier = Modifier.weight(3f),
+            modifier = Modifier
+                .weight(1f)
+                .defaultMinSize(minHeight = 46.dp), // ★★★ .height() を .defaultMinSize() に変更 ★★★
             placeholder = { Text("投稿を検索...") },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search Icon") },
             trailingIcon = {
                 if (query.isNotEmpty()) {
-                    IconButton(onClick = { onQueryChanged("") }) { // 文字列だけをクリア
+                    IconButton(onClick = { onQueryChanged("") }) {
                         Icon(Icons.Default.Clear, contentDescription = "Clear Query")
                     }
                 }
             },
-            singleLine = true
-        )
+            singleLine = true,
+            shape = RoundedCornerShape(24.dp), // 高さに合わせて角丸も調整
 
-        // SNSフィルター (全体の ⅕ 程度の幅)
-        Box(modifier = Modifier.weight(1f)) {
-            IconButton(onClick = { snsFilterMenuExpanded = true }) {
-                // ここは後で各SNSのかっこいいアイコンに差し替えましょう！
-                // とりあえずテキストで表示
-                Text(selectedSns?.name ?: "All")
-            }
-            DropdownMenu(
-                expanded = snsFilterMenuExpanded,
-                onDismissRequest = { snsFilterMenuExpanded = false }
-            ) {
-                DropdownMenuItem(
-                    text = { Text("All") },
-                    onClick = {
-                        onSnsFilterChanged(null)
-                        snsFilterMenuExpanded = false
-                    }
-                )
-                SnsType.entries.forEach { sns ->
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+            )
+        )
+        // ★★★ アイコン群と検索バーの間に、手動でスペースを設ける ★★★
+        Spacer(modifier = Modifier.width(8.dp))
+
+        // --- フィルターとリセットのアイコンをグループ化 ---
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            // ★★★ 2. アイコン間のスペースを調整 ★★★
+            horizontalArrangement = Arrangement.spacedBy(0.dp) // 4.dpくらいに詰める
+        ) {
+            // --- SNSフィルターボタン ---
+            Box {
+                IconButton(onClick = { snsFilterMenuExpanded = true }) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_filter),
+                        contentDescription = "SNS Filter",
+                        modifier = Modifier.size(28.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+                // --- ドロップダウンメニュー ---
+                DropdownMenu(
+                    expanded = snsFilterMenuExpanded,
+                    onDismissRequest = { snsFilterMenuExpanded = false }
+                ) {
+                    // 「全て」のメニュー項目 (contentPaddingは削除)
                     DropdownMenuItem(
-                        text = { Text(sns.name) },
+                        text = { Text("All") },
+                        leadingIcon = { /* アイコンなし */ },
                         onClick = {
-                            onSnsFilterChanged(sns)
+                            onSnsFilterChanged(null)
                             snsFilterMenuExpanded = false
                         }
                     )
+
+                    SnsType.entries.forEach { sns ->
+                        DropdownMenuItem(
+                            text = { Text(sns.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                            leadingIcon = {
+                                // ★★★ アイコンとテキストの間を詰めるためのRow ★★★
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    val iconResId = when (sns) {
+                                        SnsType.BLUESKY -> R.drawable.ic_bluesky
+                                        SnsType.MASTODON -> R.drawable.ic_mastodon
+                                    }
+                                    Icon(
+                                        painter = painterResource(id = iconResId),
+                                        contentDescription = sns.name,
+                                        modifier = Modifier.size(24.dp),
+                                        // ★★★ ここ！SNSごとのテーマカラーを適用 ★★★
+                                        tint = sns.brandColor
+                                    )
+                                    // Spacerでアイコンとテキストの間の距離を調整
+                                    Spacer(modifier = Modifier.width(-20.dp))
+                                }
+                            },
+                            onClick = {
+                                onSnsFilterChanged(sns)
+                                snsFilterMenuExpanded = false
+                            },
+                            // contentPaddingの指定は削除
+                        )
+                    }
                 }
             }
-        }
 
-        // 一括リセットボタン (全体の ⅕ 程度の幅)
-        TextButton(onClick = onReset, modifier = Modifier.weight(1f)) {
-            Text("リセット")
+            // --- 一括リセットボタン ---
+            IconButton(onClick = onReset) {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_cancel),
+                    contentDescription = "Reset Search",
+                    modifier = Modifier.size(28.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
         }
     }
 }
