@@ -183,7 +183,7 @@ fun LoginScreen(
                     onClick = {
                         isLoading = true
                         scope.launch {
-                            val success = blueskyApi.login(handle, password)
+                            val success = blueskyApi.login(handle.trim(), password.trim())
                             isLoading = false
                             if (success) {
                                 onLoginSuccess()

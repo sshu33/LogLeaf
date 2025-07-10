@@ -95,6 +95,7 @@ class MastodonInstanceViewModel(
 
     fun handleMastodonAuth(manualCode: String) {
         viewModelScope.launch {
+
             _uiState.update { it.copy(isLoading = true, error = null) }
 
             val instanceUrl = MastodonAuthHolder.instanceUrl
@@ -113,10 +114,12 @@ class MastodonInstanceViewModel(
                         // ★★★ 正しいパラメータでアカウントを生成する ★★★
                         val newAccount = Account.Mastodon(
                             instanceUrl = instanceUrl,
-                            id = verifiedAccount.id, // ← verifiedAccountから数字のIDを設定
+                            id = verifiedAccount.id,
                             acct = verifiedAccount.acct,
                             username = verifiedAccount.username,
-                            accessToken = tokenResponse.accessToken
+                            accessToken = tokenResponse.accessToken,
+                            clientId = clientId,        // ← 追加
+                            clientSecret = clientSecret // ← 追加
                         )
 
                         sessionManager.saveAccount(newAccount)

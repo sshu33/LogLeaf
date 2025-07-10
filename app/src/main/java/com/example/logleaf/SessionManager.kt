@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import android.util.Log  // これが重要！
 
 class SessionManager(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("LogLeaf_Prefs", Context.MODE_PRIVATE)
@@ -14,12 +15,22 @@ class SessionManager(context: Context) {
         private const val KEY_ACCOUNTS_JSON = "accounts_json"
     }
 
+    private val json = Json {
+        encodeDefaults = true
+        ignoreUnknownKeys = true  // 追加
+        isLenient = true  // 追加（柔軟なパース）
+    }
+
     // ★ アカウントリストの状態をリアルタイムで保持・通知するStateFlow
     private val _accountsFlow = MutableStateFlow<List<Account>>(emptyList())
     val accountsFlow = _accountsFlow.asStateFlow()
 
     // ★ SessionManagerが生成された時に、一度だけSharedPreferencesから読み込む
     init {
+        // この部分に追加
+        Log.d("SessionManager", "【初期化】SessionManagerが生成されました")
+        Log.d("SessionManager", "【初期化】読み込んだアカウント数: ${loadAccountsFromPrefs().size}")
+
         _accountsFlow.value = loadAccountsFromPrefs()
     }
 
@@ -27,6 +38,10 @@ class SessionManager(context: Context) {
     fun getAccounts(): List<Account> = _accountsFlow.value
 
     fun saveAccount(newAccount: Account) {
+        Log.d("SessionManager", "saveAccount呼び出し:")
+        Log.d("SessionManager", "アカウントタイプ: ${newAccount.snsType}")
+        Log.d("SessionManager", "ユーザーID: ${newAccount.userId}")
+
         val currentAccounts = getAccounts().toMutableList()
         // ★★★ セッション切れ状態を引き継ぐための修正 ★★★
         // 新しいアカウント情報で上書きする際、古いアカウントの'needsReauthentication'状態を保持する
@@ -86,17 +101,53 @@ class SessionManager(context: Context) {
     }
 
     private fun saveAccountsList(accounts: List<Account>) {
-        val jsonString = Json.encodeToString(accounts)
-        prefs.edit().putString(KEY_ACCOUNTS_JSON, jsonString).apply()
+        try {
+            accounts.forEach { account ->
+                when (account) {
+                    is Account.Mastodon -> {
+                        Log.d("SessionManager", "Mastodonアカウント詳細:")
+                        Log.d("SessionManager", "インスタンスURL: ${account.instanceUrl}")
+                        Log.d("SessionManager", "ID: ${account.id}")
+                        Log.d("SessionManager", "アクセストークン長さ: ${account.accessToken.length}")
+                        Log.d("SessionManager", "ClientID: ${account.clientId}")
+                        Log.d("SessionManager", "ClientSecret: ${account.clientSecret}")
+                    }
+                    is Account.Bluesky -> {
+                        Log.d("SessionManager", "Blueskyアカウント詳細:")
+                        Log.d("SessionManager", "DID: ${account.did}")
+                        Log.d("SessionManager", "ハンドル: ${account.handle}")
+                        Log.d("SessionManager", "アクセストークン長さ: ${account.accessToken.length}")
+                    }
+                }
+            }
+
+            val jsonString = json.encodeToString(accounts)
+            Log.d("SessionManager", "保存するJSON: $jsonString")
+
+            prefs.edit()
+                .putString(KEY_ACCOUNTS_JSON, jsonString)
+                .apply()
+        } catch (e: Exception) {
+            Log.e("SessionManager", "アカウント保存中にエラー: ${e.message}", e)
+        }
     }
 
     private fun loadAccountsFromPrefs(): List<Account> {
-        val jsonString = prefs.getString(KEY_ACCOUNTS_JSON, null) ?: return emptyList()
+        val jsonString = prefs.getString(KEY_ACCOUNTS_JSON, null)
+
+        Log.d("SessionManager", "読み込んだJSON文字列: $jsonString")
+
         return try {
-            Json.decodeFromString<List<Account>>(jsonString)
+            if (jsonString != null) {
+                val accounts = json.decodeFromString<List<Account>>(jsonString)
+                Log.d("SessionManager", "読み込んだアカウント数: ${accounts.size}")
+                accounts
+            } else {
+                Log.d("SessionManager", "保存されたJSONがnull")
+                emptyList()
+            }
         } catch (e: Exception) {
-            println("アカウント情報のデコードに失敗しました: ${e.message}")
-            // 不正なデータはクリアする
+            Log.e("SessionManager", "アカウント読み込み中にエラー: ${e.message}", e)
             prefs.edit().remove(KEY_ACCOUNTS_JSON).apply()
             emptyList()
         }

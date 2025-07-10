@@ -16,14 +16,25 @@
         android:theme="@style/Theme.LogLeaf">
         <activity
             android:name=".MainActivity"
+            android:launchMode="singleTask"
             android:exported="true"
             android:label="@string/app_name"
             android:theme="@style/Theme.LogLeaf">
+
+            <!-- 【重要】アプリを起動するためのフィルタ -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- 【重要】Mastodonコールバックを受け取るためのフィルタ -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="logleaf" android:host="callback" />
+            </intent-filter>
+
         </activity>
     </application>
 

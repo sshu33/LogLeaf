@@ -1,13 +1,23 @@
 package com.example.logleaf
 
+import android.util.Log
 import com.example.logleaf.ui.theme.SnsType
-import io.ktor.client.*
-import io.ktor.client.call.*
-import io.ktor.client.engine.cio.*
-import io.ktor.client.plugins.contentnegotiation.*
-import io.ktor.client.request.*
-import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.logging.LogLevel
+import io.ktor.client.plugins.logging.Logger
+import io.ktor.client.plugins.logging.Logging
+import io.ktor.client.request.get
+import io.ktor.client.request.headers
+import io.ktor.client.request.parameter
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.contentType
+import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.time.ZonedDateTime
@@ -16,7 +26,7 @@ import java.time.ZonedDateTime
 @Serializable
 data class LoginRequest(val identifier: String, val password: String)
 @Serializable
-data class LoginResponse(val accessJwt: String, val did: String, val refreshJwt: String, val handle: String) // ★ handleを追加
+data class LoginResponse(val accessJwt: String, val did: String, val refreshJwt: String, val handle: String)
 @Serializable
 data class BskyFeedResponse(val feed: List<BskyFeedItem>)
 @Serializable
@@ -28,8 +38,22 @@ data class BskyRecord(val text: String, val createdAt: String)
 
 
 class BlueskyApi(private val sessionManager: SessionManager) {
+    // ↓↓↓↓↓↓ この client の初期化部分を変更します ↓↓↓↓↓↓
     private val client = HttpClient(CIO) {
-        install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+        // JSONの変換設定 (これは元々ありました)
+        install(ContentNegotiation) {
+            json(Json { ignoreUnknownKeys = true })
+        }
+
+        // ネットワークログを出力するための設定
+        install(Logging) {
+            logger = object : Logger {
+                override fun log(message: String) {
+                    Log.v("KtorLogger", message) // Logcatのタグを"KtorLogger"に
+                }
+            }
+            level = LogLevel.ALL // ヘッダーやボディを含むすべての情報をログに出力
+        }
     }
 
     // ★ 変更：loginメソッド

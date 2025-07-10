@@ -38,7 +38,8 @@ sealed class Account {
         val acct: String,
         val username: String,
         val accessToken: String,
-        // ★★★ プロパティを追加し、デフォルト値を与える ★★★
+        val clientId: String = "",
+        val clientSecret: String = "",
         override val needsReauthentication: Boolean = false
     ) : Account() {
         override val snsType: SnsType get() = SnsType.MASTODON
