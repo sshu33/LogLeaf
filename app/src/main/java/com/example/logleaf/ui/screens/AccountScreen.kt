@@ -114,7 +114,8 @@ fun AccountScreen(
                                 }
                             ),
                             contentDescription = account.snsType.name,
-                            tint = MaterialTheme.colorScheme.primary,
+                            // ★ ここを account.snsType.brandColor に変更します
+                            tint = account.snsType.brandColor,
                             modifier = Modifier.size(26.dp)
                         )
                         Text(

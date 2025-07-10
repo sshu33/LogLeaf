@@ -125,8 +125,8 @@ fun BottomNavigationBar(
     val items = listOf(Screen.Timeline, Screen.Calendar, Screen.Search, Screen.Settings)
     Surface(shadowElevation = 4.dp) {
         NavigationBar(
-            modifier = Modifier.height(56.dp),
-            containerColor = Color(0xFFB0E0E6)
+            modifier = Modifier.height(70.dp),
+            containerColor = Color(0xFFffffff)
         ) {
             val navBackStackEntry by navController.currentBackStackEntryAsState()
             val currentRoute = navBackStackEntry?.destination?.route

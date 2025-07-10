@@ -73,5 +73,6 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
 
     implementation(libs.ktor.client.logging)
+    implementation(libs.androidx.constraintlayout.compose)
 
 }

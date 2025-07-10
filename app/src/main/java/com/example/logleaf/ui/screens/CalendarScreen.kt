@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -18,19 +19,24 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -59,7 +65,7 @@ fun CalendarScreen(
     initialDateString: String? = null,
     navController: NavController,
     onRefresh: () -> Unit,
-    isRefreshing: Boolean // ★ 追加
+    isRefreshing: Boolean
 ) {
     val initialDate = remember(initialDateString) {
         if (initialDateString != null) {
@@ -79,6 +85,7 @@ fun CalendarScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        // --- 上半分: カレンダー部分は変更なし ---
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -90,9 +97,8 @@ fun CalendarScreen(
                 onYearChanged = { yearChange -> selectedDate = selectedDate.plusYears(yearChange.toLong()) },
                 onMonthTitleClick = { selectedDate = LocalDate.now() },
                 onRefresh = onRefresh,
-                isRefreshing = isRefreshing // ★ 追加
+                isRefreshing = isRefreshing
             )
-
             CalendarGrid(
                 posts = uiState.allPosts,
                 selectedDate = selectedDate,
@@ -101,16 +107,31 @@ fun CalendarScreen(
             )
         }
 
-        LazyColumn(modifier = Modifier.weight(1f)) {
-            itemsIndexed(postsForSelectedDay, key = { _, post -> post.id }) { index, post ->
-                CalendarPostRow(post = post)
-                if (index < postsForSelectedDay.lastIndex) {
-                    Divider(thickness = 0.5.dp, color = Color.LightGray)
+        // ★★★ ここからが修正箇所 ★★★
+        // --- 下半分: 投稿リスト ---
+        Surface(
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.surfaceVariant // 背景色をグレーに
+        ) {
+            if (postsForSelectedDay.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("この日の投稿はありません")
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp), // カード間の余白
+                    // リスト全体のパディング
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp)
+                ) {
+                    items(postsForSelectedDay, key = { post -> post.id }) { post ->
+                        CalendarPostCardItem(post = post)
+                    }
+                    }
                 }
             }
         }
     }
-}
 
 @Composable
 fun CalendarHeader(
@@ -310,35 +331,47 @@ fun DayCell(day: Int, colors: List<Color>, isSelected: Boolean, height: Dp, onCl
 
 
 @Composable
-fun CalendarPostRow(post: Post) {
+fun CalendarPostCardItem(post: Post) {
     val localDateTime = post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
     val timeString = localDateTime.format(DateTimeFormatter.ofPattern("HH:mm"))
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .height(IntrinsicSize.Min),
-        verticalAlignment = Alignment.Top
-    ) {
-        Text(
-            text = timeString,
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color.Gray,
-            modifier = Modifier.width(56.dp)
+    // --- タイムライン画面と同じスタイルのCardで全体を囲む ---
+    Card(
+        modifier = Modifier.fillMaxWidth(), // PaddingはLazyColumn側で制御
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
         )
-        Row(modifier = Modifier.fillMaxHeight()) {
-            Box(
-                modifier = Modifier
-                    .width(4.dp)
-                    .fillMaxHeight()
-                    .background(post.color)
-            )
+    ) {
+        // --- ここから下は元のCalendarPostRowのレイアウトとほぼ同じ ---
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp) // カードの内側の余白
+                .height(IntrinsicSize.Min),
+            verticalAlignment = Alignment.Top
+        ) {
             Text(
-                text = post.text,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(start = 12.dp)
+                text = timeString,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.Gray,
+                modifier = Modifier.width(56.dp)
             )
+            Row(modifier = Modifier.fillMaxHeight()) {
+                Box(
+                    modifier = Modifier
+                        .width(4.dp)
+                        .fillMaxHeight()
+                        // ★ post.source.brandColor に統一
+                        .background(post.source.brandColor)
+                )
+                Text(
+                    text = post.text,
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(start = 12.dp)
+                )
+            }
         }
     }
 }

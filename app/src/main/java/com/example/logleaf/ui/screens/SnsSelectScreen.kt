@@ -15,14 +15,18 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import androidx.compose.ui.graphics.Color
 import com.example.logleaf.ui.components.ListCard
 import com.example.logleaf.R
+import com.example.logleaf.ui.theme.SnsType
 
 private data class SnsProvider(
     val name: String,
     val iconResId: Int,
     val route: String?,
+    val color: Color,
     val isImplemented: Boolean = true
+
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,8 +35,8 @@ fun SnsSelectScreen(navController: NavController) {
     val context = LocalContext.current
 
     val snsProviders = listOf(
-        SnsProvider("Bluesky", R.drawable.ic_bluesky, "login"),
-        SnsProvider("Mastodon", R.drawable.ic_mastodon, "mastodon_instance")
+        SnsProvider("Bluesky", R.drawable.ic_bluesky, "login", SnsType.BLUESKY.brandColor),
+        SnsProvider("Mastodon", R.drawable.ic_mastodon, "mastodon_instance", SnsType.MASTODON.brandColor)
     )
 
     Scaffold(
@@ -67,7 +71,7 @@ fun SnsSelectScreen(navController: NavController) {
                     Icon(
                         painter = painterResource(id = sns.iconResId),
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = sns.color,
                         modifier = Modifier.size(26.dp)
                     )
                     Text(

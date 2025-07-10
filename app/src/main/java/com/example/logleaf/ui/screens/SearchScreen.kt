@@ -96,7 +96,7 @@ fun SearchTopBar(
             onValueChange = onQueryChanged,
             modifier = Modifier
                 .weight(1f)
-                .defaultMinSize(minHeight = 46.dp), // ★★★ .height() を .defaultMinSize() に変更 ★★★
+                .defaultMinSize(minHeight = 30.dp), // ★★★ .height() を .defaultMinSize() に変更 ★★★
             placeholder = { Text("投稿を検索...") },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search Icon") },
             trailingIcon = {
