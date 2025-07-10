@@ -1,8 +1,11 @@
 package com.example.logleaf.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -33,12 +36,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.example.logleaf.Post
 import com.example.logleaf.R
 import com.example.logleaf.ui.screens.Screen
 import com.example.logleaf.ui.theme.NoticeGreen
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 
 @Composable
@@ -163,12 +170,10 @@ fun BottomNavigationBar(
                     label = { },
                     selected = currentRoute?.startsWith(screen.route) == true,
                     onClick = {
-                        if (screen.route != "search") {
-                            navController.navigate(screen.route) {
-                                popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
+                        navController.navigate(screen.route) {
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
                         }
                     },
                     // ★★★ この行を復活させる ★★★
@@ -210,5 +215,46 @@ fun ListCard(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             content = content
         )
+    }
+}
+
+@Composable
+fun SearchResultPostItem(post: Post, onClick: () -> Unit = {}) {
+    val localDateTime = post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp)
+    ) {
+        // SNSの色を示すサイドバー
+        Box(
+            modifier = Modifier
+                .width(4.dp)
+                .height(60.dp) // 高さを固定
+                .background(post.source.brandColor) // PostのSnsTypeから直接色を取得
+        )
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        // 投稿内容
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            // 日付と時刻
+            Text(
+                text = localDateTime.format(DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm")),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray
+            )
+            // 投稿本文
+            Text(
+                text = post.text,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }

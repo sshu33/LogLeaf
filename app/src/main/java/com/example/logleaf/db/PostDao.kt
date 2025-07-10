@@ -16,6 +16,12 @@ interface PostDao {
     @Query("SELECT * FROM posts ORDER BY createdAt DESC")
     fun getAllPosts(): Flow<List<Post>>
 
+    @Query("""
+        SELECT * FROM posts
+        WHERE text LIKE :query
+        ORDER BY createdAt DESC
+    """)
+    fun searchPosts(query: String): Flow<List<Post>>
     @Query("DELETE FROM posts")
     suspend fun deleteAll()
 }

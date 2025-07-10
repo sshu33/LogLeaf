@@ -3,6 +3,7 @@ package com.example.logleaf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.logleaf.db.PostDao
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -10,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -30,7 +32,8 @@ data class UiState(
 class MainViewModel(
     private val blueskyApi: BlueskyApi,
     private val mastodonApi: MastodonApi,
-    private val sessionManager: SessionManager
+    private val sessionManager: SessionManager,
+    private val postDao: PostDao
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(UiState())
@@ -96,14 +99,18 @@ class MainViewModel(
                 }
 
                 val allPosts = postLists.awaitAll().flatten()
-                val sortedPosts = allPosts.sortedBy { it.createdAt } // 新しい順に修正
+
+                postDao.insertAll(allPosts)
+
+                val postsFromDb = postDao.getAllPosts().first()
+                val sortedPosts = postsFromDb.sortedByDescending { it.createdAt } // 新しい順
                 val dayLogs = groupPostsByDay(sortedPosts)
 
+                // 手順4: UIの状態を更新
                 _uiState.update { currentState ->
                     currentState.copy(
                         dayLogs = dayLogs,
-                        allPosts = sortedPosts,
-                        // ★ MODIFIED: どの場合でもローディング/リフレッシュ状態を解除
+                        allPosts = sortedPosts, // sortedPostsもDB由来のものに
                         isLoading = false,
                         isRefreshing = false
                     )
@@ -149,11 +156,12 @@ class MainViewModel(
         fun provideFactory(
             blueskyApi: BlueskyApi,
             mastodonApi: MastodonApi,
-            sessionManager: SessionManager
+            sessionManager: SessionManager,
+            postDao: PostDao // ★★★ 引数に postDao を追加 ★★★
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return MainViewModel(blueskyApi, mastodonApi, sessionManager) as T
+                return MainViewModel(blueskyApi, mastodonApi, sessionManager, postDao) as T // ★★★ ここにも渡す ★★★
             }
         }
     }

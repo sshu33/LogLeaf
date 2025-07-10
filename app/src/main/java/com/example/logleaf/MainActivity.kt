@@ -21,12 +21,15 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.logleaf.db.AppDatabase
 import com.example.logleaf.ui.components.BottomNavigationBar
 import com.example.logleaf.ui.screens.AccountScreen
 import com.example.logleaf.ui.screens.AccountViewModel
 import com.example.logleaf.ui.screens.CalendarScreen
 import com.example.logleaf.ui.screens.LoginScreen
 import com.example.logleaf.ui.screens.MastodonInstanceScreen
+import com.example.logleaf.ui.screens.SearchScreen
+import com.example.logleaf.ui.screens.SearchViewModel
 import com.example.logleaf.ui.screens.SettingsScreen
 import com.example.logleaf.ui.screens.SnsSelectScreen
 import com.example.logleaf.ui.screens.TimelineScreen
@@ -94,12 +97,19 @@ fun MainScreen(
     onLogout: () -> Unit
 ) {
     val navController = rememberNavController()
-    // ★★★ NavHostの外で、MainScreenのスコープでViewModelを生成 ★★★
+
+    // ↓↓↓ ここで一度だけ、dbとdaoを生成します ↓↓↓
+    val context = LocalContext.current
+    val db = remember { AppDatabase.getDatabase(context) }
+    val postDao = remember { db.postDao() }
+
+    // ★★★ MainViewModelの生成部分を修正 ★★★
     val mainViewModel: MainViewModel = viewModel(
         factory = MainViewModel.provideFactory(
             blueskyApi = BlueskyApi(sessionManager),
             mastodonApi = MastodonApi(),
-            sessionManager = sessionManager
+            sessionManager = sessionManager,
+            postDao = postDao // ← ここで postDao を渡す！
         )
     )
     val uiState by mainViewModel.uiState.collectAsState()
@@ -180,6 +190,17 @@ fun MainScreen(
                     navController = navController,
                     viewModel = mastodonViewModel
                 )
+            }
+
+            composable("search") {
+                // ここでは、もうdbとdaoを生成する必要はありません。
+                // 上で作ったものをそのまま使います。
+                val searchViewModel: SearchViewModel = viewModel(
+                    factory = SearchViewModel.provideFactory(
+                        postDao = postDao // ← ここでも同じpostDaoを渡す
+                    )
+                )
+                SearchScreen(viewModel = searchViewModel)
             }
         }
     }
