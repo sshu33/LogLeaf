@@ -39,6 +39,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -64,9 +65,15 @@ fun CalendarScreen(
     uiState: UiState,
     initialDateString: String? = null,
     navController: NavController,
+    // selectedDateはもう不要なので削除
     onRefresh: () -> Unit,
     isRefreshing: Boolean
 ) {
+    // ----------------------------------------------------
+    // ★★★ ここからが新しいロジックです ★★★
+    // ----------------------------------------------------
+
+    // 1. 初期日付を決定する (遷移元から渡された日付 or 今日)
     val initialDate = remember(initialDateString) {
         if (initialDateString != null) {
             try {
@@ -78,14 +85,28 @@ fun CalendarScreen(
             LocalDate.now()
         }
     }
+
+    // 2. ユーザーがカレンダー上で選択している日付の状態を管理する
     var selectedDate by remember { mutableStateOf(initialDate) }
 
+    // 3. 画面が表示された時に一度だけ、初期日付を反映させる
+    //    (initialDateStringが変わった時も再実行される)
+    LaunchedEffect(initialDate) {
+        selectedDate = initialDate
+    }
+
+    // ----------------------------------------------------
+    // ★★★ ここまでは新しいロジックです ★★★
+    // ----------------------------------------------------
+
+
+    // 選択された日付の投稿をフィルタリング (ここは変更なし)
     val postsForSelectedDay = uiState.allPosts.filter {
         it.createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate() == selectedDate
     }
 
+    // --- ここから下のレイアウト部分は、ほぼ変更ありません ---
     Column(modifier = Modifier.fillMaxSize()) {
-        // --- 上半分: カレンダー部分は変更なし ---
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -107,11 +128,9 @@ fun CalendarScreen(
             )
         }
 
-        // ★★★ ここからが修正箇所 ★★★
-        // --- 下半分: 投稿リスト ---
         Surface(
             modifier = Modifier.weight(1f),
-            color = MaterialTheme.colorScheme.surfaceVariant // 背景色をグレーに
+            color = MaterialTheme.colorScheme.surfaceVariant
         ) {
             if (postsForSelectedDay.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -120,18 +139,17 @@ fun CalendarScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp), // カード間の余白
-                    // リスト全体のパディング
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp)
                 ) {
                     items(postsForSelectedDay, key = { post -> post.id }) { post ->
                         CalendarPostCardItem(post = post)
                     }
-                    }
                 }
             }
         }
     }
+}
 
 @Composable
 fun CalendarHeader(

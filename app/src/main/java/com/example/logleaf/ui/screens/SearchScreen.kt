@@ -1,6 +1,7 @@
 package com.example.logleaf.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -25,12 +26,11 @@ import com.example.logleaf.ui.components.SearchResultPostItem
 import com.example.logleaf.ui.theme.SnsType
 import java.time.format.DateTimeFormatter
 
-// ViewModelを引数で受け取る
 @Composable
 fun SearchScreen(
     viewModel: SearchViewModel,
+    onPostClick: (Post) -> Unit // ← onPostClickを受け取る口を追加
 ) {
-    // ViewModelからStateを収集 (ここは変更なし)
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedSns by viewModel.selectedSns.collectAsState()
     val searchResultPosts by viewModel.searchResultPosts.collectAsState(initial = emptyList())
@@ -78,8 +78,10 @@ fun SearchScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(searchResultPosts) { post ->
-                    // ★ 新しく移植した SearchResultItem を呼び出す！ ★
-                    SearchResultItem(post = post)
+                    SearchResultItem(
+                        post = post,
+                        onClick = { onPostClick(post) } // ← ここで渡す
+                    )
                 }
             }
         }
@@ -208,10 +210,13 @@ fun SearchTopBar(
 
 @Composable
 fun SearchResultItem(
-    post: Post
+    post: Post,
+    onClick: () -> Unit // ← onClickを受け取る口を追加
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface

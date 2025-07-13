@@ -193,14 +193,21 @@ fun MainScreen(
             }
 
             composable("search") {
-                // ここでは、もうdbとdaoを生成する必要はありません。
-                // 上で作ったものをそのまま使います。
                 val searchViewModel: SearchViewModel = viewModel(
                     factory = SearchViewModel.provideFactory(
-                        postDao = postDao // ← ここでも同じpostDaoを渡す
+                        postDao = postDao
                     )
                 )
-                SearchScreen(viewModel = searchViewModel)
+                // ★★★ ここからが修正箇所です ★★★
+                SearchScreen(
+                    viewModel = searchViewModel,
+                    onPostClick = { post ->
+                        // クリックされた投稿の日付を "YYYY-MM-DD" 形式の文字列にする
+                        val date = post.createdAt.toLocalDate().toString()
+                        // その日付を引数として渡し、カレンダー画面へ遷移する
+                        navController.navigate("calendar?date=$date")
+                    }
+                )
             }
         }
     }
