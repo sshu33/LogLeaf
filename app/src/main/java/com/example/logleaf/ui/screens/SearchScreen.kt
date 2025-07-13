@@ -48,6 +48,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.logleaf.Post
 import com.example.logleaf.R
+import com.example.logleaf.ui.components.HighlightedText
 import com.example.logleaf.ui.theme.SnsType
 import java.time.format.DateTimeFormatter
 
@@ -105,7 +106,8 @@ fun SearchScreen(
                 items(searchResultPosts) { post ->
                     SearchResultItem(
                         post = post,
-                        onClick = { onPostClick(post) } // ← ここで渡す
+                        // ★★★ 検索クエリを渡す ★★★
+                        searchQuery = searchQuery
                     )
                 }
             }
@@ -236,26 +238,50 @@ fun SearchTopBar(
 @Composable
 fun SearchResultItem(
     post: Post,
-    onClick: () -> Unit // ← onClickを受け取る口を追加
+    searchQuery: String // 検索クエリを受け取る
 ) {
+    // -----------------------------------------------------------------
+    // ★★★ ここからが表示ロジックです ★★★
+    // -----------------------------------------------------------------
+
+    // 1. 検索クエリを単語リストに変換
+    val keywords = remember(searchQuery) {
+        searchQuery.split(" ", "　").filter { it.isNotBlank() }
+    }
+
+    // 2. 表示するテキストを決定する
+    val displayText = remember(post.text, keywords) {
+        // キーワードがない場合は、元のテキストをそのまま使う
+        if (keywords.isEmpty()) {
+            post.text
+        } else {
+            // 最初のキーワードが本文のどこにあるか探す
+            val firstKeyword = keywords.first()
+            val index = post.text.indexOf(firstKeyword, ignoreCase = true)
+
+            // 見つからなかったり、表示範囲内（先頭から約100文字）にある場合は、そのまま
+            if (index == -1 || index < 100) {
+                post.text
+            } else {
+                // 隠れてしまう場合は、キーワードの少し前から表示を開始し、先頭に "..." を付ける
+                val startIndex = (index - 20).coerceAtLeast(0)
+                "... " + post.text.substring(startIndex)
+            }
+        }
+    }
+    // -----------------------------------------------------------------
+
+
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         )
     ) {
-        // ★★★ ここがポイント！ ★★★
-        // カードの直接の子であるRowに、カード全体の内部余白を設定します。
         Row(
-            modifier = Modifier
-                // このpaddingが、カードの縁と中身全体の間の余白になります。
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-                .height(IntrinsicSize.Min)
+            modifier = Modifier.height(IntrinsicSize.Min)
         ) {
-            // カラーバー
             Box(
                 modifier = Modifier
                     .width(5.dp)
@@ -263,30 +289,26 @@ fun SearchResultItem(
                     .background(post.source.brandColor)
             )
 
-            // カラーバーとテキストの間の明確なスペース
-            Spacer(modifier = Modifier.width(16.dp))
-
-            // テキスト部分をColumnでまとめる
-            // こちらのColumnにはもうpaddingは不要です。
-            Column {
-                // 日付表示
+            Column(
+                modifier = Modifier.padding(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = 12.dp,
+                    bottom = 12.dp
+                )
+            ) {
                 Text(
                     text = post.createdAt.format(DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm")),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                 )
 
-                // スペース
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // 投稿本文
-                Text(
-                    text = post.text,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    // ★★★ 以下の2行を追加 ★★★
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis
+                // ★★★ ここで、新しく作った HighlightedText を使う！ ★★★
+                HighlightedText(
+                    text = displayText,
+                    keywordsToHighlight = keywords
                 )
             }
         }
