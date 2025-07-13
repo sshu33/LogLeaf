@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.HelpOutline
@@ -37,7 +39,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.logleaf.MastodonInstanceEvent
@@ -50,11 +54,18 @@ import kotlinx.coroutines.launch
 @Composable
 fun MastodonInstanceScreen(
     navController: NavController,
-    // ★★★ 引数をViewModelFactoryからViewModel自体に変更 ★★★
     viewModel: MastodonInstanceViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+
+    fun startAuthentication(instanceUrl: String) {
+        if (instanceUrl.isNotBlank()) {
+            viewModel.onAppRegisterClicked()
+        }
+    }
+
     val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
     var showBottomSheet by remember { mutableStateOf(false) }
@@ -69,8 +80,10 @@ fun MastodonInstanceScreen(
                 is MastodonInstanceEvent.AuthenticationSuccess -> {
                     navController.popBackStack("accounts", inclusive = false)
                 }
-                // ★ whenを網羅的にするために else を追加。何もしない。
-                else -> {}
+                // ★★★ 新しいイベントをここで処理する ★★★
+                is MastodonInstanceEvent.HideKeyboard -> {
+                    focusManager.clearFocus()
+                }
             }
         }
     }
@@ -83,7 +96,6 @@ fun MastodonInstanceScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    // 上下に直接余白を指定する
                     .padding(start = 24.dp, end = 24.dp, top = 32.dp, bottom = 60.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -109,7 +121,6 @@ fun MastodonInstanceScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                // ★★★ フローに応じてタイトルを変更 ★★★
                 title = {
                     val titleText = if (viewModel.isReAuthFlow) "再認証中..." else "Mastodonサーバーを選択"
                     Text(titleText)
@@ -128,7 +139,7 @@ fun MastodonInstanceScreen(
                 .padding(padding)
                 .padding(horizontal = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center // ★ 中央揃えを追加
+            verticalArrangement = Arrangement.Center
         ) {
             Icon(
                 painter = painterResource(id = R.drawable.ic_mastodon),
@@ -138,17 +149,14 @@ fun MastodonInstanceScreen(
             )
             Spacer(Modifier.height(32.dp))
 
-            // ★★★ フローに応じてUIを切り替え ★★★
             if (viewModel.isReAuthFlow) {
-                // --- 再認証フローの場合 ---
                 Text("再認証を実行中です...")
                 Spacer(Modifier.height(16.dp))
                 CircularProgressIndicator()
             } else {
-                // --- 新規追加フローの場合（★ ここを正しく記述）---
                 OutlinedTextField(
                     value = uiState.instanceUrl,
-                    onValueChange = { viewModel.onInstanceUrlChange(it) }, // ← これです！
+                    onValueChange = { viewModel.onInstanceUrlChange(it) },
                     label = { Text("インスタンスURL") },
                     placeholder = { Text("mstdn.jp") },
                     modifier = Modifier.fillMaxWidth(),
@@ -162,7 +170,12 @@ fun MastodonInstanceScreen(
                                 contentDescription = "インスタンスURLとは？"
                             )
                         }
-                    }
+                    },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+                    // ★★★ ViewModelの新しい司令塔を呼び出すだけ ★★★
+                    keyboardActions = KeyboardActions(onGo = {
+                        viewModel.onInstanceSubmitted()
+                    })
                 )
 
                 val errorText = uiState.error
@@ -181,7 +194,10 @@ fun MastodonInstanceScreen(
                     CircularProgressIndicator()
                 } else {
                     Button(
-                        onClick = { viewModel.onAppRegisterClicked() },
+                        // ★★★ こちらもViewModelの新しい司令塔を呼び出すだけ ★★★
+                        onClick = {
+                            viewModel.onInstanceSubmitted()
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(50.dp),

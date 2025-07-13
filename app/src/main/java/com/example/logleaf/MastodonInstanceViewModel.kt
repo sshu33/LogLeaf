@@ -1,6 +1,5 @@
 package com.example.logleaf
 
-import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -20,10 +19,10 @@ data class MastodonInstanceUiState(
 
 // 一度きりのイベントを通知するためのクラス
 sealed class MastodonInstanceEvent {
-    // 認証フローを開始し、ブラウザへ遷移するイベント
     data class NavigateToBrowser(val authUrl: String) : MastodonInstanceEvent()
-    // 認証が全て成功し、前の画面に戻るイベント
     object AuthenticationSuccess : MastodonInstanceEvent()
+    // ★★★ 追加：キーボードを隠すようUIに指示するイベント ★★★
+    object HideKeyboard : MastodonInstanceEvent()
 }
 
 // ★ SessionManagerも受け取るように変更
@@ -31,11 +30,9 @@ class MastodonInstanceViewModel(
     private val mastodonApi: MastodonApi,
     private val sessionManager: SessionManager,
     private val initialInstanceUrl: String?
-
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
-        // ★★★ 初期URLがあれば、それをUI状態の初期値にセットする ★★★
         MastodonInstanceUiState(instanceUrl = initialInstanceUrl ?: "")
     )
     val uiState = _uiState.asStateFlow()
@@ -43,25 +40,31 @@ class MastodonInstanceViewModel(
     private val _eventFlow = MutableSharedFlow<MastodonInstanceEvent>()
     val eventFlow = _eventFlow.asSharedFlow()
 
-    // ★★★ 再認証フローかどうかを判定するプロパティ ★★★
     val isReAuthFlow: Boolean = initialInstanceUrl != null
 
     init {
-        // ★★★ もし初期URLが渡されていたら（＝再認証フローなら）、自動で認証を開始 ★★★
         if (isReAuthFlow) {
             println("再認証フローを自動開始します: $initialInstanceUrl")
             onAppRegisterClicked()
         }
 
-        // コールバックURIの監視はそのまま
         viewModelScope.launch {
             MastodonAuthHolder.uriFlow.collect { uri ->
                 val code = uri.getQueryParameter("code")
                 if (code != null) {
-                    // 認可コードがあれば、手動テストと同じ処理を呼び出す
                     handleMastodonAuth(code)
                 }
             }
+        }
+    }
+
+    // ★★★ 追加：UIから呼び出される新しい司令塔 ★★★
+    fun onInstanceSubmitted() {
+        viewModelScope.launch {
+            // 1. まずUIに「キーボードを隠せ」と命令する
+            _eventFlow.emit(MastodonInstanceEvent.HideKeyboard)
+            // 2. その後、実際の認証処理を開始する
+            onAppRegisterClicked()
         }
     }
 
@@ -69,21 +72,20 @@ class MastodonInstanceViewModel(
         _uiState.update { it.copy(instanceUrl = newUrl, error = null) }
     }
 
-
     // 「次へ」ボタン（アプリ登録）の処理
     fun onAppRegisterClicked() {
+        // この関数は private にしても良いですが、一旦 public のままにしておきます
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             val url = _uiState.value.instanceUrl.trim().removeSuffix("/")
 
+            // アプリ登録に成功したらブラウザへ遷移
             val response = mastodonApi.registerApp(url)
             if (response != null) {
-                // 成功した場合、次のステップのために情報を保管庫に保存
                 MastodonAuthHolder.instanceUrl = url
                 MastodonAuthHolder.clientId = response.clientId
                 MastodonAuthHolder.clientSecret = response.clientSecret
 
-                // 認可URLを組み立て
                 val authUrl = "https://${url}/oauth/authorize?response_type=code&client_id=${response.clientId}&scope=read:statuses%20read:accounts&redirect_uri=logleaf://callback"
                 _eventFlow.emit(MastodonInstanceEvent.NavigateToBrowser(authUrl))
             } else {

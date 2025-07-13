@@ -10,9 +10,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -25,6 +23,7 @@ import com.example.logleaf.db.AppDatabase
 import com.example.logleaf.ui.components.BottomNavigationBar
 import com.example.logleaf.ui.screens.AccountScreen
 import com.example.logleaf.ui.screens.AccountViewModel
+import com.example.logleaf.ui.screens.BlueskyViewModelFactory
 import com.example.logleaf.ui.screens.CalendarScreen
 import com.example.logleaf.ui.screens.LoginScreen
 import com.example.logleaf.ui.screens.MastodonInstanceScreen
@@ -160,14 +159,25 @@ fun MainScreen(
                 )
             }
             composable("sns_select") { SnsSelectScreen(navController = navController) }
+
             composable("login") {
+                // SessionManagerはこのNavHostよりも上位のスコープで
+                // 生成・保持されていることを想定しています。
+                val blueskyApi = BlueskyApi(sessionManager)
+
+                // ViewModelを生成します
+                val viewModel: BlueskyLoginViewModel = viewModel(
+                    factory = BlueskyViewModelFactory(blueskyApi)
+                )
+
+                // LoginScreenに生成したViewModelを渡します
                 LoginScreen(
-                    onLoginSuccess = { navController.popBackStack() },
-                    blueskyApi = BlueskyApi(sessionManager),
                     navController = navController,
+                    viewModel = viewModel,
                     screenTitle = "Bluesky ログイン"
                 )
             }
+
             composable("mastodon_instance?instanceUrl={instanceUrl}", arguments = listOf(navArgument("instanceUrl") { type = NavType.StringType; nullable = true })) { backStackEntry ->
                 val instanceUrl = backStackEntry.arguments?.getString("instanceUrl")
                 val mastodonViewModel: MastodonInstanceViewModel = viewModel(

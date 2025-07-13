@@ -1,62 +1,80 @@
 package com.example.logleaf.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import android.widget.Toast
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.HelpOutline // ★★★ ヘルプアイコンをインポート
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet // ★★★ ボトムシート関連をインポート
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.outlined.HelpOutline
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalUriHandler // ★★★ リンクを開くためにインポート
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavController
 import com.example.logleaf.BlueskyApi
 import com.example.logleaf.R
+import com.example.logleaf.BlueskyLoginEvent
+import com.example.logleaf.BlueskyLoginViewModel
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+
+// ViewModelを生成するためのFactoryクラスは変更なし
+class BlueskyViewModelFactory(private val blueskyApi: BlueskyApi) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(BlueskyLoginViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return BlueskyLoginViewModel(blueskyApi) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
-    onLoginSuccess: () -> Unit,
-    blueskyApi: BlueskyApi,
-    navController: NavController? = null,
-    screenTitle: String = "Blueskyにログイン" // デフォルトのタイトルをより具体的に
+    navController: NavController,
+    viewModel: BlueskyLoginViewModel,
+    screenTitle: String = "Blueskyにログイン"
 ) {
-    var handle by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(false) }
+    val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    var passwordVisible by remember { mutableStateOf(false) }
 
-    // ★★★ ボトムシートの状態管理と操作のための設定
+    // (LaunchedEffectは変更なし)
+    LaunchedEffect(Unit) {
+        viewModel.eventFlow.collectLatest { event ->
+            when (event) {
+                is BlueskyLoginEvent.LoginSuccess -> {
+                    navController.popBackStack("accounts", inclusive = false)
+                }
+                is BlueskyLoginEvent.LoginFailed -> {
+                    Toast.makeText(context, event.message, Toast.LENGTH_LONG).show()
+                }
+                is BlueskyLoginEvent.HideKeyboard -> {
+                    focusManager.clearFocus()
+                }
+            }
+        }
+    }
+
     val sheetState = rememberModalBottomSheetState()
-    val scope = rememberCoroutineScope()
     var showBottomSheet by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val uriHandler = LocalUriHandler.current
     val blueskyHelpUrl = "https://bsky.app/settings/app-passwords"
 
@@ -68,7 +86,6 @@ fun LoginScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    // 上下に直接余白を指定する
                     .padding(start = 24.dp, end = 24.dp, top = 32.dp, bottom = 60.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -106,19 +123,16 @@ fun LoginScreen(
         }
     }
 
-
     Scaffold(
         topBar = {
-            if (navController != null) {
-                TopAppBar(
-                    title = { Text(screenTitle) },
-                    navigationIcon = {
-                        IconButton(onClick = { navController.popBackStack() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "戻る")
-                        }
+            TopAppBar(
+                title = { Text(screenTitle) },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "戻る")
                     }
-                )
-            }
+                }
+            )
         }
     ) { padding ->
         Column(
@@ -129,10 +143,8 @@ fun LoginScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
-            // ★★★ 上側のスペーサー。残りの空間を押し上げる役割
+            // (IconやハンドルのTextFieldは変更なし)
             Spacer(modifier = Modifier.weight(0.6f))
-
-            // --- ここからが中央に配置したいコンテンツ群 ---
             Icon(
                 painter = painterResource(id = R.drawable.ic_bluesky),
                 contentDescription = "Bluesky Logo",
@@ -140,68 +152,69 @@ fun LoginScreen(
                 modifier = Modifier.size(80.dp)
             )
             Spacer(Modifier.height(32.dp))
-
-            // 初回起動時のテキスト (このロジックは変更なし)
-            if (navController == null) {
-                Text("LogLeafへようこそ", style = MaterialTheme.typography.headlineLarge)
-                Spacer(Modifier.height(32.dp))
-            }
-
             OutlinedTextField(
-                value = handle,
-                onValueChange = { handle = it },
+                value = uiState.handle,
+                onValueChange = { viewModel.onHandleChange(it) },
                 label = { Text("ハンドル名") },
-                placeholder = { Text("example.bsky.social") },
                 modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large,
-                singleLine = true
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                keyboardActions = KeyboardActions(onNext = {
+                    focusManager.moveFocus(FocusDirection.Down)
+                })
             )
             Spacer(Modifier.height(16.dp))
 
             OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
+                value = uiState.password,
+                onValueChange = { viewModel.onPasswordChange(it) },
                 label = { Text("アプリパスワード") },
                 modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large,
-                visualTransformation = PasswordVisualTransformation(),
+                singleLine = true,
+                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                // ★★★ ここを修正：2つのアイコンをRowで囲む ★★★
                 trailingIcon = {
-                    IconButton(onClick = { showBottomSheet = true }) {
-                        Icon(
-                            imageVector = Icons.Outlined.HelpOutline,
-                            contentDescription = "アプリパスワードとは？"
-                        )
+                    Row {
+                        // ヘルプアイコン
+                        IconButton(onClick = { showBottomSheet = true }) {
+                            Icon(
+                                imageVector = Icons.Outlined.HelpOutline,
+                                contentDescription = "アプリパスワードとは？"
+                            )
+                        }
+                        // パスワード表示切替アイコン
+                        val image = if (passwordVisible)
+                            Icons.Filled.Visibility
+                        else Icons.Filled.VisibilityOff
+                        val description = if (passwordVisible) "パスワードを非表示にする" else "パスワードを表示する"
+                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                            Icon(imageVector = image, description)
+                        }
                     }
-                }
+                },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = {
+                    viewModel.onLoginSubmitted()
+                })
             )
             Spacer(Modifier.height(32.dp))
 
-            if (isLoading) {
+            // (Button以下の部分は変更なし)
+            if (uiState.isLoading) {
                 CircularProgressIndicator()
             } else {
                 Button(
                     onClick = {
-                        isLoading = true
-                        scope.launch {
-                            val success = blueskyApi.login(handle.trim(), password.trim())
-                            isLoading = false
-                            if (success) {
-                                onLoginSuccess()
-                            }
-                        }
+                        viewModel.onLoginSubmitted()
                     },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(50.dp),
-                    shape = MaterialTheme.shapes.large,
-                    enabled = handle.isNotBlank() && password.isNotBlank()
+                    enabled = uiState.handle.isNotBlank() && uiState.password.isNotBlank()
                 ) {
                     Text("ログイン", style = MaterialTheme.typography.bodyLarge)
                 }
             }
-            // --- ここまでが中央に配置したいコンテンツ群 ---
-
-            // ★★★ 下側のスペーサー。上のスペーサーと協力してフォームを中央に押しやる
             Spacer(modifier = Modifier.weight(1.4f))
         }
     }
