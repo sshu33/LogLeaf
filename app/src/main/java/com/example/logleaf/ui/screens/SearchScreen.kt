@@ -17,57 +17,69 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.logleaf.Post
 import com.example.logleaf.R
 import com.example.logleaf.ui.components.SearchResultPostItem
 import com.example.logleaf.ui.theme.SnsType
+import java.time.format.DateTimeFormatter
 
 // ViewModelを引数で受け取る
 @Composable
 fun SearchScreen(
     viewModel: SearchViewModel,
-    // onPostClick: (Post) -> Unit // 将来的に投稿詳細画面に遷移する場合
 ) {
-    // ViewModelからStateを収集
+    // ViewModelからStateを収集 (ここは変更なし)
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedSns by viewModel.selectedSns.collectAsState()
-    // searchResultPostsはFlowなので、collectAsStateでStateに変換する
     val searchResultPosts by viewModel.searchResultPosts.collectAsState(initial = emptyList())
 
+    // ★★★ ここからが、我々が調整した新しい骨格です ★★★
     Scaffold(
         topBar = {
-            // 画面上部の検索バーやフィルターを配置するエリア
-            SearchTopBar(
-                query = searchQuery,
-                onQueryChanged = viewModel::onQueryChanged,
-                selectedSns = selectedSns,
-                onSnsFilterChanged = viewModel::onSnsFilterChanged,
-                onReset = viewModel::onReset
-            )
+            // TopBarをColumnで囲み、上の余白を追加
+            Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                SearchTopBar(
+                    query = searchQuery,
+                    onQueryChanged = viewModel::onQueryChanged,
+                    selectedSns = selectedSns,
+                    onSnsFilterChanged = viewModel::onSnsFilterChanged,
+                    onReset = viewModel::onReset
+                )
+            }
         }
     ) { paddingValues ->
-        // 検索結果のリスト表示
-        Column(modifier = Modifier.padding(paddingValues)) {
-            if (searchQuery.isNotBlank() && searchResultPosts.isEmpty()) {
-                // 何か検索しているのに結果が0件の場合
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("投稿が見つかりませんでした。")
-                }
-            } else {
-
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // items(...) の中を修正
-                    items(searchResultPosts) { post ->
-                        // 新しく作った SearchResultPostItem を呼び出す
-                        SearchResultPostItem(post = post)
-                    }
+        // ★ リスト表示部分も、新しいものに置き換え ★
+        if (searchQuery.isNotBlank() && searchResultPosts.isEmpty()) {
+            // 結果が0件の場合の表示 (ここは変更なし)
+            // ただし、背景色だけはリストと合わせる
+            Box(
+                modifier = Modifier
+                    .padding(paddingValues)
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surfaceVariant), // 背景色を追加
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "投稿が見つかりませんでした。",
+                    // テキストカラーも背景色に合わせる
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            // ★ こちらがメインのリスト表示 ★
+            LazyColumn(
+                modifier = Modifier
+                    .padding(paddingValues)
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surfaceVariant), // 背景色を設定
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(searchResultPosts) { post ->
+                    // ★ 新しく移植した SearchResultItem を呼び出す！ ★
+                    SearchResultItem(post = post)
                 }
             }
         }
@@ -188,6 +200,63 @@ fun SearchTopBar(
                     contentDescription = "Reset Search",
                     modifier = Modifier.size(28.dp),
                     tint = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun SearchResultItem(
+    post: Post
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        // ★★★ ここがポイント！ ★★★
+        // カードの直接の子であるRowに、カード全体の内部余白を設定します。
+        Row(
+            modifier = Modifier
+                // このpaddingが、カードの縁と中身全体の間の余白になります。
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .height(IntrinsicSize.Min)
+        ) {
+            // カラーバー
+            Box(
+                modifier = Modifier
+                    .width(5.dp)
+                    .fillMaxHeight()
+                    .background(post.source.brandColor)
+            )
+
+            // カラーバーとテキストの間の明確なスペース
+            Spacer(modifier = Modifier.width(16.dp))
+
+            // テキスト部分をColumnでまとめる
+            // こちらのColumnにはもうpaddingは不要です。
+            Column {
+                // 日付表示
+                Text(
+                    text = post.createdAt.format(DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm")),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+
+                // スペース
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // 投稿本文
+                Text(
+                    text = post.text,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    // ★★★ 以下の2行を追加 ★★★
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
