@@ -1,8 +1,13 @@
 package com.example.logleaf.ui.screens
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -21,6 +26,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -29,6 +35,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -46,13 +53,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.logleaf.Post
 import com.example.logleaf.UiState
+import kotlinx.coroutines.delay
 import java.time.LocalDate
 import java.time.Month
 import java.time.YearMonth
@@ -64,15 +74,11 @@ import java.util.Locale
 fun CalendarScreen(
     uiState: UiState,
     initialDateString: String? = null,
+    targetPostId: String? = null, // ★★★ この引数を追加 ★★★
     navController: NavController,
-    // selectedDateはもう不要なので削除
     onRefresh: () -> Unit,
     isRefreshing: Boolean
 ) {
-    // ----------------------------------------------------
-    // ★★★ ここからが新しいロジックです ★★★
-    // ----------------------------------------------------
-
     // 1. 初期日付を決定する (遷移元から渡された日付 or 今日)
     val initialDate = remember(initialDateString) {
         if (initialDateString != null) {
@@ -88,17 +94,27 @@ fun CalendarScreen(
 
     // 2. ユーザーがカレンダー上で選択している日付の状態を管理する
     var selectedDate by remember { mutableStateOf(initialDate) }
+    val listState = rememberLazyListState()
+    var focusedPostIdForRipple by remember { mutableStateOf<String?>(null) }
 
-    // 3. 画面が表示された時に一度だけ、初期日付を反映させる
-    //    (initialDateStringが変わった時も再実行される)
-    LaunchedEffect(initialDate) {
+// スクロール完了後のアニメーション実行
+    LaunchedEffect(initialDate, uiState.allPosts, targetPostId) {
         selectedDate = initialDate
+
+        if (targetPostId != null) {
+            val postsForDay = uiState.allPosts.filter {
+                it.createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate() == initialDate
+            }
+            val index = postsForDay.indexOfFirst { it.id == targetPostId }
+
+            if (index != -1) {
+                // スクロールを実行
+                listState.animateScrollToItem(index)
+                // ★ リップルを出す対象をセット
+                focusedPostIdForRipple = targetPostId
+            }
+        }
     }
-
-    // ----------------------------------------------------
-    // ★★★ ここまでは新しいロジックです ★★★
-    // ----------------------------------------------------
-
 
     // 選択された日付の投稿をフィルタリング (ここは変更なし)
     val postsForSelectedDay = uiState.allPosts.filter {
@@ -139,11 +155,15 @@ fun CalendarScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
+                    state = listState, // ★★★ 3. この行を追加 ★★★
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp)
                 ) {
                     items(postsForSelectedDay, key = { post -> post.id }) { post ->
-                        CalendarPostCardItem(post = post)
+                        CalendarPostCardItem(
+                            post = post,
+                            isFocused = (post.id == focusedPostIdForRipple) // ← 正しい名前に修正
+                        )
                     }
                 }
             }
@@ -349,24 +369,45 @@ fun DayCell(day: Int, colors: List<Color>, isSelected: Boolean, height: Dp, onCl
 
 
 @Composable
-fun CalendarPostCardItem(post: Post) {
+fun CalendarPostCardItem(
+    post: Post,
+    isFocused: Boolean
+) {
     val localDateTime = post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
     val timeString = localDateTime.format(DateTimeFormatter.ofPattern("HH:mm"))
 
-    // --- タイムライン画面と同じスタイルのCardで全体を囲む ---
+    val interactionSource = remember { MutableInteractionSource() }
+
+    LaunchedEffect(isFocused) {
+        if (isFocused) {
+            val press = PressInteraction.Press(Offset.Zero)
+            interactionSource.emit(press)
+            delay(150)
+            interactionSource.emit(PressInteraction.Release(press))
+        }
+    }
+
     Card(
-        modifier = Modifier.fillMaxWidth(), // PaddingはLazyColumn側で制御
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = interactionSource,
+                indication = rememberRipple(),
+                onClick = {}
+            ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(12.dp),
+        // ★★★ この colors の設定が復活しました ★★★
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = Color.White, // 背景を白に固定
+            contentColor = MaterialTheme.colorScheme.onSurface // 文字色を黒系に固定
         )
     ) {
-        // --- ここから下は元のCalendarPostRowのレイアウトとほぼ同じ ---
+        // --- ここから下のレイアウトは変更なし ---
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp) // カードの内側の余白
+                .padding(horizontal = 16.dp, vertical = 12.dp)
                 .height(IntrinsicSize.Min),
             verticalAlignment = Alignment.Top
         ) {
@@ -381,7 +422,6 @@ fun CalendarPostCardItem(post: Post) {
                     modifier = Modifier
                         .width(4.dp)
                         .fillMaxHeight()
-                        // ★ post.source.brandColor に統一
                         .background(post.source.brandColor)
                 )
                 Text(

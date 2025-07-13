@@ -133,14 +133,30 @@ fun MainScreen(
                 )
             }
 
-            composable("calendar?date={date}", arguments = listOf(navArgument("date") { type = NavType.StringType; nullable = true })) { backStackEntry ->
+            composable(
+                route = "calendar?date={date}&postId={postId}",
+                arguments = listOf(
+                    navArgument("date") {
+                        type = NavType.StringType
+                        nullable = true
+                    },
+                    // ★★★ postIdの定義を追加 ★★★
+                    navArgument("postId") {
+                        type = NavType.StringType
+                        nullable = true
+                    }
+                )
+            ) { backStackEntry ->
                 val dateString = backStackEntry.arguments?.getString("date")
+                val postId = backStackEntry.arguments?.getString("postId") // ★★★ postIdを取得 ★★★
                 CalendarScreen(
                     uiState = uiState,
                     initialDateString = dateString,
+                    // ★★★ postIdを渡す ★★★
+                    targetPostId = postId,
                     navController = navController,
                     onRefresh = mainViewModel::refreshPosts,
-                    isRefreshing = uiState.isRefreshing // ★ 追加
+                    isRefreshing = uiState.isRefreshing
                 )
             }
 
@@ -202,10 +218,10 @@ fun MainScreen(
                 SearchScreen(
                     viewModel = searchViewModel,
                     onPostClick = { post ->
-                        // クリックされた投稿の日付を "YYYY-MM-DD" 形式の文字列にする
                         val date = post.createdAt.toLocalDate().toString()
-                        // その日付を引数として渡し、カレンダー画面へ遷移する
-                        navController.navigate("calendar?date=$date")
+                        val postId = post.id // ★ postIdを取得
+                        // ★ postIdも一緒に渡すように修正
+                        navController.navigate("calendar?date=$date&postId=$postId")
                     }
                 )
             }
