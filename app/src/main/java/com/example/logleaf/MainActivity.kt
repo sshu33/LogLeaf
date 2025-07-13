@@ -98,129 +98,109 @@ fun MainScreen(
 ) {
     val navController = rememberNavController()
 
-    // ↓↓↓ ここで一度だけ、dbとdaoを生成します ↓↓↓
     val context = LocalContext.current
     val db = remember { AppDatabase.getDatabase(context) }
     val postDao = remember { db.postDao() }
 
-    // ★★★ MainViewModelの生成部分を修正 ★★★
+    // --- MainViewModelの生成 (変更なし) ---
     val mainViewModel: MainViewModel = viewModel(
         factory = MainViewModel.provideFactory(
             blueskyApi = BlueskyApi(sessionManager),
             mastodonApi = MastodonApi(),
             sessionManager = sessionManager,
-            postDao = postDao // ← ここで postDao を渡す！
+            postDao = postDao
         )
     )
     val uiState by mainViewModel.uiState.collectAsState()
     val showSettingsBadge by mainViewModel.showSettingsBadge.collectAsState()
 
+
+    // ★★★ ここがポイント！ ★★★
+    // SearchViewModelを、NavHostの外側で、MainViewModelと同じ場所で生成します。
+    val searchViewModel: SearchViewModel = viewModel(
+        factory = SearchViewModel.provideFactory(
+            postDao = postDao
+        )
+    )
+
+
     Scaffold(
         bottomBar = { BottomNavigationBar(navController = navController, showSettingsBadge = showSettingsBadge) }
     ) { innerPadding ->
-        // NavHostにはViewModelを渡さない
         NavHost(
             navController = navController,
             startDestination = "calendar",
             modifier = Modifier.padding(innerPadding)
         ) {
 
+            // ... (timeline, calendar, accounts, settingsなどのcomposableは変更なし) ...
             composable("timeline") {
                 TimelineScreen(
                     uiState = uiState,
-                    onRefresh = mainViewModel::refreshPosts, // ★ NEW: この行を追加
+                    onRefresh = mainViewModel::refreshPosts,
                     navController = navController
                 )
             }
-
             composable(
                 route = "calendar?date={date}&postId={postId}",
                 arguments = listOf(
-                    navArgument("date") {
-                        type = NavType.StringType
-                        nullable = true
-                    },
-                    // ★★★ postIdの定義を追加 ★★★
-                    navArgument("postId") {
-                        type = NavType.StringType
-                        nullable = true
-                    }
+                    navArgument("date") { type = NavType.StringType; nullable = true },
+                    navArgument("postId") { type = NavType.StringType; nullable = true }
                 )
             ) { backStackEntry ->
                 val dateString = backStackEntry.arguments?.getString("date")
-                val postId = backStackEntry.arguments?.getString("postId") // ★★★ postIdを取得 ★★★
+                val postId = backStackEntry.arguments?.getString("postId")
                 CalendarScreen(
                     uiState = uiState,
                     initialDateString = dateString,
-                    // ★★★ postIdを渡す ★★★
                     targetPostId = postId,
                     navController = navController,
                     onRefresh = mainViewModel::refreshPosts,
                     isRefreshing = uiState.isRefreshing
                 )
             }
-
             composable("accounts") {
                 val accountViewModel: AccountViewModel = viewModel(
-                    factory = AccountViewModel.provideFactory(
-                        sessionManager = sessionManager // ★ 上で受け取ったSessionManagerを渡す
-                    )
+                    factory = AccountViewModel.provideFactory(sessionManager = sessionManager)
                 )
-                AccountScreen(
-                    viewModel = accountViewModel,
-                    navController = navController
-                )
+                AccountScreen(viewModel = accountViewModel, navController = navController)
             }
             composable("settings") {
-                // ★★★ ここで、NavHostの外で定義した状態(showSettingsBadge)を渡す ★★★
                 SettingsScreen(
                     navController = navController,
                     onLogout = onLogout,
                     showAccountBadge = showSettingsBadge
                 )
             }
-
-            composable("sns_select") {
-                SnsSelectScreen(navController = navController)
-            }
-
+            composable("sns_select") { SnsSelectScreen(navController = navController) }
             composable("login") {
                 LoginScreen(
                     onLoginSuccess = { navController.popBackStack() },
-                    blueskyApi = BlueskyApi(sessionManager), // ★ 上で受け取ったSessionManagerを渡す
+                    blueskyApi = BlueskyApi(sessionManager),
                     navController = navController,
                     screenTitle = "Bluesky ログイン"
                 )
             }
-
             composable("mastodon_instance?instanceUrl={instanceUrl}", arguments = listOf(navArgument("instanceUrl") { type = NavType.StringType; nullable = true })) { backStackEntry ->
                 val instanceUrl = backStackEntry.arguments?.getString("instanceUrl")
                 val mastodonViewModel: MastodonInstanceViewModel = viewModel(
                     factory = MastodonInstanceViewModel.provideFactory(
                         mastodonApi = MastodonApi(),
-                        sessionManager = sessionManager, // ★ 上で受け取ったSessionManagerを渡す
+                        sessionManager = sessionManager,
                         initialInstanceUrl = instanceUrl
                     )
                 )
-                MastodonInstanceScreen(
-                    navController = navController,
-                    viewModel = mastodonViewModel
-                )
+                MastodonInstanceScreen(navController = navController, viewModel = mastodonViewModel)
             }
-
+            // ★★★ ここもポイント！ ★★★
             composable("search") {
-                val searchViewModel: SearchViewModel = viewModel(
-                    factory = SearchViewModel.provideFactory(
-                        postDao = postDao
-                    )
-                )
-                // ★★★ ここからが修正箇所です ★★★
+                // NavHostの外で生成したsearchViewModelを、ここに渡すだけ。
+                // ここで新しく生成しない！
                 SearchScreen(
                     viewModel = searchViewModel,
                     onPostClick = { post ->
                         val date = post.createdAt.toLocalDate().toString()
-                        val postId = post.id // ★ postIdを取得
-                        // ★ postIdも一緒に渡すように修正
+                        val postId = post.id
                         navController.navigate("calendar?date=$date&postId=$postId")
                     }
                 )

@@ -44,12 +44,12 @@ import androidx.navigation.NavController
 import com.example.logleaf.DayLog
 import com.example.logleaf.UiState
 import com.example.logleaf.ui.theme.GrayLimeGreen
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-// OptInは、ExperimentalMaterial3ApiだけでOK
-@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun TimelineScreen(
     uiState: UiState,
@@ -58,6 +58,7 @@ fun TimelineScreen(
 ) {
     val pullToRefreshState = rememberPullToRefreshState()
 
+    // --- ここから下のロジックは、以前とほとんど変わりません ---
     LaunchedEffect(uiState.isRefreshing) {
         if (uiState.isRefreshing) {
             pullToRefreshState.startRefresh()
@@ -74,17 +75,23 @@ fun TimelineScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Timeline") }
-            )
+            TopAppBar(title = { Text("Timeline") })
         },
-        containerColor = MaterialTheme.colorScheme.surfaceVariant, // 薄いグレー系の色
-        content = { innerPadding ->
+        containerColor = MaterialTheme.colorScheme.surfaceVariant
+    ) { innerPadding ->
+        // 1. まず、背景となるBoxを配置し、Scaffoldのpaddingを適用
+        Box(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+        ) {
+            // 2. その上に、PullToRefreshの連携を持つBoxを重ねる
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .nestedScroll(pullToRefreshState.nestedScrollConnection)
             ) {
+                // LazyColumnは、ここにある
                 if (uiState.isLoading) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()
@@ -98,20 +105,18 @@ fun TimelineScreen(
                         it.date.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH))
                     }
 
-                    val topPadding = innerPadding.calculateTopPadding()
-                    val bottomPadding = innerPadding.calculateBottomPadding()
+                    // ★ ソート順の問題を解決するためのロジック（念のため再掲）
+                    val sortedMonthKeys = groupedByMonth.keys.sortedByDescending { monthKey ->
+                        YearMonth.parse(monthKey, DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH))
+                    }
 
                     LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            // 1. LazyColumn全体をTopAppBar分だけ下げる
-                            .padding(top = topPadding),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        // 2. リストの中身の末尾にだけ、BottomNavBar分のパディングを適用
-                        contentPadding = PaddingValues(bottom = bottomPadding)
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        sortedMonthKeys.forEach { month ->
+                            val logsInMonth = groupedByMonth[month] ?: emptyList()
 
-                        groupedByMonth.forEach { (month, logsInMonth) ->
                             stickyHeader {
                                 Text(
                                     text = month,
@@ -125,7 +130,8 @@ fun TimelineScreen(
                                     textAlign = TextAlign.End
                                 )
                             }
-                            items(logsInMonth, key = { it.date }) { dayLog ->
+                            // ★ 日付のソートもここで再度行う
+                            items(logsInMonth.sortedByDescending { it.date }, key = { it.date }) { dayLog ->
                                 PostItem(
                                     dayLog = dayLog,
                                     onClick = {
@@ -136,14 +142,15 @@ fun TimelineScreen(
                         }
                     }
                 }
-
-                PullToRefreshContainer(
-                    state = pullToRefreshState,
-                    modifier = Modifier.align(Alignment.TopCenter),
-                )
             }
+
+            // 3. PullToRefreshContainerを、nestedScrollを持つBoxの外側に配置
+            PullToRefreshContainer(
+                state = pullToRefreshState,
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
         }
-    )
+    }
 }
 
 @Composable

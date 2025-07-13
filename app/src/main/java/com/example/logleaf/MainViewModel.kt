@@ -140,16 +140,26 @@ class MainViewModel(
         if (posts.isEmpty()) {
             return emptyList()
         }
+
+        // 1. 日付でグループ化する (この時点では順序は保証されない)
         val groupedByDate: Map<LocalDate, List<Post>> = posts.groupBy { post ->
             post.createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate()
         }
+
+        // 2. DayLogのリストに変換する
         return groupedByDate.map { (date, postList) ->
+            // ★ 各日の投稿リストを、ここで明確に「新しい順」にソートする
+            val sortedPostList = postList.sortedByDescending { it.createdAt }
+
+            // ★ ソート後のリストの「最初の投稿」を代表として選ぶ
             DayLog(
                 date = date,
-                firstPost = postList.firstOrNull(),
+                firstPost = sortedPostList.firstOrNull(),
                 totalPosts = postList.size
             )
-        }.sortedBy { it.date }
+        }
+            // 3. 最後に、DayLogのリスト全体を「日付の新しい順」に並べ替える
+            .sortedByDescending { it.date }
     }
 
     companion object {
