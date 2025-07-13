@@ -150,7 +150,7 @@ fun CalendarScreen(
         ) {
             if (postsForSelectedDay.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("この日の投稿はありません")
+                    Text(" ")
                 }
             } else {
                 LazyColumn(

@@ -58,7 +58,6 @@ fun TimelineScreen(
 ) {
     val pullToRefreshState = rememberPullToRefreshState()
 
-    // --- ここから下のロジックは、以前とほとんど変わりません ---
     LaunchedEffect(uiState.isRefreshing) {
         if (uiState.isRefreshing) {
             pullToRefreshState.startRefresh()
@@ -79,75 +78,68 @@ fun TimelineScreen(
         },
         containerColor = MaterialTheme.colorScheme.surfaceVariant
     ) { innerPadding ->
-        // 1. まず、背景となるBoxを配置し、Scaffoldのpaddingを適用
         Box(
             modifier = Modifier
-                .padding(innerPadding)
                 .fillMaxSize()
+                .nestedScroll(pullToRefreshState.nestedScrollConnection)
         ) {
-            // 2. その上に、PullToRefreshの連携を持つBoxを重ねる
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .nestedScroll(pullToRefreshState.nestedScrollConnection)
-            ) {
-                // LazyColumnは、ここにある
-                if (uiState.isLoading) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
-                } else if (uiState.dayLogs.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("投稿がありません")
-                    }
-                } else {
-                    val groupedByMonth = uiState.dayLogs.groupBy {
-                        it.date.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH))
-                    }
+            if (uiState.isLoading) {
+                Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (uiState.dayLogs.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
+                    Text("投稿がありません")
+                }
+            } else {
+                val groupedByMonth = uiState.dayLogs.groupBy {
+                    YearMonth.from(it.date)
+                }
 
-                    // ★ ソート順の問題を解決するためのロジック（念のため再掲）
-                    val sortedMonthKeys = groupedByMonth.keys.sortedByDescending { monthKey ->
-                        YearMonth.parse(monthKey, DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH))
-                    }
-
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        sortedMonthKeys.forEach { month ->
-                            val logsInMonth = groupedByMonth[month] ?: emptyList()
-
-                            stickyHeader {
-                                Text(
-                                    text = month,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.Black,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                                    textAlign = TextAlign.End
-                                )
-                            }
-                            // ★ 日付のソートもここで再度行う
-                            items(logsInMonth.sortedByDescending { it.date }, key = { it.date }) { dayLog ->
-                                PostItem(
-                                    dayLog = dayLog,
-                                    onClick = {
-                                        navController.navigate("calendar?date=${dayLog.date}")
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = innerPadding,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    groupedByMonth.forEach { (yearMonth, logsInMonth) ->
+                        stickyHeader {
+                            val monthString = yearMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH))
+                            Text(
+                                text = monthString,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                textAlign = TextAlign.End
+                            )
+                        }
+                        items(logsInMonth, key = { it.date }) { dayLog ->
+                            PostItem(
+                                dayLog = dayLog,
+                                // ★★★ ここが最重要の修正箇所です ★★★
+                                onClick = {
+                                    // クリックされた投稿(firstPost)がnullでないことを確認
+                                    dayLog.firstPost?.let { post ->
+                                        val date = dayLog.date.toString()
+                                        val postId = post.id
+                                        // 日付と投稿IDの両方を渡してナビゲーション！
+                                        navController.navigate("calendar?date=$date&postId=$postId")
                                     }
-                                )
-                            }
+                                }
+                            )
                         }
                     }
                 }
             }
 
-            // 3. PullToRefreshContainerを、nestedScrollを持つBoxの外側に配置
             PullToRefreshContainer(
                 state = pullToRefreshState,
-                modifier = Modifier.align(Alignment.TopCenter)
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = innerPadding.calculateTopPadding())
             )
         }
     }

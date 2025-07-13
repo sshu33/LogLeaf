@@ -1,6 +1,7 @@
 package com.example.logleaf
 
 import android.text.Html
+import android.util.Log
 import com.example.logleaf.ui.theme.SnsType
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -141,57 +142,66 @@ class MastodonApi {
     /**
      * 特定のMastodonアカウントの投稿を取得する汎用的なメソッド
      */
-    suspend fun getPosts(account: Account.Mastodon): MastodonPostResult { // ← 戻り値を変更
-        val url = "https://${account.instanceUrl}/api/v1/accounts/${account.userId}/statuses"
+    suspend fun getPosts(account: Account.Mastodon): MastodonPostResult {
+        // 最初に取得するURL
+        var url: String? = "https://${account.instanceUrl}/api/v1/accounts/${account.userId}/statuses?limit=40"
+        val allPosts = mutableListOf<Post>()
+        var pageCount = 1
 
         try {
-            val httpResponse: io.ktor.client.statement.HttpResponse = client.get(url) {
-                headers {
-                    append(HttpHeaders.Authorization, "Bearer ${account.accessToken}")
+            // urlがnullになるまで（=次のページがなくなるまで）ループ
+            while (url != null) {
+                Log.d("PAGINATION_DEBUG", "Fetching page $pageCount from: $url")
+
+                val httpResponse: io.ktor.client.statement.HttpResponse = client.get(url) {
+                    headers { append(HttpHeaders.Authorization, "Bearer ${account.accessToken}") }
                 }
-            }
 
-            // ★★★ 応答のステータスコードで分岐 ★★★
-            return when (httpResponse.status.value) {
-                // --- 成功ケース ---
-                in 200..299 -> {
-                    val mastodonStatuses = httpResponse.body<List<MastodonStatus>>()
-                    println("Mastodon投稿取得成功(${account.displayName}): ${mastodonStatuses.size}件")
-                    val posts = mastodonStatuses.map { mastodonStatus ->
-                        val sanitizedText = Html.fromHtml(
-                            mastodonStatus.content,
-                            Html.FROM_HTML_MODE_LEGACY
-                        ).toString()
-
-                        Post(
-                            id = mastodonStatus.id,
-                            text = sanitizedText.trim(),
-                            createdAt = ZonedDateTime.parse(mastodonStatus.createdAt),
-                            source = SnsType.MASTODON
-                        )
+                if (!httpResponse.status.isSuccess()) {
+                    // 途中でエラーが起きたら、それまでの結果を返すか、エラーとして処理するか
+                    return when (httpResponse.status.value) {
+                        401 -> MastodonPostResult.TokenInvalid
+                        else -> MastodonPostResult.Error("HTTP ${httpResponse.status.value}")
                     }
-                    MastodonPostResult.Success(posts) // Successの箱に入れて返す
                 }
 
-                // --- トークン無効ケース ---
-                401 -> {
-                    println("Mastodon投稿取得失敗(${account.displayName}): トークン無効 (401)")
-                    MastodonPostResult.TokenInvalid // TokenInvalidの箱に入れて返す
+                val mastodonStatuses = httpResponse.body<List<MastodonStatus>>()
+
+                // もし取得した投稿が空なら、ループを終了
+                if (mastodonStatuses.isEmpty()) {
+                    break
                 }
 
-                // --- その他のエラーケース ---
-                else -> {
-                    val errorBody = httpResponse.body<String>()
-                    val errorMessage = "HTTP ${httpResponse.status.value}: $errorBody"
-                    println("Mastodon投稿取得失敗(${account.displayName}): $errorMessage")
-                    MastodonPostResult.Error(errorMessage) // Errorの箱に入れて返す
+                val posts = mastodonStatuses.map { mastodonStatus ->
+                    val sanitizedText = Html.fromHtml(mastodonStatus.content, Html.FROM_HTML_MODE_LEGACY).toString()
+                    Post(
+                        id = mastodonStatus.id,
+                        text = sanitizedText.trim(),
+                        createdAt = ZonedDateTime.parse(mastodonStatus.createdAt),
+                        source = SnsType.MASTODON
+                    )
+                }
+                allPosts.addAll(posts)
+
+                // --- 次のページのURLを取得 ---
+                // 'Link'ヘッダーを解析 (例: <...>; rel="next", <...>; rel="prev")
+                val linkHeader = httpResponse.headers["Link"]
+                val nextUrlMatch = linkHeader?.split(",")?.find { it.contains("rel=\"next\"") }
+                url = nextUrlMatch?.substringAfter("<")?.substringBefore(">")
+
+                pageCount++
+                // 念のため、無限ループを防ぐ
+                if (pageCount > 25) { // 40件 * 25ページ = 1000件
+                    Log.w("PAGINATION_DEBUG", "Reached page limit (25). Stopping.")
+                    break
                 }
             }
+
+            Log.d("PAGINATION_DEBUG", "Total ${allPosts.size} posts fetched for ${account.displayName}.")
+            return MastodonPostResult.Success(allPosts)
 
         } catch (e: Exception) {
-            println("Mastodon投稿取得処理中に予期せぬ例外が発生(${account.displayName}): ${e.message}")
             e.printStackTrace()
-            // ネットワークエラーなどもその他のエラーとして扱う
             return MastodonPostResult.Error(e.message ?: "不明なネットワークエラー")
         }
     }
