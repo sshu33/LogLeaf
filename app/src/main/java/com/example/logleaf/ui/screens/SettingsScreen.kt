@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Divider
@@ -34,7 +35,7 @@ import com.example.logleaf.ui.theme.NoticeGreen
 fun SettingsScreen(
     navController: NavController,
     onLogout: () -> Unit,
-    showAccountBadge: Boolean
+    showAccountBadge: Boolean,
 ) {
     var showLogoutDialog by remember { mutableStateOf(false) }
 
@@ -49,11 +50,11 @@ fun SettingsScreen(
                 .padding(innerPadding)
         ) {
             SettingsSectionHeader(title = "アカウント")
+
             SettingsMenuItem(
                 icon = Icons.Default.ManageAccounts,
                 title = "アカウント管理",
                 onClick = { navController.navigate("accounts") },
-                // ★★★ statusContentとしてSyncアイコンを渡す ★★★
                 statusContent = {
                     if (showAccountBadge) {
                         Icon(
@@ -66,6 +67,7 @@ fun SettingsScreen(
                 }
             )
             Divider(modifier = Modifier.padding(horizontal = 16.dp))
+
             SettingsMenuItem(
                 icon = Icons.AutoMirrored.Filled.Logout,
                 title = "ログアウト",

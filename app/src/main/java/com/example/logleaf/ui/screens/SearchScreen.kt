@@ -50,21 +50,20 @@ import com.example.logleaf.Post
 import com.example.logleaf.R
 import com.example.logleaf.ui.components.HighlightedText
 import com.example.logleaf.ui.theme.SnsType
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 @Composable
 fun SearchScreen(
     viewModel: SearchViewModel,
-    onPostClick: (Post) -> Unit // ← onPostClickを受け取る口を追加
+    onPostClick: (Post) -> Unit
 ) {
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedSns by viewModel.selectedSns.collectAsState()
     val searchResultPosts by viewModel.searchResultPosts.collectAsState(initial = emptyList())
 
-    // ★★★ ここからが、我々が調整した新しい骨格です ★★★
     Scaffold(
         topBar = {
-            // TopBarをColumnで囲み、上の余白を追加
             Column(modifier = Modifier.padding(vertical = 8.dp)) {
                 SearchTopBar(
                     query = searchQuery,
@@ -76,38 +75,35 @@ fun SearchScreen(
             }
         }
     ) { paddingValues ->
-        // ★ リスト表示部分も、新しいものに置き換え ★
         if (searchQuery.isNotBlank() && searchResultPosts.isEmpty()) {
-            // 結果が0件の場合の表示 (ここは変更なし)
-            // ただし、背景色だけはリストと合わせる
             Box(
                 modifier = Modifier
                     .padding(paddingValues)
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surfaceVariant), // 背景色を追加
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "投稿が見つかりませんでした。",
-                    // テキストカラーも背景色に合わせる
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         } else {
-            // ★ こちらがメインのリスト表示 ★
             LazyColumn(
                 modifier = Modifier
                     .padding(paddingValues)
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surfaceVariant), // 背景色を設定
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // ★★★ ここが最重要の修正箇所 ★★★
                 items(searchResultPosts) { post ->
                     SearchResultItem(
                         post = post,
-                        // ★★★ 検索クエリを渡す ★★★
-                        searchQuery = searchQuery
+                        searchQuery = searchQuery,
+                        // ★ クリック命令を、SearchResultItemに渡す
+                        onClick = { onPostClick(post) }
                     )
                 }
             }
@@ -238,42 +234,32 @@ fun SearchTopBar(
 @Composable
 fun SearchResultItem(
     post: Post,
-    searchQuery: String // 検索クエリを受け取る
+    searchQuery: String,
+    onClick: () -> Unit // ★ クリック命令を受け取る「口」を追加
 ) {
-    // -----------------------------------------------------------------
-    // ★★★ ここからが表示ロジックです ★★★
-    // -----------------------------------------------------------------
-
-    // 1. 検索クエリを単語リストに変換
     val keywords = remember(searchQuery) {
         searchQuery.split(" ", "　").filter { it.isNotBlank() }
     }
-
-    // 2. 表示するテキストを決定する
     val displayText = remember(post.text, keywords) {
-        // キーワードがない場合は、元のテキストをそのまま使う
         if (keywords.isEmpty()) {
             post.text
         } else {
-            // 最初のキーワードが本文のどこにあるか探す
             val firstKeyword = keywords.first()
             val index = post.text.indexOf(firstKeyword, ignoreCase = true)
-
-            // 見つからなかったり、表示範囲内（先頭から約100文字）にある場合は、そのまま
             if (index == -1 || index < 100) {
                 post.text
             } else {
-                // 隠れてしまう場合は、キーワードの少し前から表示を開始し、先頭に "..." を付ける
                 val startIndex = (index - 20).coerceAtLeast(0)
                 "... " + post.text.substring(startIndex)
             }
         }
     }
-    // -----------------------------------------------------------------
-
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        // ★ Card自体をクリック可能にする
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
@@ -288,7 +274,6 @@ fun SearchResultItem(
                     .fillMaxHeight()
                     .background(post.source.brandColor)
             )
-
             Column(
                 modifier = Modifier.padding(
                     start = 16.dp,
@@ -298,14 +283,13 @@ fun SearchResultItem(
                 )
             ) {
                 Text(
-                    text = post.createdAt.format(DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm")),
+                    text = post.createdAt
+                        .withZoneSameInstant(ZoneId.systemDefault()) // 1. 端末のタイムゾーンに変換
+                        .format(DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm")), // 2. その後でフォーマット
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                 )
-
                 Spacer(modifier = Modifier.height(4.dp))
-
-                // ★★★ ここで、新しく作った HighlightedText を使う！ ★★★
                 HighlightedText(
                     text = displayText,
                     keywordsToHighlight = keywords

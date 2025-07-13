@@ -89,7 +89,10 @@ fun TimelineScreen(
                 }
             } else if (uiState.dayLogs.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
-                    Text("投稿がありません")
+                    Text(
+                        text = "投稿がありません",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             } else {
                 val groupedByMonth = uiState.dayLogs.groupBy {

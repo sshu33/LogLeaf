@@ -9,9 +9,10 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -36,89 +37,83 @@ class MainViewModel(
     private val postDao: PostDao
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(UiState())
+    // isLoadingの初期値は「true」のままの方が、UIの初期描画時に安全です。
+    // 代わりに、initのロジックを修正します。
+    private val _uiState = MutableStateFlow(UiState(isLoading = true))
     val uiState = _uiState.asStateFlow()
     private val _showSettingsBadge = MutableStateFlow(false)
     val showSettingsBadge = _showSettingsBadge.asStateFlow()
 
     init {
-        viewModelScope.launch {
-            sessionManager.accountsFlow.collect { accounts ->
-                println("【MainViewModel】アカウント変更を検知。アカウント数: ${accounts.size}")
-                _showSettingsBadge.value = accounts.any { it.needsReauthentication }
+        // ViewModelが生成された瞬間に、初回ロードを開始する
+        loadInitialData()
 
-                // ★ MODIFIED: 初回ロード時のみisLoadingをtrueにする
-                if (_uiState.value.isLoading) {
-                    fetchPosts(accounts, isInitialLoad = true)
-                } else {
-                    // アカウント変更後の自動更新（プルリフレッシュとは別の挙動）
-                    fetchPosts(accounts, isInitialLoad = false)
-                }
+        // アカウントの変更を監視し、バッジ表示や自動更新を行う
+        viewModelScope.launch {
+            // drop(1)で、初回ロード時の重複実行を防ぐ
+            sessionManager.accountsFlow.drop(1).collect { accounts ->
+                println("【MainViewModel】アカウント変更を検知（2回目以降）。自動更新します。")
+                _showSettingsBadge.value = accounts.any { it.needsReauthentication }
+                fetchPosts(accounts, isInitialLoad = false) // isInitialLoadは常にfalse
             }
         }
     }
 
+    // 初回ロード専用の関数
+    private fun loadInitialData() {
+        viewModelScope.launch {
+            // SessionManagerから、最新のアカウント情報を一度だけ取得する
+            val initialAccounts = sessionManager.accountsFlow.first()
+            _showSettingsBadge.value = initialAccounts.any { it.needsReauthentication }
+
+            // 取得したアカウント情報で、初回データ取得を実行
+            println("【MainViewModel】初回データロードを開始します。")
+            fetchPosts(initialAccounts, isInitialLoad = true)
+        }
+    }
+
+    // fetchPosts関数は、以前のあなたのコードに戻します。
+    // isInitialLoadのフラグだけで制御するのが最もシンプルで安全でした。
     private fun fetchPosts(accounts: List<Account>, isInitialLoad: Boolean) {
         viewModelScope.launch {
-            // isInitialLoadがtrueの場合のみ、画面全体のローディングインジケータを出す
             if (isInitialLoad) {
                 _uiState.update { it.copy(isLoading = true) }
             }
-
             try {
                 val postLists = accounts.map { account ->
-                    async(Dispatchers.IO) { // IOスレッドでネットワーク通信
-                        // ★★★ ここからが修正の核心 ★★★
+                    async(Dispatchers.IO) {
                         when (account) {
-                            is Account.Bluesky -> {
-                                // Blueskyの場合は、とりあえずそのまま投稿リストを返す
-                                blueskyApi.getPostsForAccount(account)
-                            }
-                            is Account.Mastodon -> {
-                                // Mastodonの場合は、まずAPIの結果を受け取る
-                                when (val result = mastodonApi.getPosts(account)) {
-                                    is MastodonPostResult.Success -> {
-                                        // 成功なら投稿リストを返す
-                                        result.posts
-                                    }
+                            is Account.Bluesky -> blueskyApi.getPostsForAccount(account)
+                            is Account.Mastodon -> mastodonApi.getPosts(account).let { result ->
+                                when (result) {
+                                    is MastodonPostResult.Success -> result.posts
                                     is MastodonPostResult.TokenInvalid -> {
-                                        // トークン無効なら、SessionManagerに通知し、空のリストを返す
                                         sessionManager.markAccountForReauthentication(account.userId)
-                                        emptyList<Post>()
+                                        emptyList()
                                     }
                                     is MastodonPostResult.Error -> {
-                                        // その他のエラーも、今回は空のリストを返す
                                         println("Mastodon API Error: ${result.message}")
-                                        emptyList<Post>()
+                                        emptyList()
                                     }
                                 }
                             }
                         }
-
                     }
                 }
-
                 val allPosts = postLists.awaitAll().flatten()
-
                 postDao.insertAll(allPosts)
-
                 val postsFromDb = postDao.getAllPosts().first()
-                val sortedPosts = postsFromDb.sortedByDescending { it.createdAt } // 新しい順
-                val dayLogs = groupPostsByDay(sortedPosts)
-
-                // 手順4: UIの状態を更新
+                val dayLogs = groupPostsByDay(postsFromDb)
                 _uiState.update { currentState ->
                     currentState.copy(
                         dayLogs = dayLogs,
-                        allPosts = sortedPosts, // sortedPostsもDB由来のものに
+                        allPosts = postsFromDb, // ここも修正
                         isLoading = false,
                         isRefreshing = false
                     )
                 }
-
             } catch (e: Exception) {
                 println("Error fetching posts: ${e.message}")
-                // ★ MODIFIED: エラー時も両方の状態を解除
                 _uiState.update { it.copy(isLoading = false, isRefreshing = false) }
             }
         }

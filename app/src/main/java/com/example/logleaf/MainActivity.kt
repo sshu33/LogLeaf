@@ -36,6 +36,7 @@ import com.example.logleaf.ui.screens.TimelineScreen
 import com.example.logleaf.ui.theme.LogLeafTheme
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import java.time.ZoneId
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -71,22 +72,15 @@ class MainActivity : ComponentActivity() {
 fun AppEntry(
     onLogout: () -> Unit
 ) {
-
     val context = LocalContext.current
     val sessionManager = remember { SessionManager(context.applicationContext) }
-    var isLoggedIn by remember { mutableStateOf(sessionManager.getAccounts().isNotEmpty()) }
 
-    if (isLoggedIn) {
-        MainScreen(
-            sessionManager = sessionManager,
-            onLogout = onLogout
-        )
-    } else {
-        LoginScreen(
-            onLoginSuccess = { isLoggedIn = true },
-            blueskyApi = BlueskyApi(sessionManager)
-        )
-    }
+    // AppEntryの役割は、MainScreenを呼び出すだけになる
+    MainScreen(
+        sessionManager = sessionManager,
+        onLogout = onLogout,
+        onNavigateToLogin = { /* この命令はMainScreenの中で処理される */ }
+    )
 }
 
 
@@ -94,15 +88,14 @@ fun AppEntry(
 @Composable
 fun MainScreen(
     sessionManager: SessionManager,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onNavigateToLogin: () -> Unit
 ) {
     val navController = rememberNavController()
-
     val context = LocalContext.current
     val db = remember { AppDatabase.getDatabase(context) }
     val postDao = remember { db.postDao() }
 
-    // --- MainViewModelの生成 (変更なし) ---
     val mainViewModel: MainViewModel = viewModel(
         factory = MainViewModel.provideFactory(
             blueskyApi = BlueskyApi(sessionManager),
@@ -111,17 +104,13 @@ fun MainScreen(
             postDao = postDao
         )
     )
+    val searchViewModel: SearchViewModel = viewModel(
+        factory = SearchViewModel.provideFactory(postDao = postDao)
+    )
+
+    // ★★★ この一行が復活しました！ ★★★
     val uiState by mainViewModel.uiState.collectAsState()
     val showSettingsBadge by mainViewModel.showSettingsBadge.collectAsState()
-
-
-    // ★★★ ここがポイント！ ★★★
-    // SearchViewModelを、NavHostの外側で、MainViewModelと同じ場所で生成します。
-    val searchViewModel: SearchViewModel = viewModel(
-        factory = SearchViewModel.provideFactory(
-            postDao = postDao
-        )
-    )
 
 
     Scaffold(
@@ -132,11 +121,9 @@ fun MainScreen(
             startDestination = "calendar",
             modifier = Modifier.padding(innerPadding)
         ) {
-
-            // ... (timeline, calendar, accounts, settingsなどのcomposableは変更なし) ...
             composable("timeline") {
                 TimelineScreen(
-                    uiState = uiState,
+                    uiState = uiState, // これでuiStateを渡せる
                     onRefresh = mainViewModel::refreshPosts,
                     navController = navController
                 )
@@ -151,7 +138,7 @@ fun MainScreen(
                 val dateString = backStackEntry.arguments?.getString("date")
                 val postId = backStackEntry.arguments?.getString("postId")
                 CalendarScreen(
-                    uiState = uiState,
+                    uiState = uiState, // これでuiStateを渡せる
                     initialDateString = dateString,
                     targetPostId = postId,
                     navController = navController,
@@ -169,7 +156,7 @@ fun MainScreen(
                 SettingsScreen(
                     navController = navController,
                     onLogout = onLogout,
-                    showAccountBadge = showSettingsBadge
+                    showAccountBadge = showSettingsBadge,
                 )
             }
             composable("sns_select") { SnsSelectScreen(navController = navController) }
@@ -192,14 +179,14 @@ fun MainScreen(
                 )
                 MastodonInstanceScreen(navController = navController, viewModel = mastodonViewModel)
             }
-            // ★★★ ここもポイント！ ★★★
             composable("search") {
-                // NavHostの外で生成したsearchViewModelを、ここに渡すだけ。
-                // ここで新しく生成しない！
                 SearchScreen(
                     viewModel = searchViewModel,
+                    // ★★★ ここに、正しい画面遷移の命令を書き戻します ★★★
                     onPostClick = { post ->
-                        val date = post.createdAt.toLocalDate().toString()
+                        // ★★★ ここで、日本時間に変換してから日付を取り出す ★★★
+                        val localDate = post.createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate()
+                        val date = localDate.toString()
                         val postId = post.id
                         navController.navigate("calendar?date=$date&postId=$postId")
                     }

@@ -150,7 +150,10 @@ fun CalendarScreen(
         ) {
             if (postsForSelectedDay.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(" ")
+                    Text(
+                        text = "投稿がありません",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             } else {
                 LazyColumn(
