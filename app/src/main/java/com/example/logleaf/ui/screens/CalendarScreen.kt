@@ -74,7 +74,8 @@ import java.util.Locale
 fun CalendarScreen(
     uiState: UiState,
     initialDateString: String? = null,
-    targetPostId: String? = null, // ★★★ この引数を追加 ★★★
+    targetPostId: String? = null,
+
     navController: NavController,
     onRefresh: () -> Unit,
     isRefreshing: Boolean
@@ -116,12 +117,10 @@ fun CalendarScreen(
         }
     }
 
-    // 選択された日付の投稿をフィルタリング (ここは変更なし)
     val postsForSelectedDay = uiState.allPosts.filter {
         it.createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate() == selectedDate
     }
 
-    // --- ここから下のレイアウト部分は、ほぼ変更ありません ---
     Column(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -148,7 +147,15 @@ fun CalendarScreen(
             modifier = Modifier.weight(1f),
             color = MaterialTheme.colorScheme.surfaceVariant
         ) {
-            if (postsForSelectedDay.isEmpty()) {
+            // ★★★ ここが最重要の修正箇所です ★★★
+            // まず「isLoading」の状態を最優先でチェックします。
+            if (uiState.isLoading) {
+                // 読み込み中なら、クルクルマークを表示
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (postsForSelectedDay.isEmpty()) {
+                // 読み込みが終わって、かつ投稿がない場合のみ、このメッセージを表示
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         text = "投稿がありません",
@@ -156,16 +163,17 @@ fun CalendarScreen(
                     )
                 }
             } else {
+                // 読み込みが終わり、投稿がある場合はリストを表示
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    state = listState, // ★★★ 3. この行を追加 ★★★
+                    state = listState,
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp)
                 ) {
                     items(postsForSelectedDay, key = { post -> post.id }) { post ->
                         CalendarPostCardItem(
                             post = post,
-                            isFocused = (post.id == focusedPostIdForRipple) // ← 正しい名前に修正
+                            isFocused = (post.id == focusedPostIdForRipple)
                         )
                     }
                 }

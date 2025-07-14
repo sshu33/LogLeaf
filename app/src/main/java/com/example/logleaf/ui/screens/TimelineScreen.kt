@@ -43,7 +43,6 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.logleaf.DayLog
 import com.example.logleaf.UiState
-import com.example.logleaf.ui.theme.GrayLimeGreen
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -100,9 +99,15 @@ fun TimelineScreen(
                 }
 
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = innerPadding,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    // ★★★ ここが原因でした ★★★
+                    // innerPaddingをcontentPaddingではなく、Modifier.padding()で指定します。
+                    // これにより、LazyColumnコンポーネント全体がTopAppBarの下に配置されます。
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = innerPadding.calculateTopPadding()), // 上のパディングだけ適用
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    // ★★★ 下のパディングは、リストの最後にSpacerを追加することで確保します
+                    contentPadding = PaddingValues(bottom = innerPadding.calculateBottomPadding())
                 ) {
                     groupedByMonth.forEach { (yearMonth, logsInMonth) ->
                         stickyHeader {
@@ -122,13 +127,10 @@ fun TimelineScreen(
                         items(logsInMonth, key = { it.date }) { dayLog ->
                             PostItem(
                                 dayLog = dayLog,
-                                // ★★★ ここが最重要の修正箇所です ★★★
                                 onClick = {
-                                    // クリックされた投稿(firstPost)がnullでないことを確認
                                     dayLog.firstPost?.let { post ->
                                         val date = dayLog.date.toString()
                                         val postId = post.id
-                                        // 日付と投稿IDの両方を渡してナビゲーション！
                                         navController.navigate("calendar?date=$date&postId=$postId")
                                     }
                                 }
