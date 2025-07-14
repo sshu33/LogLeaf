@@ -1,9 +1,9 @@
-package com.example.logleaf.ui.screens
+package com.example.logleaf.ui.screens // パッケージ名はあなたのものに合わせました
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewModelScope
 import com.example.logleaf.Post
+import com.example.logleaf.SessionManager
 import com.example.logleaf.db.PostDao
 import com.example.logleaf.ui.theme.SnsType
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -17,62 +17,62 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
-class SearchViewModel(private val postDao: PostDao) : ViewModel() {
+class SearchViewModel(
+    private val postDao: PostDao,
+    private val sessionManager: SessionManager // ★ 変更点 2/5: SessionManagerをコンストラクタで受け取る
+) : ViewModel() {
 
-    // ユーザーが入力した検索キーワード
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
 
-    // ユーザーが選択したSNSフィルター
     private val _selectedSns = MutableStateFlow<SnsType?>(null)
     val selectedSns = _selectedSns.asStateFlow()
 
-    // 1. 検索クエリを、スペースで区切られた単語のリストに変換するFlow
     private val searchKeywords = searchQuery.map { query ->
-        query.split(" ", "　").filter { it.isNotBlank() } // 半角・全角スペースで分割し、空の要素は除去
+        query.split(" ", "　").filter { it.isNotBlank() }
     }
 
-    // 2. 検索結果の投稿リスト
     @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
-    val searchResultPosts: Flow<List<Post>> = searchKeywords
-        .debounce(300L) // 入力が300ミリ秒止まったら検索実行
-        .combine(selectedSns) { keywords, sns -> Pair(keywords, sns) } // 単語リストとSNSフィルターを組み合わせる
-        .flatMapLatest { (keywords, sns) ->
-            // 3. 単語リストが空なら、空のFlowを返す
-            if (keywords.isEmpty()) {
-                flowOf(emptyList())
-            } else {
-                // 4. postDaoに単語リストを渡して検索を実行
-                postDao.searchPostsWithAnd(keywords)
-            }
+    val searchResultPosts: Flow<List<Post>> =
+        // ★ 変更点 3/5: 検索キーワード、SNSフィルター、そしてアカウント情報の3つを組み合わせる
+        combine(searchKeywords, selectedSns, sessionManager.accountsFlow) { keywords, sns, accounts ->
+            Triple(keywords, sns, accounts) // 3つの値をセットで下流に渡す
         }
-        .map { posts ->
-            // 5. SNSフィルターが設定されていれば、さらに絞り込む (この部分は変更なし)
-            val sns = selectedSns.value
-            if (sns != null) {
-                posts.filter { it.source == sns }
-            } else {
-                posts
-            }
-        }
+            .debounce(300L)
+            .flatMapLatest { (keywords, sns, accounts) -> // 3つの値を受け取る
+                if (keywords.isEmpty()) {
+                    flowOf(emptyList())
+                } else {
+                    // ★ 変更点 4/5: 表示がONになっているアカウントのIDリストを生成する
+                    val visibleAccountIds = accounts.filter { it.isVisible }.map { it.userId }
 
-    /**
-     * 検索キーワードが変更されたときにUIから呼び出す
-     */
+                    // 表示対象アカウントがなければ、空のリストを返す
+                    if (visibleAccountIds.isEmpty()) {
+                        flowOf(emptyList())
+                    } else {
+                        // ★ 修正点: postDaoに単語リストと「表示OKリスト」の両方を渡して検索
+                        postDao.searchPostsWithAnd(keywords, visibleAccountIds)
+                    }
+                }
+            }
+            .map { posts ->
+                // SNSフィルターのロジックはあなたのものを完全に維持します
+                val sns = selectedSns.value
+                if (sns != null) {
+                    posts.filter { it.source == sns }
+                } else {
+                    posts
+                }
+            }
+
     fun onQueryChanged(query: String) {
         _searchQuery.value = query
     }
 
-    /**
-     * SNSフィルターが変更されたときにUIから呼び出す
-     */
     fun onSnsFilterChanged(snsType: SnsType?) {
         _selectedSns.value = snsType
     }
 
-    /**
-     * リセットボタンが押されたときにUIから呼び出す
-     */
     fun onReset() {
         _searchQuery.value = ""
         _selectedSns.value = null
@@ -80,11 +80,12 @@ class SearchViewModel(private val postDao: PostDao) : ViewModel() {
 
     companion object {
         fun provideFactory(
-            postDao: PostDao
+            postDao: PostDao,
+            sessionManager: SessionManager // ★ 変更点 5/5: FactoryもSessionManagerを受け取る
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return SearchViewModel(postDao) as T
+                return SearchViewModel(postDao, sessionManager) as T
             }
         }
     }

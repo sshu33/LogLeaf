@@ -84,41 +84,39 @@ class BlueskyApi(private val sessionManager: SessionManager) {
     suspend fun getPostsForAccount(account: Account.Bluesky): List<Post> {
         try {
             // 1回目の試行
-            // ★ 引数で渡されたaccountの情報を直接使う
-            return tryToGetPosts(account.accessToken, account.did)
+            // ▼ 変更点: tryToGetPostsに account.userId を渡す
+            return tryToGetPosts(account.accessToken, account.did, account.userId)
         } catch (e: Exception) {
             println("1回目の投稿取得に失敗しました: ${e.message}")
-            // セッション更新を試みる
             val refreshedAccount = refreshSession(account)
 
-            if (refreshedAccount != null) {
-                // セッション更新に成功した場合、新しいトークンで再試行
+            return if (refreshedAccount != null) {
                 println("セッション更新成功。投稿を再取得します。")
                 try {
-                    return tryToGetPosts(refreshedAccount.accessToken, refreshedAccount.did)
+                    // ▼ 変更点: 再取得時も account.userId を渡す
+                    tryToGetPosts(refreshedAccount.accessToken, refreshedAccount.did, refreshedAccount.userId)
                 } catch (e2: Exception) {
                     println("再取得にも失敗しました: ${e2.message}")
-                    return emptyList()
+                    emptyList()
                 }
             } else {
                 println("セッション更新に失敗しました。再ログインが必要です。")
-                return emptyList()
+                emptyList()
             }
         }
     }
 
-    // tryToGetPostsメソッド (変更なし)
-    private suspend fun tryToGetPosts(token: String, did: String): List<Post> {
+    private suspend fun tryToGetPosts(token: String, did: String, accountId: String): List<Post> {
         val response: BskyFeedResponse = client.get("https://bsky.social/xrpc/app.bsky.feed.getAuthorFeed") {
             headers { append(HttpHeaders.Authorization, "Bearer $token") }
             parameter("actor", did)
         }.body()
 
-        println("投稿取得成功！ ${response.feed.size}件の投稿を取得しました。")
         return response.feed.map { feedItem ->
             val postRecord = feedItem.post.record
             Post(
                 id = feedItem.post.uri,
+                accountId = accountId, // ◀️ ここでaccountIdをセット！
                 createdAt = ZonedDateTime.parse(postRecord.createdAt),
                 text = postRecord.text,
                 source = SnsType.BLUESKY

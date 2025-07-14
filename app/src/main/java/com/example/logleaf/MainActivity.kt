@@ -103,9 +103,6 @@ fun MainScreen(
             postDao = postDao
         )
     )
-    val searchViewModel: SearchViewModel = viewModel(
-        factory = SearchViewModel.provideFactory(postDao = postDao)
-    )
 
     // ★★★ この一行が復活しました！ ★★★
     val uiState by mainViewModel.uiState.collectAsState()
@@ -147,10 +144,14 @@ fun MainScreen(
             }
             composable("accounts") {
                 val accountViewModel: AccountViewModel = viewModel(
-                    factory = AccountViewModel.provideFactory(sessionManager = sessionManager)
+                    factory = AccountViewModel.provideFactory(
+                        sessionManager = sessionManager,
+                        postDao = postDao // ★ この行を追加するだけ！
+                    )
                 )
                 AccountScreen(viewModel = accountViewModel, navController = navController)
             }
+
             composable("settings") {
                 SettingsScreen(
                     navController = navController,
@@ -189,12 +190,20 @@ fun MainScreen(
                 )
                 MastodonInstanceScreen(navController = navController, viewModel = mastodonViewModel)
             }
+
             composable("search") {
+                // ★★★ ここで、最新のファクトリを使ってViewModelを正しく生成します ★★★
+                val searchViewModel: SearchViewModel = viewModel(
+                    factory = SearchViewModel.provideFactory(
+                        postDao = postDao,
+                        sessionManager = sessionManager // sessionManagerを渡す
+                    )
+                )
+
+                // 生成したViewModelをSearchScreenに渡す
                 SearchScreen(
                     viewModel = searchViewModel,
-                    // ★★★ ここに、正しい画面遷移の命令を書き戻します ★★★
                     onPostClick = { post ->
-                        // ★★★ ここで、日本時間に変換してから日付を取り出す ★★★
                         val localDate = post.createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate()
                         val date = localDate.toString()
                         val postId = post.id

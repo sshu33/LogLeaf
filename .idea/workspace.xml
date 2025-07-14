@@ -4,24 +4,39 @@
     <shared>
       <config />
     </shared>
+    <layouts>
+      <layout url="file://$PROJECT_DIR$/app/src/main/res/drawable/ic_delete.xml">
+        <config>
+          <theme>@style/Theme.LogLeaf</theme>
+        </config>
+      </layout>
+    </layouts>
   </component>
   <component name="AutoImportSettings">
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
     <list default="true" id="fcfefcaf-ff37-4bd5-aa0e-d28134bdfd73" name="Changes" comment="ベースキャンプ">
-      <change afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/BlueskyLoginViewModel.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.13/executionHistory/executionHistory.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.13/executionHistory/executionHistory.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.13/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.13/executionHistory/executionHistory.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.13/fileHashes/fileHashes.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.13/fileHashes/fileHashes.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.13/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.13/fileHashes/fileHashes.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.13/fileHashes/resourceHashesCache.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.13/fileHashes/resourceHashesCache.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/file-system.probe" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/file-system.probe" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/Account.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/Account.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/BlueskyApi.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/BlueskyApi.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/MainActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/MainActivity.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/MastodonInstanceViewModel.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/MastodonInstanceViewModel.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/screens/LoginScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/screens/LoginScreen.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/screens/MastodonInstanceScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/screens/MastodonInstanceScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/MainViewModel.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/MainViewModel.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/MastodonApi.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/MastodonApi.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/Post.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/Post.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/SessionManager.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/SessionManager.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/db/AppDatabase.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/db/AppDatabase.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/db/PostDao.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/db/PostDao.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/screens/AccountScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/screens/AccountScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/screens/AccountViewModel.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/screens/AccountViewModel.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/screens/SearchViewModel.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/screens/SearchViewModel.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -245,5 +260,21 @@
     <MESSAGE value="タイムライン画面の微調整" />
     <MESSAGE value="ベースキャンプ" />
     <option name="LAST_COMMIT_MESSAGE" value="ベースキャンプ" />
+  </component>
+  <component name="play_dynamic_filters_status">
+    <option name="appIdToCheckInfo">
+      <map>
+        <entry key="com.example.logleaf">
+          <value>
+            <CheckInfo lastCheckTimestamp="1752481169589" />
+          </value>
+        </entry>
+        <entry key="com.example.logleaf.test">
+          <value>
+            <CheckInfo lastCheckTimestamp="1752481169590" />
+          </value>
+        </entry>
+      </map>
+    </option>
   </component>
 </project>

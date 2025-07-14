@@ -11,11 +11,13 @@ data class Post(
     @PrimaryKey // これを主キー（各行を一位に識別するID）として定義
     val id: String,
 
+    val accountId: String, // ◀️ 追加：この投稿が属するアカウントのID (Account.userId)
+
     val text: String,
     val createdAt: ZonedDateTime,
     val source: SnsType
 ) {
     // データベースに保存する必要はないので、Roomはこれを無視する
-    val color: Color
-        get() = source.brandColor
+    @delegate:androidx.room.Ignore
+    val color: Color by lazy { source.brandColor } // Ignoreアノテーションのつけ方を修正
 }

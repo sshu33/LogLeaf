@@ -37,50 +37,47 @@ class MainViewModel(
     private val postDao: PostDao
 ) : ViewModel() {
 
-    // isLoadingの初期値は「true」のままの方が、UIの初期描画時に安全です。
-    // 代わりに、initのロジックを修正します。
     private val _uiState = MutableStateFlow(UiState(isLoading = true))
     val uiState = _uiState.asStateFlow()
     private val _showSettingsBadge = MutableStateFlow(false)
     val showSettingsBadge = _showSettingsBadge.asStateFlow()
 
     init {
-        // ViewModelが生成された瞬間に、初回ロードを開始する
         loadInitialData()
 
-        // アカウントの変更を監視し、バッジ表示や自動更新を行う
         viewModelScope.launch {
-            // drop(1)で、初回ロード時の重複実行を防ぐ
             sessionManager.accountsFlow.drop(1).collect { accounts ->
-                println("【MainViewModel】アカウント変更を検知（2回目以降）。自動更新します。")
+                println("【MainViewModel】アカウント変更を検知。自動更新します。")
                 _showSettingsBadge.value = accounts.any { it.needsReauthentication }
-                fetchPosts(accounts, isInitialLoad = false) // isInitialLoadは常にfalse
+                // ★ 変更点: fetchPostsに渡すアカウントリストはフィルタリングしない（DBには全件保存したいため）
+                fetchPosts(accounts, isInitialLoad = false)
             }
         }
     }
 
-    // 初回ロード専用の関数
     private fun loadInitialData() {
         viewModelScope.launch {
-            // SessionManagerから、最新のアカウント情報を一度だけ取得する
             val initialAccounts = sessionManager.accountsFlow.first()
             _showSettingsBadge.value = initialAccounts.any { it.needsReauthentication }
-
-            // 取得したアカウント情報で、初回データ取得を実行
             println("【MainViewModel】初回データロードを開始します。")
             fetchPosts(initialAccounts, isInitialLoad = true)
         }
     }
 
-    // fetchPosts関数は、以前のあなたのコードに戻します。
-    // isInitialLoadのフラグだけで制御するのが最もシンプルで安全でした。
     private fun fetchPosts(accounts: List<Account>, isInitialLoad: Boolean) {
         viewModelScope.launch {
             if (isInitialLoad) {
                 _uiState.update { it.copy(isLoading = true) }
             }
+
+            // ★★★ ここが最重要の変更点 (1/2) ★★★
+            // APIからは全アカウントのデータを取得する（非表示でも裏では最新データを保つため）
+            // ただし、APIにリクエストを送るのは「再認証不要」なアカウントのみにするのが安全
+            val accountsToFetch = accounts.filter { !it.needsReauthentication }
+
             try {
-                val postLists = accounts.map { account ->
+                // APIからのデータ取得とDBへの保存は、表示状態に関わらず行う
+                val postLists = accountsToFetch.map { account ->
                     async(Dispatchers.IO) {
                         when (account) {
                             is Account.Bluesky -> blueskyApi.getPostsForAccount(account)
@@ -100,14 +97,23 @@ class MainViewModel(
                         }
                     }
                 }
-                val allPosts = postLists.awaitAll().flatten()
-                postDao.insertAll(allPosts)
-                val postsFromDb = postDao.getAllPosts().first()
+                val allNewPosts = postLists.awaitAll().flatten()
+                if (allNewPosts.isNotEmpty()) {
+                    postDao.insertAll(allNewPosts)
+                }
+
+                // ★★★ ここが最重要の変更点 (2/2) ★★★
+                // 1. 表示を許可されたアカウントのIDリストを作成する
+                val visibleAccountIds = accounts.filter { it.isVisible }.map { it.userId }
+
+                // 2. そのIDリストを使って、DBから投稿を取得する
+                val postsFromDb = postDao.getAllPosts(visibleAccountIds).first() // ◀️ 改造したDAOの関数を正しく使う！
+
                 val dayLogs = groupPostsByDay(postsFromDb)
                 _uiState.update { currentState ->
                     currentState.copy(
                         dayLogs = dayLogs,
-                        allPosts = postsFromDb, // ここも修正
+                        allPosts = postsFromDb,
                         isLoading = false,
                         isRefreshing = false
                     )
@@ -120,14 +126,11 @@ class MainViewModel(
     }
 
     fun refreshPosts() {
-        // すでに更新中なら何もしない（多重実行防止）
         if (_uiState.value.isRefreshing) return
-
         viewModelScope.launch {
-            // まずUIに「リフレッシュ開始」を通知
             _uiState.update { it.copy(isRefreshing = true) }
-            // 実際のデータ取得処理を呼び出す
-            fetchPosts(sessionManager.getAccounts(), isInitialLoad = false)
+            // ★ SessionManagerから最新のアカウントリストを取得して渡す
+            fetchPosts(sessionManager.accountsFlow.first(), isInitialLoad = false)
         }
     }
 
@@ -135,27 +138,17 @@ class MainViewModel(
         if (posts.isEmpty()) {
             return emptyList()
         }
-
-        // 1. 日付でグループ化する (順序はまだ保証されない)
         val groupedByDate: Map<LocalDate, List<Post>> = posts.groupBy { post ->
             post.createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate()
         }
-
-        // 2. DayLogのリストに変換する
         return groupedByDate.map { (date, postList) ->
-            // ★★★ ここが核心！ ★★★
-            // ★ 各日の投稿リストを、「古い順」にソートする
             val sortedPostList = postList.sortedBy { it.createdAt }
-
-            // ★ ソート後のリストの「最初の投稿（＝その日で一番古い投稿）」を代表として選ぶ
             DayLog(
                 date = date,
                 firstPost = sortedPostList.firstOrNull(),
                 totalPosts = postList.size
             )
-        }
-            // 3. 最後に、DayLogのリスト全体を「日付の新しい順」に並べ替える
-            .sortedByDescending { it.date }
+        }.sortedByDescending { it.date }
     }
 
     companion object {
@@ -163,11 +156,11 @@ class MainViewModel(
             blueskyApi: BlueskyApi,
             mastodonApi: MastodonApi,
             sessionManager: SessionManager,
-            postDao: PostDao // ★★★ 引数に postDao を追加 ★★★
+            postDao: PostDao
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return MainViewModel(blueskyApi, mastodonApi, sessionManager, postDao) as T // ★★★ ここにも渡す ★★★
+                return MainViewModel(blueskyApi, mastodonApi, sessionManager, postDao) as T
             }
         }
     }

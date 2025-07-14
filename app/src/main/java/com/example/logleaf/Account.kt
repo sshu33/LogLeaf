@@ -3,12 +3,6 @@ package com.example.logleaf
 import com.example.logleaf.ui.theme.SnsType
 import kotlinx.serialization.Serializable
 
-/**
- * アプリで管理するSNSアカウント情報を表現する、型安全なクラス。
- *
- * `Serializable` をつけることで、このクラスのオブジェクトをJSONに変換したり、
- * JSONから復元したりできるようになる。
- */
 @Serializable
 sealed class Account {
     // すべてのアカウントが共通して持つプロパティ
@@ -16,6 +10,7 @@ sealed class Account {
     abstract val userId: String // 各SNSでのユニークなID（BlueskyならDID, Mastodonならacctなど）
     abstract val displayName: String // UIに表示するための名前（Blueskyならhandle, Mastodonならusername）
     abstract val needsReauthentication: Boolean
+    abstract val isVisible: Boolean // ◀️ 追加：アカウントの表示/非表示フラグ
 
     @Serializable
     data class Bluesky(
@@ -23,8 +18,8 @@ sealed class Account {
         val handle: String,
         val accessToken: String,
         val refreshToken: String,
-        // ★★★ プロパティを追加し、デフォルト値を与える ★★★
-        override val needsReauthentication: Boolean = false
+        override val needsReauthentication: Boolean = false,
+        override val isVisible: Boolean = true // ◀️ 追加 (デフォルトは true)
     ) : Account() {
         override val snsType: SnsType get() = SnsType.BLUESKY
         override val userId: String get() = did
@@ -40,7 +35,8 @@ sealed class Account {
         val accessToken: String,
         val clientId: String = "",
         val clientSecret: String = "",
-        override val needsReauthentication: Boolean = false
+        override val needsReauthentication: Boolean = false,
+        override val isVisible: Boolean = true // ◀️ 追加 (デフォルトは true)
     ) : Account() {
         override val snsType: SnsType get() = SnsType.MASTODON
         override val userId: String get() = id

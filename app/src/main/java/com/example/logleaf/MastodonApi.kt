@@ -176,6 +176,7 @@ class MastodonApi {
                     val sanitizedText = Html.fromHtml(mastodonStatus.content, Html.FROM_HTML_MODE_LEGACY).toString()
                     Post(
                         id = mastodonStatus.id,
+                        accountId = account.userId,
                         text = sanitizedText.trim(),
                         createdAt = ZonedDateTime.parse(mastodonStatus.createdAt),
                         source = SnsType.MASTODON

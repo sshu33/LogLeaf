@@ -77,6 +77,17 @@ class SessionManager(context: Context) {
         println("【SessionManager】アカウント削除。残りのアカウント数: ${currentAccounts.size}")
     }
 
+    fun toggleAccountVisibility(accountId: String) {
+        updateAccountState(accountId) { account ->
+            // isVisibleプロパティの値を反転させた新しいAccountオブジェクトを返す
+            when (account) {
+                is Account.Bluesky -> account.copy(isVisible = !account.isVisible)
+                is Account.Mastodon -> account.copy(isVisible = !account.isVisible)
+            }
+        }
+        Log.d("SessionManager", "アカウント($accountId)の表示状態を切り替えました。")
+    }
+
     fun markAccountForReauthentication(accountId: String) {
         updateAccountState(accountId) { account ->
             when (account) {

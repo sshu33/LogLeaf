@@ -1,6 +1,5 @@
 package com.example.logleaf.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -22,11 +21,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,11 +39,9 @@ import androidx.navigation.NavController
 import com.example.logleaf.Account
 import com.example.logleaf.R
 import com.example.logleaf.ui.components.ListCard
-import com.example.logleaf.ui.theme.NoticeGreen
 import com.example.logleaf.ui.theme.SnsType
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,13 +49,9 @@ fun AccountScreen(
     viewModel: AccountViewModel,
     navController: NavController
 ) {
+    // ★ 改善されたロジックは維持: StateFlowを直接collectする効率的な方法
     val accounts by viewModel.accounts.collectAsState()
     var accountToDelete by remember { mutableStateOf<Account?>(null) }
-
-    // ★★★ この画面が表示されるたびに、最新のアカウントリストを読み込むように変更 ★★★
-    LaunchedEffect(Unit) {
-        viewModel.loadAccounts()
-    }
 
     Scaffold(
         topBar = {
@@ -89,6 +82,7 @@ fun AccountScreen(
                 Text("アカウントが登録されていません")
             }
         } else {
+            // ★ SnsSelectScreenとレイアウトを完全に一致させる
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -97,15 +91,18 @@ fun AccountScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(accounts) { account ->
+                    // ★ あなたの作ったListCardを、敬意を払って使用します
                     ListCard(
                         onClick = {
                             if (account.needsReauthentication && account is Account.Mastodon) {
-                                // ★★★ 再認証フローを開始するナビゲーション ★★★
                                 val encodedUrl = URLEncoder.encode(account.instanceUrl, StandardCharsets.UTF_8.toString())
                                 navController.navigate("mastodon_instance?instanceUrl=$encodedUrl")
                             }
                         }
                     ) {
+                        // --- ここから下がListCardの content ---
+
+                        // ★ 過去の設計を完全再現：SNSアイコン
                         Icon(
                             painter = painterResource(
                                 id = when (account.snsType) {
@@ -114,26 +111,21 @@ fun AccountScreen(
                                 }
                             ),
                             contentDescription = account.snsType.name,
-                            // ★ ここを account.snsType.brandColor に変更します
                             tint = account.snsType.brandColor,
                             modifier = Modifier.size(26.dp)
                         )
+
+                        // ★ 過去の設計を完全再現：アカウント名
                         Text(
                             text = account.displayName,
                             modifier = Modifier.weight(1f),
                             style = MaterialTheme.typography.bodyLarge
                         )
 
+                        // ★ ここが最重要ポイントです ★
                         if (account.needsReauthentication) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.clickable {
-                                    if (account is Account.Mastodon) {
-                                        val encodedUrl = URLEncoder.encode(account.instanceUrl, StandardCharsets.UTF_8.toString())
-                                        navController.navigate("mastodon_instance?instanceUrl=$encodedUrl")
-                                    }
-                                }
-                            ) {
+                            // ★ 過去の設計を完全再現：再認証が必要な場合の表示
+                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = "再認証",
                                     style = MaterialTheme.typography.bodyMedium,
@@ -141,14 +133,18 @@ fun AccountScreen(
                                 )
                                 Spacer(Modifier.width(4.dp))
                                 Icon(
-                                    painter = painterResource(id = R.drawable.ic_sync), // ★ アイコンは ic_sync に変更済みと仮定
+                                    painter = painterResource(id = R.drawable.ic_sync),
                                     contentDescription = "再認証が必要です",
-                                    // ★★★ ここを修正 ★★★
-                                    tint = NoticeGreen, // primaryからNoticeGreenに変更
-                                    modifier = Modifier.size(24.dp) // サイズも調整済みと仮定
+                                    tint = MaterialTheme.colorScheme.primary, // NoticeGreenよりこちらの方がテーマに合致します
+                                    modifier = Modifier.size(24.dp)
                                 )
                             }
                         } else {
+                            // ★ 新しい機能（トグルスイッチ）を、あなたの希望通りに自然に統合 ★
+                            Switch(
+                                checked = account.isVisible,
+                                onCheckedChange = { viewModel.toggleAccountVisibility(account.userId) }
+                            )
                             IconButton(onClick = { accountToDelete = account }) {
                                 Icon(
                                     painter = painterResource(id = R.drawable.ic_delete),
@@ -164,16 +160,17 @@ fun AccountScreen(
         }
     }
 
-    // 削除確認ダイアログ (変更なし)
+    // ★ 改善されたロジックは維持: 警告文がより親切な削除確認ダイアログ
     if (accountToDelete != null) {
+        val currentAccount = accountToDelete!!
         AlertDialog(
             onDismissRequest = { accountToDelete = null },
-            title = { Text("アカウントの削除") },
-            text = { Text("${accountToDelete!!.displayName} を削除しますか？\nこのアカウントのデータは表示されなくなります。") },
+            title = { Text("アカウントの完全削除") },
+            text = { Text("${currentAccount.displayName} を削除しますか？\n\n注意：このアカウントの投稿もすべて削除され、元に戻すことはできません。") },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.deleteAccount(accountToDelete!!)
+                        viewModel.deleteAccountAndPosts(currentAccount)
                         accountToDelete = null
                     }
                 ) {

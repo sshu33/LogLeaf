@@ -1,11 +1,6 @@
 package com.example.logleaf.db
 
-import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
-import androidx.room.Query
-import androidx.room.RawQuery
-import androidx.room.Transaction
+import androidx.room.*
 import androidx.sqlite.db.SimpleSQLiteQuery
 import com.example.logleaf.Post
 import kotlinx.coroutines.flow.Flow
@@ -16,54 +11,49 @@ interface PostDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(posts: List<Post>)
 
-    @Query("SELECT * FROM posts ORDER BY createdAt DESC")
-    fun getAllPosts(): Flow<List<Post>>
+    @Query("""
+        SELECT * FROM posts
+        WHERE accountId IN (:visibleAccountIds)
+        ORDER BY createdAt DESC
+    """)
+    fun getAllPosts(visibleAccountIds: List<String>): Flow<List<Post>>
 
     /**
-     * 複数のキーワードすべてを含む投稿を検索する (AND検索)
-     * @param keywords 検索キーワードのリスト
-     * @return 検索結果の投稿リスト
+     * ▼ 変更点: @Transactionアノテーションを削除します。
+     * この関数はクエリを組み立てるだけで、直接DBアクセスする複数の処理をまとめている訳ではないため、@Transactionは不要であり、エラーの原因でした。
      */
-    @Transaction // 複数のクエリを安全に実行するためのアノテーション
-    @Query("""
-    SELECT * FROM posts
-    WHERE
-        -- この部分は動的に生成されるので、クエリの本体はWHERE 1=1で始める
-        1=1
-""")
-    fun searchPostsWithAnd(keywords: List<String>): Flow<List<Post>> {
-        // 基本となるクエリ
-        var query = "SELECT * FROM posts WHERE "
-        // 各キーワードに対して "text LIKE ?" という条件を " AND " で連結していく
-        query += keywords.joinToString(separator = " AND ") { "text LIKE ?" }
-        // 最後に並び順を指定
-        query += " ORDER BY createdAt DESC"
-
-        // 各キーワードの前後に'%'を付けたものを引数として渡す
-        val args = keywords.map { "%$it%" }.toTypedArray()
-
-        // RoomのRawQueryを使って、動的に生成したクエリを実行する
-        return SimpleSQLiteQuery(query, args).let {
-            searchPostsWithAndRaw(it)
+    fun searchPostsWithAnd(keywords: List<String>, visibleAccountIds: List<String>): Flow<List<Post>> {
+        // キーワードが空の場合は、全表示対象投稿を返す
+        if (keywords.any { it.isBlank() }) {
+            return getAllPosts(visibleAccountIds)
         }
+
+        // 表示対象アカウントの中から、さらにキーワードで絞り込む
+        val queryBuilder = StringBuilder()
+        queryBuilder.append("SELECT * FROM posts WHERE accountId IN (")
+        // accountIdのプレースホルダを追加
+        visibleAccountIds.forEachIndexed { index, _ ->
+            queryBuilder.append("?")
+            if (index < visibleAccountIds.size - 1) queryBuilder.append(",")
+        }
+        queryBuilder.append(") AND (")
+        // キーワードのプレースホルダを追加
+        queryBuilder.append(keywords.joinToString(separator = " AND ") { "text LIKE ?" })
+        queryBuilder.append(") ORDER BY createdAt DESC")
+
+        // 引数リストを作成（アカウントID + キーワード）
+        val args = visibleAccountIds.toMutableList()
+        args.addAll(keywords.map { "%$it%" })
+
+        return searchPostsWithAndRaw(SimpleSQLiteQuery(queryBuilder.toString(), args.toTypedArray()))
     }
 
-    // 動的に生成したクエリを受け取って実行するための、ヘルパー関数
     @RawQuery(observedEntities = [Post::class])
     fun searchPostsWithAndRaw(query: SimpleSQLiteQuery): Flow<List<Post>>
 
-// -----------------------------------------------------------------
-// ★★★ ここまでが新しい部分です ★★★
-// -----------------------------------------------------------------
 
-
-// 古いsearchPostsはもう不要ですが、念のためコメントアウトして残しておきます
-//    @Query("""
-//        SELECT * FROM posts
-//        WHERE text LIKE :query
-//        ORDER BY createdAt DESC
-//    """)
-//    fun searchPosts(query: String): Flow<List<Post>>
+    @Query("DELETE FROM posts WHERE accountId = :accountId")
+    suspend fun deletePostsByAccountId(accountId: String)
 
     @Query("DELETE FROM posts")
     suspend fun deleteAll()
