@@ -4,6 +4,11 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
@@ -115,7 +120,11 @@ fun MainScreen(
         NavHost(
             navController = navController,
             startDestination = "calendar",
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(innerPadding),
+
+            enterTransition = { fadeIn(animationSpec = tween(150)) },
+            exitTransition = { fadeOut(animationSpec = tween(150)) }
+
         ) {
             composable("timeline") {
                 TimelineScreen(
@@ -152,7 +161,17 @@ fun MainScreen(
                 AccountScreen(viewModel = accountViewModel, navController = navController)
             }
 
-            composable("settings") {
+            composable(
+                "settings",
+                enterTransition = {
+                    // 右側から画面の全幅分スライドインしてくる
+                    slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300))
+                },
+                exitTransition = {
+                    // 右側へ画面の全幅分スライドアウトしていく
+                    slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300))
+                }
+            ) {
                 SettingsScreen(
                     navController = navController,
                     onLogout = onLogout,
