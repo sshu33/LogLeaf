@@ -1,0 +1,34 @@
+<changelist name="Uncommitted_changes_before_rebase_[Changes]" date="1752527630179" recycled="true" deleted="true">
+  <option name="PATH" value="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_rebase_[Changes]/shelved.patch" />
+  <option name="DESCRIPTION" value="Uncommitted changes before rebase [Changes]" />
+  <binary>
+    <option name="BEFORE_PATH" value=".gradle/8.13/fileHashes/fileHashes.lock" />
+    <option name="AFTER_PATH" value=".gradle/8.13/fileHashes/fileHashes.lock" />
+    <option name="SHELVED_PATH" value="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_rebase_[Changes]/fileHashes.lock" />
+  </binary>
+  <binary>
+    <option name="BEFORE_PATH" value=".gradle/8.13/executionHistory/executionHistory.lock" />
+    <option name="AFTER_PATH" value=".gradle/8.13/executionHistory/executionHistory.lock" />
+    <option name="SHELVED_PATH" value="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_rebase_[Changes]/executionHistory.lock" />
+  </binary>
+  <binary>
+    <option name="BEFORE_PATH" value=".gradle/buildOutputCleanup/buildOutputCleanup.lock" />
+    <option name="AFTER_PATH" value=".gradle/buildOutputCleanup/buildOutputCleanup.lock" />
+    <option name="SHELVED_PATH" value="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_rebase_[Changes]/buildOutputCleanup.lock" />
+  </binary>
+  <binary>
+    <option name="BEFORE_PATH" value=".gradle/8.13/executionHistory/executionHistory.bin" />
+    <option name="AFTER_PATH" value=".gradle/8.13/executionHistory/executionHistory.bin" />
+    <option name="SHELVED_PATH" value="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_rebase_[Changes]/executionHistory.bin" />
+  </binary>
+  <binary>
+    <option name="BEFORE_PATH" value=".gradle/8.13/fileHashes/resourceHashesCache.bin" />
+    <option name="AFTER_PATH" value=".gradle/8.13/fileHashes/resourceHashesCache.bin" />
+    <option name="SHELVED_PATH" value="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_rebase_[Changes]/resourceHashesCache.bin" />
+  </binary>
+  <binary>
+    <option name="BEFORE_PATH" value=".gradle/8.13/fileHashes/fileHashes.bin" />
+    <option name="AFTER_PATH" value=".gradle/8.13/fileHashes/fileHashes.bin" />
+    <option name="SHELVED_PATH" value="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_rebase_[Changes]/fileHashes.bin" />
+  </binary>
+</changelist>
