@@ -30,6 +30,7 @@ import com.example.logleaf.ui.screens.AccountScreen
 import com.example.logleaf.ui.screens.AccountViewModel
 import com.example.logleaf.ui.screens.BlueskyViewModelFactory
 import com.example.logleaf.ui.screens.CalendarScreen
+import com.example.logleaf.ui.screens.FontSettingsScreen
 import com.example.logleaf.ui.screens.LoginScreen
 import com.example.logleaf.ui.screens.MastodonInstanceScreen
 import com.example.logleaf.ui.screens.SearchScreen
@@ -151,6 +152,21 @@ fun MainScreen(
                     isRefreshing = uiState.isRefreshing
                 )
             }
+
+            composable("font_settings") {
+                // FontSettingsManagerのインスタンスを作成
+                val fontSettingsManager = remember { FontSettingsManager(context) }
+                // ViewModelを生成
+                val fontSettingsViewModel: FontSettingsViewModel = viewModel(
+                    factory = FontSettingsViewModel.provideFactory(fontSettingsManager)
+                )
+                // FontSettingsScreenを呼び出す（中身はまだ空）
+                FontSettingsScreen(
+                    viewModel = fontSettingsViewModel,
+                    navController = navController
+                )
+            }
+
             composable("accounts") {
                 val accountViewModel: AccountViewModel = viewModel(
                     factory = AccountViewModel.provideFactory(

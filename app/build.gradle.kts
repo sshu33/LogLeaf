@@ -75,4 +75,9 @@ dependencies {
     implementation(libs.ktor.client.logging)
     implementation(libs.androidx.constraintlayout.compose)
 
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+    implementation("androidx.datastore:datastore-core:1.1.1")
+
+    implementation(libs.ktor.client.logging)
+
 }

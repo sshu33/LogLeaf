@@ -82,7 +82,7 @@ fun SettingsScreen(
             SettingsMenuItem(
                 icon = Icons.Default.TextFields,
                 title = "文字の設定",
-                onClick = { Toast.makeText(context, "「文字の設定」は開発中です", Toast.LENGTH_SHORT).show() }
+                onClick = { navController.navigate("font_settings") }
             )
         }
         item {
