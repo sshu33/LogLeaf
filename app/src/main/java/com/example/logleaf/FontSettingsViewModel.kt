@@ -1,17 +1,21 @@
-package com.example.logleaf
+// ★★★ FontSettingsViewModel.kt (全体をこれに置き換えてください) ★★★
+
+package com.example.logleaf // あなたのパッケージ名に合わせてください
 
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight // ★ FontWeight を import
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.logleaf.ui.theme.availableFonts
+import com.example.logleaf.ui.theme.availableFonts // あなたのパッケージ名に合わせてください
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
-// 画面の状態を表すデータクラス
+// ★★★ [変更点1] UIの状態に、fontWeightを追加 ★★★
 data class FontSettingsUiState(
     val selectedFontName: String = "Default",
     val selectedFontFamily: FontFamily = FontFamily.Default,
+    val selectedFontWeight: FontWeight = FontWeight.Normal, // ← これを追加！
     val fontSize: Float = 16f,
     val lineHeight: Float = 1.5f,
     val letterSpacing: Float = 0.1f
@@ -25,19 +29,22 @@ class FontSettingsViewModel(
     val uiState: StateFlow<FontSettingsUiState> = _uiState.asStateFlow()
 
     init {
-        // ViewModelが作られた瞬間に、保存されている設定を読み込む
         viewModelScope.launch {
-            // 複数のFlowを一つにまとめる
             combine(
                 fontSettingsManager.fontNameFlow,
                 fontSettingsManager.fontSizeFlow,
                 fontSettingsManager.lineHeightFlow,
                 fontSettingsManager.letterSpacingFlow
             ) { fontName, fontSize, lineHeight, letterSpacing ->
+                // ★★★ [変更点2] 選択されたフォントの情報を、パレットから見つけ出す ★★★
+                val selectedAppFont = availableFonts.find { it.name == fontName }
+
                 // 新しい設定値でUiStateを更新
                 FontSettingsUiState(
                     selectedFontName = fontName,
-                    selectedFontFamily = availableFonts.find { it.name == fontName }?.fontFamily ?: FontFamily.Default,
+                    // ★ パレットの情報を使って、familyとweightを正しく更新する
+                    selectedFontFamily = selectedAppFont?.fontFamily ?: FontFamily.Default,
+                    selectedFontWeight = selectedAppFont?.fontWeight ?: FontWeight.Normal, // ← これを追加！
                     fontSize = fontSize,
                     lineHeight = lineHeight,
                     letterSpacing = letterSpacing
@@ -48,7 +55,7 @@ class FontSettingsViewModel(
         }
     }
 
-    // --- UIからのイベントを処理する関数 ---
+    // --- UIからのイベントを処理する関数 (変更なし) ---
 
     fun onFontSelected(fontName: String) {
         viewModelScope.launch {
@@ -74,7 +81,19 @@ class FontSettingsViewModel(
         }
     }
 
-    // --- ViewModelを生成するためのFactory ---
+    // ★★★ [新設] リセットボタンのための関数 ★★★
+    fun resetSettings() {
+        viewModelScope.launch {
+            // 保存されている設定を、全てデフォルト値で上書きする
+            fontSettingsManager.saveFontName("Default")
+            fontSettingsManager.saveFontSize(16f)
+            fontSettingsManager.saveLineHeight(1.5f)
+            fontSettingsManager.saveLetterSpacing(0.1f)
+            // これにより、initブロックのcombineが再実行され、UIが自動的に更新される
+        }
+    }
+
+    // --- ViewModelを生成するためのFactory (変更なし) ---
     companion object {
         fun provideFactory(
             fontSettingsManager: FontSettingsManager
