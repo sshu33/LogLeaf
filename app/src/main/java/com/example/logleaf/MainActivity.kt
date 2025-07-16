@@ -1,5 +1,6 @@
 package com.example.logleaf
 
+import android.app.Application
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -24,6 +25,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.logleaf.data.font.FontSettingsManager
 import com.example.logleaf.db.AppDatabase
 import com.example.logleaf.ui.components.BottomNavigationBar
 import com.example.logleaf.ui.screens.AccountScreen
@@ -154,13 +156,15 @@ fun MainScreen(
             }
 
             composable("font_settings") {
-                // FontSettingsManagerのインスタンスを作成
+                val context = LocalContext.current
+                val application = context.applicationContext as Application
                 val fontSettingsManager = remember { FontSettingsManager(context) }
-                // ViewModelを生成
                 val fontSettingsViewModel: FontSettingsViewModel = viewModel(
-                    factory = FontSettingsViewModel.provideFactory(fontSettingsManager)
+                    factory = FontSettingsViewModel.provideFactory(
+                        application = application,
+                        fontSettingsManager = fontSettingsManager
+                    )
                 )
-                // FontSettingsScreenを呼び出す（中身はまだ空）
                 FontSettingsScreen(
                     viewModel = fontSettingsViewModel,
                     navController = navController

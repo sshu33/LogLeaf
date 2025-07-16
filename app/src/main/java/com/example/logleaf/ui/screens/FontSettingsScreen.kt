@@ -2,17 +2,38 @@ package com.example.logleaf.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FormatLineSpacing
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SpaceBar
 import androidx.compose.material.icons.filled.TextFields
-import androidx.compose.material3.*
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -29,9 +50,10 @@ import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
 import androidx.navigation.NavController
 import com.example.logleaf.FontSettingsViewModel
-import com.example.logleaf.ui.theme.availableFonts
+import com.example.logleaf.ui.settings.font.AppFont
+import com.example.logleaf.ui.settings.font.FontStatus
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class) // ★ Opt-In宣言
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun FontSettingsScreen(
     viewModel: FontSettingsViewModel,
@@ -48,14 +70,9 @@ fun FontSettingsScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "戻る")
                     }
                 },
-                // ★ セーブデータに基づき、リセットボタンを追加
                 actions = {
                     TextButton(onClick = viewModel::resetSettings) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "リセット",
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Icon(imageVector = Icons.Default.Refresh, contentDescription = "リセット", modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(4.dp))
                         Text("Reset")
                     }
@@ -63,11 +80,9 @@ fun FontSettingsScreen(
             )
         }
     ) { innerPadding ->
-        // ★★★ 我々の知る「究極のレイアウト構造」 ★★★
         ConstraintLayout(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             val (previewRef, fontListRef, sliderAreaRef) = createRefs()
 
-            // --- プレビューエリア (上部固定) ---
             Box(
                 modifier = Modifier
                     .constrainAs(previewRef) {
@@ -76,9 +91,8 @@ fun FontSettingsScreen(
                         end.linkTo(parent.end)
                         width = Dimension.fillToConstraints
                     }
-                    // ★★★ ここで、Boxの内側にパディングを指定する！ ★★★
-                    .padding(horizontal = 20.dp)
-                    .heightIn(min = 150.dp)
+                    .padding(horizontal = 24.dp)
+                    .heightIn(min = 120.dp)
             ) {
                 PreviewArea(
                     fontFamily = uiState.selectedFontFamily,
@@ -89,11 +103,10 @@ fun FontSettingsScreen(
                 )
             }
 
-            // --- フォント選択エリア (中間可変、スクロール担当) ---
             Column(
                 modifier = Modifier
                     .constrainAs(fontListRef) {
-                        top.linkTo(previewRef.bottom, margin = 16.dp)
+                        top.linkTo(previewRef.bottom, margin = 24.dp)
                         bottom.linkTo(sliderAreaRef.top, margin = 16.dp)
                         start.linkTo(parent.start)
                         end.linkTo(parent.end)
@@ -107,30 +120,26 @@ fun FontSettingsScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    availableFonts.forEach { font ->
+                    uiState.availableFonts.forEach { font ->
                         FontChip(
-                            fontName = font.name,
-                            fontFamily = font.fontFamily,
-                            fontWeight = font.fontWeight,
+                            font = font,
                             isSelected = font.name == uiState.selectedFontName,
-                            onSelected = { viewModel.onFontSelected(font.name) }
+                            onSelected = { viewModel.onFontSelected(font) }
                         )
                     }
                 }
             }
 
-            // --- スライダーエリア (下部固定) ---
             Column(
                 modifier = Modifier
                     .constrainAs(sliderAreaRef) {
-                        bottom.linkTo(parent.bottom, margin = 16.dp)
+                        bottom.linkTo(parent.bottom)
                         start.linkTo(parent.start)
                         end.linkTo(parent.end)
                         width = Dimension.fillToConstraints
                     }
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                // ★ セーブデータに基づき、アイコン付きのミニマルなスライダーに変更
                 MinimalSlider(
                     label = "フォントサイズ",
                     icon = Icons.Default.TextFields,
@@ -188,29 +197,61 @@ private fun MinimalSlider(
 
 @Composable
 private fun FontChip(
-    fontName: String,
-    fontFamily: FontFamily,
-    fontWeight: FontWeight,
+    font: AppFont,
     isSelected: Boolean,
     onSelected: () -> Unit
 ) {
+    // ★★★ when式に、INTERNALの条件を追加 ★★★
+    val backgroundColor = when {
+        isSelected -> MaterialTheme.colorScheme.primary
+        font.status == FontStatus.DOWNLOADED || font.status == FontStatus.INTERNAL -> MaterialTheme.colorScheme.surfaceVariant
+        else -> MaterialTheme.colorScheme.secondaryContainer
+    }
+    val textColor = when {
+        isSelected -> MaterialTheme.colorScheme.onPrimary
+        font.status == FontStatus.DOWNLOADED || font.status == FontStatus.INTERNAL -> MaterialTheme.colorScheme.onSurface
+        else -> MaterialTheme.colorScheme.onSecondaryContainer
+    }
+
     Box(
         modifier = Modifier
             .clip(CircleShape)
-            .background(
-                if (isSelected) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.surfaceVariant
-            )
+            .background(backgroundColor)
             .clickable(onClick = onSelected)
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = fontName,
-            fontFamily = fontFamily,
-            fontWeight = fontWeight,
-            color = if (isSelected) MaterialTheme.colorScheme.onPrimary
-            else MaterialTheme.colorScheme.onSurface
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = font.name,
+                fontFamily = font.fontFamily,
+                fontWeight = font.fontWeight,
+                color = textColor
+            )
+
+            when (font.status) {
+                FontStatus.DOWNLOADING -> {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        color = textColor,
+                        strokeWidth = 2.dp
+                    )
+                }
+                FontStatus.NOT_DOWNLOADED -> {
+                    Icon(
+                        imageVector = Icons.Default.Download,
+                        contentDescription = "ダウンロード",
+                        modifier = Modifier.size(16.dp),
+                        tint = textColor
+                    )
+                }
+                // ★ 内部リソースとダウンロード済みは、アイコン不要なので、何もしない
+                FontStatus.DOWNLOADED, FontStatus.INTERNAL -> { /* 何も表示しない */ }
+            }
+        }
     }
 }
 
