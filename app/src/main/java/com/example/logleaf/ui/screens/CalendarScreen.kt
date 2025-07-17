@@ -1,9 +1,10 @@
 package com.example.logleaf.ui.screens
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.updateTransition
+
+import android.util.Log
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -25,21 +26,20 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -53,9 +53,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.logleaf.Post
 import com.example.logleaf.UiState
+import com.example.logleaf.ui.entry.PostEntrySheet
 import kotlinx.coroutines.delay
 import java.time.LocalDate
 import java.time.Month
@@ -73,15 +74,16 @@ import java.util.Locale
 
 @Composable
 fun CalendarScreen(
+    // --- ここからが、本来あるべき、正しい引数の全リストです ---
     uiState: UiState,
     initialDateString: String? = null,
     targetPostId: String? = null,
-
     navController: NavController,
     onRefresh: () -> Unit,
-    isRefreshing: Boolean
+    isRefreshing: Boolean, // ← おそらく、この行が消えてしまっていました
+    onAddPost: () -> Unit    // ← そして、この行を追加する必要がありました
 ) {
-    // 1. 初期日付を決定する (遷移元から渡された日付 or 今日)
+
     val initialDate = remember(initialDateString) {
         if (initialDateString != null) {
             try {
@@ -93,91 +95,110 @@ fun CalendarScreen(
             LocalDate.now()
         }
     }
-
-    // 2. ユーザーがカレンダー上で選択している日付の状態を管理する
     var selectedDate by remember { mutableStateOf(initialDate) }
     val listState = rememberLazyListState()
     var focusedPostIdForRipple by remember { mutableStateOf<String?>(null) }
-
-// スクロール完了後のアニメーション実行
     LaunchedEffect(initialDate, uiState.allPosts, targetPostId) {
         selectedDate = initialDate
-
         if (targetPostId != null) {
             val postsForDay = uiState.allPosts.filter {
-                it.createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate() == initialDate
+                it.createdAt.withZoneSameInstant(ZoneId.systemDefault())
+                    .toLocalDate() == initialDate
             }
             val index = postsForDay.indexOfFirst { it.id == targetPostId }
-
             if (index != -1) {
-                // スクロールを実行
                 listState.animateScrollToItem(index)
-                // ★ リップルを出す対象をセット
                 focusedPostIdForRipple = targetPostId
             }
         }
     }
-
     val postsForSelectedDay = uiState.allPosts.filter {
         it.createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate() == selectedDate
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
-        ) {
-            CalendarHeader(
-                yearMonth = YearMonth.from(selectedDate),
-                onMonthSelected = { newMonth -> selectedDate = selectedDate.withMonth(newMonth.value).withDayOfMonth(1) },
-                onYearChanged = { yearChange -> selectedDate = selectedDate.plusYears(yearChange.toLong()) },
-                onMonthTitleClick = { selectedDate = LocalDate.now() },
-                onRefresh = onRefresh,
-                isRefreshing = isRefreshing
-            )
-            CalendarGrid(
-                posts = uiState.allPosts,
-                selectedDate = selectedDate,
-                onDateSelected = { newDate -> selectedDate = newDate },
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        Surface(
-            modifier = Modifier.weight(1f),
-            color = MaterialTheme.colorScheme.surfaceVariant
-        ) {
-            // ★★★ ここが最重要の修正箇所です ★★★
-            // まず「isLoading」の状態を最優先でチェックします。
-            if (uiState.isLoading) {
-                // 読み込み中なら、クルクルマークを表示
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            } else if (postsForSelectedDay.isEmpty()) {
-                // 読み込みが終わって、かつ投稿がない場合のみ、このメッセージを表示
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        text = "投稿がありません",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            } else {
-                // 読み込みが終わり、投稿がある場合はリストを表示
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    state = listState,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp)
-                ) {
-                    items(postsForSelectedDay, key = { post -> post.id }) { post ->
-                        CalendarPostCardItem(
-                            post = post,
-                            isFocused = (post.id == focusedPostIdForRipple)
-                        )
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+            ) {
+                CalendarHeader(
+                    yearMonth = YearMonth.from(selectedDate),
+                    onMonthSelected = { newMonth ->
+                        selectedDate = selectedDate.withMonth(newMonth.value).withDayOfMonth(1)
+                    },
+                    onYearChanged = { yearChange ->
+                        selectedDate = selectedDate.plusYears(yearChange.toLong())
+                    },
+                    onMonthTitleClick = { selectedDate = LocalDate.now() },
+                    onRefresh = onRefresh,
+                    isRefreshing = isRefreshing
+                )
+                CalendarGrid(
+                    posts = uiState.allPosts,
+                    selectedDate = selectedDate,
+                    onDateSelected = { newDate -> selectedDate = newDate },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Surface(
+                modifier = Modifier.weight(1f),
+                color = MaterialTheme.colorScheme.surfaceVariant
+            ) {
+                if (uiState.isLoading) {
+                    // (読み込み中の表示)
+                } else if (postsForSelectedDay.isEmpty()) {
+                    // (投稿がない場合の表示)
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        state = listState,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp)
+                    ) {
+                        items(postsForSelectedDay, key = { it.id }) { post ->
+                            CalendarPostCardItem(
+                                post = post,
+                                isFocused = (post.id == focusedPostIdForRipple)
+                            )
+                        }
                     }
                 }
+            }
+        }
+
+        FloatingActionButton(
+            // ★★★ 変更点③：「お願い」を呼び出すように変更 ★★★
+            onClick = onAddPost,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp),
+            containerColor = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            elevation = FloatingActionButtonDefaults.elevation(
+                defaultElevation = 0.dp,
+                pressedElevation = 0.dp
+            )
+        ) {
+            val fabShape = RoundedCornerShape(16.dp)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(bottom = 2.dp, end = 9.dp)
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary)
+                // ★★★ 変更点④：.clickable は不要なので削除します ★★★
+                // onClickが二重定義になるのを防ぎます
+                ,
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "新しい投稿を作成",
+                    tint = MaterialTheme.colorScheme.onPrimary
+                )
             }
         }
     }
@@ -250,7 +271,8 @@ fun CalendarHeader(
             horizontalArrangement = Arrangement.SpaceAround
         ) {
             Month.values().forEach { month ->
-                val monthChar = month.getDisplayName(java.time.format.TextStyle.NARROW, Locale.ENGLISH)
+                val monthChar =
+                    month.getDisplayName(java.time.format.TextStyle.NARROW, Locale.ENGLISH)
                 Text(
                     text = monthChar,
                     style = MaterialTheme.typography.bodyLarge.copy(fontSize = 12.sp),
@@ -282,8 +304,13 @@ fun CalendarGrid(
         val currentYearMonth = YearMonth.from(selectedDate)
         val daysInMonth = currentYearMonth.lengthOfMonth()
         val firstDayOfMonth = currentYearMonth.atDay(1).dayOfWeek.value % 7
-        val postsByDay = posts.filter { YearMonth.from(it.createdAt.withZoneSameInstant(ZoneId.systemDefault())) == currentYearMonth }.groupBy { it.createdAt.withZoneSameInstant(
-            ZoneId.systemDefault()).dayOfMonth }
+        val postsByDay =
+            posts.filter { YearMonth.from(it.createdAt.withZoneSameInstant(ZoneId.systemDefault())) == currentYearMonth }
+                .groupBy {
+                    it.createdAt.withZoneSameInstant(
+                        ZoneId.systemDefault()
+                    ).dayOfMonth
+                }
 
         val dayCells = mutableListOf<LocalDate?>()
         repeat(firstDayOfMonth) { dayCells.add(null) }
@@ -299,23 +326,36 @@ fun CalendarGrid(
 
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
-                modifier = Modifier.fillMaxWidth().height(rowHeight),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(rowHeight),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 listOf("SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT").forEach { day ->
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        Text(text = day, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                        Text(
+                            text = day,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
             weeks.forEach { week ->
                 Row(
-                    modifier = Modifier.fillMaxWidth().height(rowHeight)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(rowHeight)
                 ) {
                     week.forEach { date ->
-                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        Box(
+                            modifier = Modifier.weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
                             if (date != null) {
-                                val colorsForDay = postsByDay[date.dayOfMonth]?.map { it.color }?.distinct() ?: emptyList()
+                                val colorsForDay =
+                                    postsByDay[date.dayOfMonth]?.map { it.color }?.distinct()
+                                        ?: emptyList()
                                 DayCell(
                                     day = date.dayOfMonth,
                                     colors = colorsForDay,
@@ -334,8 +374,15 @@ fun CalendarGrid(
     }
 }
 
+
 @Composable
-fun DayCell(day: Int, colors: List<Color>, isSelected: Boolean, height: Dp, onClick: () -> Unit) {
+fun DayCell(
+    day: Int,
+    colors: List<Color>,
+    isSelected: Boolean,
+    height: Dp,
+    onClick: () -> Unit
+) {
     val interactionSource = remember { MutableInteractionSource() }
 
     Column(
@@ -372,12 +419,15 @@ fun DayCell(day: Int, colors: List<Color>, isSelected: Boolean, height: Dp, onCl
             verticalAlignment = Alignment.CenterVertically
         ) {
             colors.take(4).forEach { color ->
-                Box(modifier = Modifier.size(height * 0.1f).background(color, shape = CircleShape))
+                Box(
+                    modifier = Modifier
+                        .size(height * 0.1f)
+                        .background(color, shape = CircleShape)
+                )
             }
         }
     }
 }
-
 
 
 @Composable

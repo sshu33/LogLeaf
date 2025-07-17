@@ -5,22 +5,32 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -30,6 +40,7 @@ import androidx.navigation.navArgument
 import com.example.logleaf.data.font.FontSettingsManager
 import com.example.logleaf.db.AppDatabase
 import com.example.logleaf.ui.components.BottomNavigationBar
+import com.example.logleaf.ui.entry.PostEntrySheet
 import com.example.logleaf.ui.screens.AccountScreen
 import com.example.logleaf.ui.screens.AccountViewModel
 import com.example.logleaf.ui.screens.BlueskyViewModelFactory
@@ -51,7 +62,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            // ★★★ ここからが、最終形態のロジック ★★★
 
             // 1. contextとapplicationを、一度だけ取得
             val context = LocalContext.current
@@ -147,131 +157,158 @@ fun MainScreen(
         )
     )
 
+    var showPostEntrySheet by remember { mutableStateOf(false) }
 
-    Scaffold(
-        bottomBar = { BottomNavigationBar(navController = navController, showSettingsBadge = showSettingsBadge) }
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = "calendar",
-            modifier = Modifier.padding(innerPadding),
+    // 2. UI全体をBoxで囲みます。これが新しい土台です。
+    Box(modifier = Modifier.fillMaxSize()) {
 
-            enterTransition = { fadeIn(animationSpec = tween(150)) },
-            exitTransition = { fadeOut(animationSpec = tween(150)) }
-
-        ) {
-            composable("timeline") {
-                TimelineScreen(
-                    uiState = uiState, // これでuiStateを渡せる
-                    onRefresh = mainViewModel::refreshPosts,
-                    navController = navController
-                )
-            }
-            composable(
-                route = "calendar?date={date}&postId={postId}",
-                arguments = listOf(
-                    navArgument("date") { type = NavType.StringType; nullable = true },
-                    navArgument("postId") { type = NavType.StringType; nullable = true }
-                )
-            ) { backStackEntry ->
-                val dateString = backStackEntry.arguments?.getString("date")
-                val postId = backStackEntry.arguments?.getString("postId")
-                CalendarScreen(
-                    uiState = uiState, // これでuiStateを渡せる
-                    initialDateString = dateString,
-                    targetPostId = postId,
+        Scaffold(
+            bottomBar = {
+                BottomNavigationBar(
                     navController = navController,
-                    onRefresh = mainViewModel::refreshPosts,
-                    isRefreshing = uiState.isRefreshing
+                    showSettingsBadge = showSettingsBadge
                 )
             }
+        ) { innerPadding ->
+            NavHost(
+                navController = navController,
+                startDestination = "calendar",
+                modifier = Modifier.padding(innerPadding),
 
-            composable("font_settings") {
-                val context = LocalContext.current
-                val application = context.applicationContext as Application
-                val fontSettingsManager = remember { FontSettingsManager(context) }
-                val fontSettingsViewModel: FontSettingsViewModel = viewModel(
-                    factory = FontSettingsViewModel.provideFactory(
-                        application = application,
-                        fontSettingsManager = fontSettingsManager
-                    )
-                )
-                FontSettingsScreen(
-                    viewModel = fontSettingsViewModel,
-                    navController = navController
-                )
-            }
+                enterTransition = { fadeIn(animationSpec = tween(150)) },
+                exitTransition = { fadeOut(animationSpec = tween(150)) }
 
-            composable("accounts") {
-                val accountViewModel: AccountViewModel = viewModel(
-                    factory = AccountViewModel.provideFactory(
-                        sessionManager = sessionManager,
-                        postDao = postDao // ★ この行を追加するだけ！
-                    )
-                )
-                AccountScreen(viewModel = accountViewModel, navController = navController)
-            }
-
-            composable(
-                "settings",
-                enterTransition = {
-                    // 右側から画面の全幅分スライドインしてくる
-                    slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300))
-                },
-                exitTransition = {
-                    // 右側へ画面の全幅分スライドアウトしていく
-                    slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300))
-                }
             ) {
-                SettingsScreen(
-                    navController = navController,
-                    onLogout = onLogout,
-                    showAccountBadge = showSettingsBadge,
-                )
-            }
-            composable("sns_select") { SnsSelectScreen(navController = navController) }
-
-            composable("login") {
-                // SessionManagerはこのNavHostよりも上位のスコープで
-                // 生成・保持されていることを想定しています。
-                val blueskyApi = BlueskyApi(sessionManager)
-
-                // ViewModelを生成します
-                val viewModel: BlueskyLoginViewModel = viewModel(
-                    factory = BlueskyViewModelFactory(blueskyApi)
-                )
-
-                // LoginScreenに生成したViewModelを渡します
-                LoginScreen(
-                    navController = navController,
-                    viewModel = viewModel,
-                    screenTitle = "Bluesky ログイン"
-                )
-            }
-
-            composable("mastodon_instance?instanceUrl={instanceUrl}", arguments = listOf(navArgument("instanceUrl") { type = NavType.StringType; nullable = true })) { backStackEntry ->
-                val instanceUrl = backStackEntry.arguments?.getString("instanceUrl")
-                val mastodonViewModel: MastodonInstanceViewModel = viewModel(
-                    factory = MastodonInstanceViewModel.provideFactory(
-                        mastodonApi = MastodonApi(),
-                        sessionManager = sessionManager,
-                        initialInstanceUrl = instanceUrl
+                composable("timeline") {
+                    TimelineScreen(
+                        uiState = uiState, // これでuiStateを渡せる
+                        onRefresh = mainViewModel::refreshPosts,
+                        navController = navController
                     )
-                )
-                MastodonInstanceScreen(navController = navController, viewModel = mastodonViewModel)
-            }
+                }
+                composable(
+                    route = "calendar?date={date}&postId={postId}",
+                    arguments = listOf(
+                        navArgument("date") { type = NavType.StringType; nullable = true },
+                        navArgument("postId") { type = NavType.StringType; nullable = true }
+                    )
+                ) { backStackEntry ->
+                    val dateString = backStackEntry.arguments?.getString("date")
+                    val postId = backStackEntry.arguments?.getString("postId")
+                    CalendarScreen(
+                        uiState = uiState,
+                        initialDateString = dateString,
+                        targetPostId = postId,
+                        navController = navController,
+                        onRefresh = mainViewModel::refreshPosts,
+                        isRefreshing = uiState.isRefreshing, // ← この行も、正しく含まれています
+                        onAddPost = { showPostEntrySheet = true }
+                    )
+                }
 
-            composable("search") {
-                SearchScreen(
-                    viewModel = searchViewModel, // ★ 外で作った、長生きのViewModelを渡すだけ！
-                    onPostClick = { post ->
-                        val localDate = post.createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate()
-                        val date = localDate.toString()
-                        val postId = post.id
-                        navController.navigate("calendar?date=$date&postId=$postId")
+                composable("font_settings") {
+                    val context = LocalContext.current
+                    val application = context.applicationContext as Application
+                    val fontSettingsManager = remember { FontSettingsManager(context) }
+                    val fontSettingsViewModel: FontSettingsViewModel = viewModel(
+                        factory = FontSettingsViewModel.provideFactory(
+                            application = application,
+                            fontSettingsManager = fontSettingsManager
+                        )
+                    )
+                    FontSettingsScreen(
+                        viewModel = fontSettingsViewModel,
+                        navController = navController
+                    )
+                }
+
+                composable("accounts") {
+                    val accountViewModel: AccountViewModel = viewModel(
+                        factory = AccountViewModel.provideFactory(
+                            sessionManager = sessionManager,
+                            postDao = postDao // ★ この行を追加するだけ！
+                        )
+                    )
+                    AccountScreen(viewModel = accountViewModel, navController = navController)
+                }
+
+                composable(
+                    "settings",
+                    enterTransition = {
+                        // 右側から画面の全幅分スライドインしてくる
+                        slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300))
+                    },
+                    exitTransition = {
+                        // 右側へ画面の全幅分スライドアウトしていく
+                        slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300))
                     }
-                )
+                ) {
+                    SettingsScreen(
+                        navController = navController,
+                        onLogout = onLogout,
+                        showAccountBadge = showSettingsBadge,
+                    )
+                }
+                composable("sns_select") { SnsSelectScreen(navController = navController) }
+
+                composable("login") {
+                    // SessionManagerはこのNavHostよりも上位のスコープで
+                    // 生成・保持されていることを想定しています。
+                    val blueskyApi = BlueskyApi(sessionManager)
+
+                    // ViewModelを生成します
+                    val viewModel: BlueskyLoginViewModel = viewModel(
+                        factory = BlueskyViewModelFactory(blueskyApi)
+                    )
+
+                    // LoginScreenに生成したViewModelを渡します
+                    LoginScreen(
+                        navController = navController,
+                        viewModel = viewModel,
+                        screenTitle = "Bluesky ログイン"
+                    )
+                }
+
+                composable(
+                    "mastodon_instance?instanceUrl={instanceUrl}",
+                    arguments = listOf(navArgument("instanceUrl") {
+                        type = NavType.StringType; nullable = true
+                    })
+                ) { backStackEntry ->
+                    val instanceUrl = backStackEntry.arguments?.getString("instanceUrl")
+                    val mastodonViewModel: MastodonInstanceViewModel = viewModel(
+                        factory = MastodonInstanceViewModel.provideFactory(
+                            mastodonApi = MastodonApi(),
+                            sessionManager = sessionManager,
+                            initialInstanceUrl = instanceUrl
+                        )
+                    )
+                    MastodonInstanceScreen(
+                        navController = navController,
+                        viewModel = mastodonViewModel
+                    )
+                }
+
+                composable("search") {
+                    SearchScreen(
+                        viewModel = searchViewModel, // ★ 外で作った、長生きのViewModelを渡すだけ！
+                        onPostClick = { post ->
+                            val localDate =
+                                post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
+                                    .toLocalDate()
+                            val date = localDate.toString()
+                            val postId = post.id
+                            navController.navigate("calendar?date=$date&postId=$postId")
+                        }
+                    )
+                }
             }
+        }
+        if (showPostEntrySheet) {
+            PostEntrySheet(
+                isVisible = true,
+                onDismissRequest = { showPostEntrySheet = false }
+            )
         }
     }
 }
