@@ -2,6 +2,7 @@ package com.example.logleaf.ui.screens // パッケージ名はあなたのも�
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import com.example.logleaf.Post
 import com.example.logleaf.SessionManager
 import com.example.logleaf.db.PostDao
@@ -10,12 +11,15 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 
 class SearchViewModel(
     private val postDao: PostDao,
@@ -33,30 +37,24 @@ class SearchViewModel(
     }
 
     @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
-    val searchResultPosts: Flow<List<Post>> =
-        // ★ 変更点 3/5: 検索キーワード、SNSフィルター、そしてアカウント情報の3つを組み合わせる
+    val searchResultPosts: StateFlow<List<Post>> =
         combine(searchKeywords, selectedSns, sessionManager.accountsFlow) { keywords, sns, accounts ->
-            Triple(keywords, sns, accounts) // 3つの値をセットで下流に渡す
+            Triple(keywords, sns, accounts)
         }
             .debounce(300L)
-            .flatMapLatest { (keywords, sns, accounts) -> // 3つの値を受け取る
+            .flatMapLatest { (keywords, sns, accounts) ->
                 if (keywords.isEmpty()) {
                     flowOf(emptyList())
                 } else {
-                    // ★ 変更点 4/5: 表示がONになっているアカウントのIDリストを生成する
                     val visibleAccountIds = accounts.filter { it.isVisible }.map { it.userId }
-
-                    // 表示対象アカウントがなければ、空のリストを返す
                     if (visibleAccountIds.isEmpty()) {
                         flowOf(emptyList())
                     } else {
-                        // ★ 修正点: postDaoに単語リストと「表示OKリスト」の両方を渡して検索
                         postDao.searchPostsWithAnd(keywords, visibleAccountIds)
                     }
                 }
             }
             .map { posts ->
-                // SNSフィルターのロジックはあなたのものを完全に維持します
                 val sns = selectedSns.value
                 if (sns != null) {
                     posts.filter { it.source == sns }
@@ -64,6 +62,13 @@ class SearchViewModel(
                     posts
                 }
             }
+            // ▼▼▼ [変更点2] FlowをStateFlowに変換する、魔法の呪文を追加！ ▼▼▼
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = emptyList() // 初期値は、空のリスト
+            )
+
 
     fun onQueryChanged(query: String) {
         _searchQuery.value = query

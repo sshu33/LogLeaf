@@ -60,7 +60,7 @@ fun SearchScreen(
 ) {
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedSns by viewModel.selectedSns.collectAsState()
-    val searchResultPosts by viewModel.searchResultPosts.collectAsState(initial = emptyList())
+    val searchResultPosts by viewModel.searchResultPosts.collectAsState()
 
     Scaffold(
         topBar = {

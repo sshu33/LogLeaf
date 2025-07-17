@@ -137,9 +137,15 @@ fun MainScreen(
         )
     )
 
-    // ★★★ この一行が復活しました！ ★★★
     val uiState by mainViewModel.uiState.collectAsState()
     val showSettingsBadge by mainViewModel.showSettingsBadge.collectAsState()
+
+    val searchViewModel: SearchViewModel = viewModel(
+        factory = SearchViewModel.provideFactory(
+            postDao = postDao,
+            sessionManager = sessionManager
+        )
+    )
 
 
     Scaffold(
@@ -256,17 +262,8 @@ fun MainScreen(
             }
 
             composable("search") {
-                // ★★★ ここで、最新のファクトリを使ってViewModelを正しく生成します ★★★
-                val searchViewModel: SearchViewModel = viewModel(
-                    factory = SearchViewModel.provideFactory(
-                        postDao = postDao,
-                        sessionManager = sessionManager // sessionManagerを渡す
-                    )
-                )
-
-                // 生成したViewModelをSearchScreenに渡す
                 SearchScreen(
-                    viewModel = searchViewModel,
+                    viewModel = searchViewModel, // ★ 外で作った、長生きのViewModelを渡すだけ！
                     onPostClick = { post ->
                         val localDate = post.createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate()
                         val date = localDate.toString()
