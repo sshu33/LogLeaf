@@ -90,3 +90,22 @@ fun LogLeafTheme(
         content = content
     )
 }
+
+@Composable
+fun SettingsTheme(
+    content: @Composable () -> Unit
+) {
+    // 1. 設定画面専用の、固定サイズのTypographyを定義する
+    val settingsTypography = Typography(
+        titleLarge = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp),
+        titleMedium = MaterialTheme.typography.titleMedium.copy(fontSize = 16.sp),
+        bodyLarge = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp),
+        // (必要に応じて、他のスタイルもここで定義・上書きできます)
+    )
+
+    // 2. MaterialThemeを呼び出し、typographyだけを差し替える
+    MaterialTheme(
+        typography = settingsTypography,
+        content = content
+    )
+}

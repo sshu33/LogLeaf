@@ -52,6 +52,7 @@ import androidx.navigation.NavController
 import com.example.logleaf.FontSettingsViewModel
 import com.example.logleaf.ui.settings.font.AppFont
 import com.example.logleaf.ui.settings.font.FontStatus
+import com.example.logleaf.ui.theme.SettingsTheme
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -72,7 +73,11 @@ fun FontSettingsScreen(
                 },
                 actions = {
                     TextButton(onClick = viewModel::resetSettings) {
-                        Icon(imageVector = Icons.Default.Refresh, contentDescription = "リセット", modifier = Modifier.size(18.dp))
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "リセット",
+                            modifier = Modifier.size(18.dp)
+                        )
                         Spacer(Modifier.width(4.dp))
                         Text("Reset")
                     }
@@ -103,6 +108,8 @@ fun FontSettingsScreen(
                 )
             }
 
+            SettingsTheme {
+
             Column(
                 modifier = Modifier
                     .constrainAs(fontListRef) {
@@ -130,40 +137,41 @@ fun FontSettingsScreen(
                 }
             }
 
-            Column(
-                modifier = Modifier
-                    .constrainAs(sliderAreaRef) {
-                        bottom.linkTo(parent.bottom)
-                        start.linkTo(parent.start)
-                        end.linkTo(parent.end)
-                        width = Dimension.fillToConstraints
-                    }
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                MinimalSlider(
-                    label = "フォントサイズ",
-                    icon = Icons.Default.TextFields,
-                    value = uiState.fontSize,
-                    onValueChange = viewModel::onFontSizeChanged,
-                    valueRange = 12f..24f,
-                    steps = 11
-                )
-                MinimalSlider(
-                    label = "行間",
-                    icon = Icons.Default.FormatLineSpacing,
-                    value = uiState.lineHeight,
-                    onValueChange = viewModel::onLineHeightChanged,
-                    valueRange = 1.2f..2.0f,
-                    steps = 7
-                )
-                MinimalSlider(
-                    label = "字間",
-                    icon = Icons.Default.SpaceBar,
-                    value = uiState.letterSpacing,
-                    onValueChange = viewModel::onLetterSpacingChanged,
-                    valueRange = 0f..0.5f,
-                    steps = 9
-                )
+                Column(
+                    modifier = Modifier
+                        .constrainAs(sliderAreaRef) {
+                            bottom.linkTo(parent.bottom)
+                            start.linkTo(parent.start)
+                            end.linkTo(parent.end)
+                            width = Dimension.fillToConstraints
+                        }
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    MinimalSlider(
+                        label = "フォントサイズ",
+                        icon = Icons.Default.TextFields,
+                        value = uiState.fontSize,
+                        onValueChange = viewModel::onFontSizeChanged,
+                        valueRange = 12f..24f,
+                        steps = 11
+                    )
+                    MinimalSlider(
+                        label = "行間",
+                        icon = Icons.Default.FormatLineSpacing,
+                        value = uiState.lineHeight,
+                        onValueChange = viewModel::onLineHeightChanged,
+                        valueRange = 1.2f..2.0f,
+                        steps = 7
+                    )
+                    MinimalSlider(
+                        label = "字間",
+                        icon = Icons.Default.SpaceBar,
+                        value = uiState.letterSpacing,
+                        onValueChange = viewModel::onLetterSpacingChanged,
+                        valueRange = 0f..0.5f,
+                        steps = 9
+                    )
+                }
             }
         }
     }

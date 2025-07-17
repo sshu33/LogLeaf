@@ -39,6 +39,7 @@ import androidx.navigation.NavController
 import com.example.logleaf.Account
 import com.example.logleaf.R
 import com.example.logleaf.ui.components.ListCard
+import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
@@ -53,135 +54,140 @@ fun AccountScreen(
     val accounts by viewModel.accounts.collectAsState()
     var accountToDelete by remember { mutableStateOf<Account?>(null) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("アカウント管理") },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "戻る")
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("アカウント管理") },
+                    navigationIcon = {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "戻る")
+                        }
+                    }
+                )
+            },
+            floatingActionButton = {
+                FloatingActionButton(
+                    onClick = { navController.navigate("sns_select") }
+                ) {
+                    Icon(Icons.Default.Add, "アカウントの追加")
+                }
+            }
+        ) { padding ->
+            if (accounts.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("アカウントが登録されていません")
+                }
+            } else {
+                // ★ SnsSelectScreenとレイアウトを完全に一致させる
+                SettingsTheme {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(accounts) { account ->
+                        // ★ あなたの作ったListCardを、敬意を払って使用します
+                        ListCard(
+                            onClick = {
+                                if (account.needsReauthentication && account is Account.Mastodon) {
+                                    val encodedUrl = URLEncoder.encode(
+                                        account.instanceUrl,
+                                        StandardCharsets.UTF_8.toString()
+                                    )
+                                    navController.navigate("mastodon_instance?instanceUrl=$encodedUrl")
+                                }
+                            }
+                        ) {
+                            // --- ここから下がListCardの content ---
+
+                            // ★ 過去の設計を完全再現：SNSアイコン
+                            Icon(
+                                painter = painterResource(
+                                    id = when (account.snsType) {
+                                        SnsType.BLUESKY -> R.drawable.ic_bluesky
+                                        SnsType.MASTODON -> R.drawable.ic_mastodon
+                                    }
+                                ),
+                                contentDescription = account.snsType.name,
+                                tint = account.snsType.brandColor,
+                                modifier = Modifier.size(26.dp)
+                            )
+
+                            // ★ 過去の設計を完全再現：アカウント名
+                            Text(
+                                text = account.displayName,
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+
+                            // ★ ここが最重要ポイントです ★
+                            if (account.needsReauthentication) {
+                                // ★ 過去の設計を完全再現：再認証が必要な場合の表示
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "再認証",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.ic_sync),
+                                        contentDescription = "再認証が必要です",
+                                        tint = MaterialTheme.colorScheme.primary, // NoticeGreenよりこちらの方がテーマに合致します
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            } else {
+                                // ★ 新しい機能（トグルスイッチ）を、あなたの希望通りに自然に統合 ★
+                                Switch(
+                                    checked = account.isVisible,
+                                    onCheckedChange = { viewModel.toggleAccountVisibility(account.userId) }
+                                )
+                                IconButton(onClick = { accountToDelete = account }) {
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.ic_delete),
+                                        contentDescription = "削除",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ★ 改善されたロジックは維持: 警告文がより親切な削除確認ダイアログ
+        if (accountToDelete != null) {
+            val currentAccount = accountToDelete!!
+            AlertDialog(
+                onDismissRequest = { accountToDelete = null },
+                title = { Text("アカウントの完全削除") },
+                text = { Text("${currentAccount.displayName} を削除しますか？\n\n注意：このアカウントの投稿もすべて削除され、元に戻すことはできません。") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            viewModel.deleteAccountAndPosts(currentAccount)
+                            accountToDelete = null
+                        }
+                    ) {
+                        Text("削除", color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { accountToDelete = null }) {
+                        Text("キャンセル")
                     }
                 }
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { navController.navigate("sns_select") }
-            ) {
-                Icon(Icons.Default.Add, "アカウントの追加")
-            }
         }
-    ) { padding ->
-        if (accounts.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("アカウントが登録されていません")
-            }
-        } else {
-            // ★ SnsSelectScreenとレイアウトを完全に一致させる
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(accounts) { account ->
-                    // ★ あなたの作ったListCardを、敬意を払って使用します
-                    ListCard(
-                        onClick = {
-                            if (account.needsReauthentication && account is Account.Mastodon) {
-                                val encodedUrl = URLEncoder.encode(account.instanceUrl, StandardCharsets.UTF_8.toString())
-                                navController.navigate("mastodon_instance?instanceUrl=$encodedUrl")
-                            }
-                        }
-                    ) {
-                        // --- ここから下がListCardの content ---
-
-                        // ★ 過去の設計を完全再現：SNSアイコン
-                        Icon(
-                            painter = painterResource(
-                                id = when (account.snsType) {
-                                    SnsType.BLUESKY -> R.drawable.ic_bluesky
-                                    SnsType.MASTODON -> R.drawable.ic_mastodon
-                                }
-                            ),
-                            contentDescription = account.snsType.name,
-                            tint = account.snsType.brandColor,
-                            modifier = Modifier.size(26.dp)
-                        )
-
-                        // ★ 過去の設計を完全再現：アカウント名
-                        Text(
-                            text = account.displayName,
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-
-                        // ★ ここが最重要ポイントです ★
-                        if (account.needsReauthentication) {
-                            // ★ 過去の設計を完全再現：再認証が必要な場合の表示
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "再認証",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(Modifier.width(4.dp))
-                                Icon(
-                                    painter = painterResource(id = R.drawable.ic_sync),
-                                    contentDescription = "再認証が必要です",
-                                    tint = MaterialTheme.colorScheme.primary, // NoticeGreenよりこちらの方がテーマに合致します
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                        } else {
-                            // ★ 新しい機能（トグルスイッチ）を、あなたの希望通りに自然に統合 ★
-                            Switch(
-                                checked = account.isVisible,
-                                onCheckedChange = { viewModel.toggleAccountVisibility(account.userId) }
-                            )
-                            IconButton(onClick = { accountToDelete = account }) {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.ic_delete),
-                                    contentDescription = "削除",
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // ★ 改善されたロジックは維持: 警告文がより親切な削除確認ダイアログ
-    if (accountToDelete != null) {
-        val currentAccount = accountToDelete!!
-        AlertDialog(
-            onDismissRequest = { accountToDelete = null },
-            title = { Text("アカウントの完全削除") },
-            text = { Text("${currentAccount.displayName} を削除しますか？\n\n注意：このアカウントの投稿もすべて削除され、元に戻すことはできません。") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.deleteAccountAndPosts(currentAccount)
-                        accountToDelete = null
-                    }
-                ) {
-                    Text("削除", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { accountToDelete = null }) {
-                    Text("キャンセル")
-                }
-            }
-        )
     }
 }
