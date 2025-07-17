@@ -70,9 +70,6 @@ class MainViewModel(
                 _uiState.update { it.copy(isLoading = true) }
             }
 
-            // ★★★ ここが最重要の変更点 (1/2) ★★★
-            // APIからは全アカウントのデータを取得する（非表示でも裏では最新データを保つため）
-            // ただし、APIにリクエストを送るのは「再認証不要」なアカウントのみにするのが安全
             val accountsToFetch = accounts.filter { !it.needsReauthentication }
 
             try {

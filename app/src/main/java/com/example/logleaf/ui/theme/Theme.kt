@@ -3,12 +3,18 @@ package com.example.logleaf.ui.theme
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import com.example.logleaf.FontSettingsUiState
 
 private val DarkColorScheme = darkColorScheme(
     primary = LimeGreen,
@@ -37,8 +43,9 @@ private val LightColorScheme = lightColorScheme(
 @Composable
 fun LogLeafTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
     dynamicColor: Boolean = false,
+    // ★★★ 引数を、UiStateオブジェクト、ただ一つにする！ ★★★
+    fontSettings: FontSettingsUiState = FontSettingsUiState(),
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -46,14 +53,40 @@ fun LogLeafTheme(
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
     }
 
+    // ★★★ 受け取ったフォント設定を元に、新しいTypographyを動的に生成 ★★★
+    val customTypography = Typography(
+        bodyLarge = TextStyle(
+            fontFamily = fontSettings.selectedFontFamily,
+            fontWeight = fontSettings.selectedFontWeight,
+            fontSize = fontSettings.fontSize.sp,
+            lineHeight = (fontSettings.fontSize * fontSettings.lineHeight).sp,
+            letterSpacing = fontSettings.letterSpacing.sp
+        ),
+        // ★ 必要に応じて、他のスタイル(h1, h2, buttonなど)も、ここでカスタマイズ可能
+        // 例: bodyLargeをベースに、少し小さめのスタイルを作る
+        bodyMedium = TextStyle(
+            fontFamily = fontSettings.selectedFontFamily,
+            fontWeight = fontSettings.selectedFontWeight,
+            fontSize = fontSettings.fontSize.sp,
+            lineHeight = (fontSettings.fontSize * fontSettings.lineHeight).sp,
+            letterSpacing = fontSettings.letterSpacing.sp
+        ),
+        titleLarge = TextStyle(
+            fontFamily = fontSettings.selectedFontFamily,
+            fontWeight = fontSettings.selectedFontWeight,
+            fontSize = fontSettings.fontSize.sp,
+            lineHeight = (fontSettings.fontSize * fontSettings.lineHeight).sp,
+            letterSpacing = fontSettings.letterSpacing.sp
+        )
+    )
+
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,
+        typography = customTypography, // ★ 動的に生成したTypographyを、テーマに適用！
         content = content
     )
 }

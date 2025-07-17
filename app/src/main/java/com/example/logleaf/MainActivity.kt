@@ -19,6 +19,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -49,7 +51,30 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            LogLeafTheme {
+            // ★★★ ここからが、最終形態のロジック ★★★
+
+            // 1. contextとapplicationを、一度だけ取得
+            val context = LocalContext.current
+            val application = context.applicationContext as Application
+
+            // 2. FontSettingsManagerを、一度だけ生成
+            val fontSettingsManager = remember { FontSettingsManager(context) }
+
+            // 3. FontSettingsViewModelを、ここで、一度だけ生成する！
+            val fontSettingsViewModel: FontSettingsViewModel = viewModel(
+                factory = FontSettingsViewModel.provideFactory(
+                    application = application,
+                    fontSettingsManager = fontSettingsManager
+                )
+            )
+
+            // 4. ViewModelが持つ、最新のUiStateを、ここで監視する！
+            val fontUiState by fontSettingsViewModel.uiState.collectAsState()
+
+            // 5. 監視したUiStateを、丸ごと、LogLeafThemeに渡す！
+            LogLeafTheme(
+                fontSettings = fontUiState
+            ) {
                 AppEntry(
                     onLogout = {
                         val intent = packageManager.getLaunchIntentForPackage(packageName)

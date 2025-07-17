@@ -56,7 +56,11 @@ class FontSettingsViewModel(
         AppFont(name = "DotGothic16", fontWeight = FontWeight.Normal, sourceType = FontSourceType.Downloadable("https://github.com/google/fonts/raw/main/ofl/dotgothic16/DotGothic16-Regular.ttf"), status = FontStatus.NOT_DOWNLOADED),
         AppFont(name = "Yusei Magic", fontWeight = FontWeight.Normal, sourceType = FontSourceType.Downloadable("https://github.com/google/fonts/raw/main/ofl/yuseimagic/YuseiMagic-Regular.ttf"), status = FontStatus.NOT_DOWNLOADED),
         AppFont(name = "Zen Maru Gothic", fontWeight = FontWeight.Normal, sourceType = FontSourceType.Downloadable("https://github.com/google/fonts/raw/main/ofl/zenmarugothic/ZenMaruGothic-Regular.ttf"), status = FontStatus.NOT_DOWNLOADED),
-        AppFont(name = "Shippori Mincho", fontWeight = FontWeight.Normal, sourceType = FontSourceType.Downloadable("https://github.com/google/fonts/raw/main/ofl/shipporimincho/ShipporiMincho-Regular.ttf"), status = FontStatus.NOT_DOWNLOADED)
+        AppFont(name = "Shippori Mincho", fontWeight = FontWeight.Normal, sourceType = FontSourceType.Downloadable("https://github.com/google/fonts/raw/main/ofl/shipporimincho/ShipporiMincho-Regular.ttf"), status = FontStatus.NOT_DOWNLOADED),
+        AppFont(name = "Kiwi Maru", fontWeight = FontWeight.Normal, sourceType = FontSourceType.Downloadable("https://github.com/google/fonts/raw/main/ofl/kiwimaru/KiwiMaru-Regular.ttf"), status = FontStatus.NOT_DOWNLOADED),
+        AppFont(name = "RocknRoll One", fontWeight = FontWeight.Normal, sourceType = FontSourceType.Downloadable("https://github.com/google/fonts/raw/main/ofl/rocknrollone/RocknRollOne-Regular.ttf"), status = FontStatus.NOT_DOWNLOADED),
+        AppFont(name = "Hina Mincho", fontWeight = FontWeight.Normal, sourceType = FontSourceType.Downloadable("https://github.com/google/fonts/raw/main/ofl/hinamincho/HinaMincho-Regular.ttf"), status = FontStatus.NOT_DOWNLOADED)
+
     )
 
     init {

@@ -59,6 +59,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.logleaf.Post
 import com.example.logleaf.UiState
@@ -252,7 +253,7 @@ fun CalendarHeader(
                 val monthChar = month.getDisplayName(java.time.format.TextStyle.NARROW, Locale.ENGLISH)
                 Text(
                     text = monthChar,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 12.sp),
                     fontWeight = if (yearMonth.month == month) FontWeight.Bold else FontWeight.Normal,
                     color = if (yearMonth.month == month) MaterialTheme.colorScheme.primary else Color.Gray,
                     modifier = Modifier.clickable { onMonthSelected(month) }
@@ -361,7 +362,7 @@ fun DayCell(day: Int, colors: List<Color>, isSelected: Boolean, height: Dp, onCl
         ) {
             Text(
                 text = day.toString(),
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyLarge.copy(fontSize = 14.sp),
                 color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
             )
         }
