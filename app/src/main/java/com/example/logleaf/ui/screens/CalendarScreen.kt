@@ -1,10 +1,6 @@
 package com.example.logleaf.ui.screens
 
 
-import android.util.Log
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -63,7 +59,6 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.logleaf.Post
 import com.example.logleaf.UiState
-import com.example.logleaf.ui.entry.PostEntrySheet
 import kotlinx.coroutines.delay
 import java.time.LocalDate
 import java.time.Month
@@ -74,14 +69,14 @@ import java.util.Locale
 
 @Composable
 fun CalendarScreen(
-    // --- ここからが、本来あるべき、正しい引数の全リストです ---
     uiState: UiState,
     initialDateString: String? = null,
     targetPostId: String? = null,
     navController: NavController,
     onRefresh: () -> Unit,
-    isRefreshing: Boolean, // ← おそらく、この行が消えてしまっていました
-    onAddPost: () -> Unit    // ← そして、この行を追加する必要がありました
+    isRefreshing: Boolean,
+    onShowPostEntry: () -> Unit,
+    onDismissPostEntry: () -> Unit
 ) {
 
     val initialDate = remember(initialDateString) {
@@ -169,8 +164,7 @@ fun CalendarScreen(
         }
 
         FloatingActionButton(
-            // ★★★ 変更点③：「お願い」を呼び出すように変更 ★★★
-            onClick = onAddPost,
+            onClick = onShowPostEntry,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp),

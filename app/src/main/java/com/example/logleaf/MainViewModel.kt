@@ -27,9 +27,9 @@ data class UiState(
     val dayLogs: List<DayLog> = emptyList(),
     val allPosts: List<Post> = emptyList(),
     val isLoading: Boolean = true,
-    val isRefreshing: Boolean = false
+    val isRefreshing: Boolean = false,
+    val isPostEntrySheetVisible: Boolean = false
 )
-
 class MainViewModel(
     private val blueskyApi: BlueskyApi,
     private val mastodonApi: MastodonApi,
@@ -129,6 +129,20 @@ class MainViewModel(
             // ★ SessionManagerから最新のアカウントリストを取得して渡す
             fetchPosts(sessionManager.accountsFlow.first(), isInitialLoad = false)
         }
+    }
+
+    /**
+     * 投稿入力シートの表示を要求する
+     */
+    fun showPostEntrySheet() {
+        _uiState.update { it.copy(isPostEntrySheetVisible = true) }
+    }
+
+    /**
+     * 投稿入力シートの非表示を要求する
+     */
+    fun dismissPostEntrySheet() {
+        _uiState.update { it.copy(isPostEntrySheetVisible = false) }
     }
 
     private fun groupPostsByDay(posts: List<Post>): List<DayLog> {
