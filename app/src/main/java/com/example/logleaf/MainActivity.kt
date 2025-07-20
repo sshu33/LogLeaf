@@ -3,6 +3,7 @@ package com.example.logleaf
 import android.app.Application
 import android.content.Intent
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.core.tween
@@ -19,8 +20,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
@@ -31,7 +34,6 @@ import androidx.navigation.navArgument
 import com.example.logleaf.data.font.FontSettingsManager
 import com.example.logleaf.db.AppDatabase
 import com.example.logleaf.ui.components.BottomNavigationBar
-import com.example.logleaf.ui.entry.PostEntryDialog
 import com.example.logleaf.ui.screens.AccountScreen
 import com.example.logleaf.ui.screens.AccountViewModel
 import com.example.logleaf.ui.screens.BlueskyViewModelFactory
@@ -45,6 +47,7 @@ import com.example.logleaf.ui.screens.SettingsScreen
 import com.example.logleaf.ui.screens.SnsSelectScreen
 import com.example.logleaf.ui.screens.TimelineScreen
 import com.example.logleaf.ui.theme.LogLeafTheme
+import com.leaf.logleaf.ui.entry.PostEntryDialog
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.time.ZoneId
@@ -301,12 +304,16 @@ fun MainScreen(
             onDismissRequest = { mainViewModel.dismissPostEntrySheet() },
             properties = DialogProperties(
                 usePlatformDefaultWidth = false,
-                decorFitsSystemWindows = false,
+                decorFitsSystemWindows = false, // これも引き続き重要
                 dismissOnBackPress = false,
                 dismissOnClickOutside = false
             )
         ) {
-            // ★ 新しく生まれ変わった PostEntryDialog を呼び出す ★
+            // ★★★ ここからがOSへの直接命令です ★★★
+            val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+            window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+            // ★★★ ここまで ★★★
+
             PostEntryDialog(
                 onDismissRequest = { mainViewModel.dismissPostEntrySheet() }
             )

@@ -1,11 +1,10 @@
-package com.example.logleaf.ui.entry // ★あなたのパッケージ名に合わせてください
+package com.leaf.logleaf.ui.entry
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -13,13 +12,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddPhotoAlternate
 import androidx.compose.material.icons.outlined.PhotoCamera
@@ -45,10 +48,11 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -64,54 +68,47 @@ fun PostEntryDialog(
     val formatter = remember { DateTimeFormatter.ofPattern("M月d日(E) HH:mm", Locale.JAPANESE) }
     val formattedDateTime = remember { currentDateTime.format(formatter) }
 
-    // ダイアログの表示状態を内部で管理し、アニメーションを制御
-    var isVisible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        // Composition後、即座にアニメーションを開始
-        isVisible = true
-    }
+    // isVisibleはDialog全体の表示状態を管理するために残します
+    var isVisible by remember { mutableStateOf(true) }
 
-    // 閉じる処理を共通化
     val closeDialog = {
-        // まずアニメーションでコンポーネントを消す
         isVisible = false
     }
 
-    // アニメーション完了後に、親に通知してDialog自体を破棄させる
     LaunchedEffect(isVisible) {
         if (!isVisible) {
-            // アニメーションが終わるのを待つ
-            delay(250) // exitアニメーションの時間
+            // ★★★ 修正点①：アニメーションがないので、待ち時間を削除 ★★★
             onDismissRequest()
         }
     }
 
-    // キーボードの表示・非表示を、isVisibleと同期させる
-    LaunchedEffect(isVisible) {
-        if (isVisible) {
-            delay(100) // コンポーネントの準備を待つ
-            focusRequester.requestFocus()
-            keyboardController?.show()
-        } else {
-            focusRequester.freeFocus()
-            keyboardController?.hide()
-        }
+    // Dialogが表示された最初の瞬間に、一度だけキーボードを呼び出します
+    LaunchedEffect(Unit) {
+        // ★★★ 修正点②：待ち時間を削除し、即座にキーボードを要求 ★★★
+        focusRequester.requestFocus()
+        keyboardController?.show()
     }
 
-    // 静止したDialogの上で、全てを我々が制御する
+    val imeInsets = WindowInsets.ime
+    val isKeyboardVisible = imeInsets.getBottom(LocalDensity.current) > 0
+    val keyboardHeight = imeInsets.asPaddingValues().calculateBottomPadding()
+
+    val animatedOffset by animateDpAsState(
+        targetValue = if (isKeyboardVisible) -(keyboardHeight + 42.dp) else 0.dp, //キーボード上端からの距離
+        label = "PostBoxOffsetAnimation"
+    )
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .imePadding() // ★キーボードの盾をここに装備！
-            // 背景タップで閉じるための、見えない下地
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = closeDialog
             ),
-        contentAlignment = Alignment.Center // ★すべてのコンテンツを中央に配置！
+        contentAlignment = Alignment.BottomCenter
     ) {
-        // 黒ベールのアニメーション
+        // 背景の黒ベールは、滑らかさのためにアニメーションを残します
         AnimatedVisibility(
             visible = isVisible,
             enter = fadeIn(animationSpec = tween(250)),
@@ -124,18 +121,15 @@ fun PostEntryDialog(
             )
         }
 
-        // 投稿BOXのアニメーション
-        AnimatedVisibility(
-            visible = isVisible,
-            enter = fadeIn(animationSpec = tween(250)) + scaleIn(initialScale = 0.9f, animationSpec = tween(250)),
-            exit = fadeOut(animationSpec = tween(250)) + scaleOut(targetScale = 0.9f, animationSpec = tween(250))
-        ) {
-            // Card自体がクリックされて背景にイベントが貫通するのを防ぐ
+        // ★★★ 修正点③：投稿BOXのアニメーションを撤廃 ★★★
+        // AnimatedVisibilityを削除し、即座に表示します
+        if (isVisible) {
             Card(
                 modifier = Modifier
                     .fillMaxWidth(0.9f)
                     .wrapContentHeight()
-                    .clickable(enabled = false) {}, // クリックを消費する
+                    .offset(y = animatedOffset)
+                    .clickable(enabled = false) {},
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White)
             ) {
@@ -164,6 +158,8 @@ fun PostEntryDialog(
                             unfocusedIndicatorColor = Color.Transparent,
                             focusedIndicatorColor = Color.Transparent
                         ),
+                        singleLine = false,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default)
                     )
                     Text(
                         text = formattedDateTime,
