@@ -15,6 +15,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
+import androidx.compose.ui.text.input.TextFieldValue
+import com.example.logleaf.ui.theme.SnsType
+import kotlinx.coroutines.withContext
+import java.time.ZonedDateTime
+import java.util.UUID
+
 
 
 data class DayLog(
@@ -28,7 +34,8 @@ data class UiState(
     val allPosts: List<Post> = emptyList(),
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
-    val isPostEntrySheetVisible: Boolean = false
+    val isPostEntrySheetVisible: Boolean = false,
+    val postText: TextFieldValue = TextFieldValue("")
 )
 class MainViewModel(
     private val blueskyApi: BlueskyApi,
@@ -73,7 +80,6 @@ class MainViewModel(
             val accountsToFetch = accounts.filter { !it.needsReauthentication }
 
             try {
-                // APIからのデータ取得とDBへの保存は、表示状態に関わらず行う
                 val postLists = accountsToFetch.map { account ->
                     async(Dispatchers.IO) {
                         when (account) {
@@ -99,12 +105,9 @@ class MainViewModel(
                     postDao.insertAll(allNewPosts)
                 }
 
-                // ★★★ ここが最重要の変更点 (2/2) ★★★
-                // 1. 表示を許可されたアカウントのIDリストを作成する
-                val visibleAccountIds = accounts.filter { it.isVisible }.map { it.userId }
-
-                // 2. そのIDリストを使って、DBから投稿を取得する
-                val postsFromDb = postDao.getAllPosts(visibleAccountIds).first() // ◀️ 改造したDAOの関数を正しく使う！
+                val visibleSnsAccountIds = accounts.filter { it.isVisible }.map { it.userId }
+                val finalVisibleIds = visibleSnsAccountIds + "LOGLEAF_INTERNAL_POST"
+                val postsFromDb = postDao.getAllPosts(finalVisibleIds).first()
 
                 val dayLogs = groupPostsByDay(postsFromDb)
                 _uiState.update { currentState ->
@@ -126,7 +129,6 @@ class MainViewModel(
         if (_uiState.value.isRefreshing) return
         viewModelScope.launch {
             _uiState.update { it.copy(isRefreshing = true) }
-            // ★ SessionManagerから最新のアカウントリストを取得して渡す
             fetchPosts(sessionManager.accountsFlow.first(), isInitialLoad = false)
         }
     }
@@ -143,6 +145,41 @@ class MainViewModel(
      */
     fun dismissPostEntrySheet() {
         _uiState.update { it.copy(isPostEntrySheetVisible = false) }
+    }
+
+    /**
+     * 投稿テキストが変更されたときに呼び出される
+     */
+    fun onPostTextChange(newText: TextFieldValue) {
+        _uiState.update { it.copy(postText = newText) }
+    }
+
+    /**
+     * 投稿を確定する
+     */
+    fun submitPost() {
+        val currentText = uiState.value.postText.text
+        if (currentText.isBlank()) {
+            return
+        }
+
+        val newPost = Post(
+            id = UUID.randomUUID().toString(),
+            accountId = "LOGLEAF_INTERNAL_POST",
+            text = currentText,
+            createdAt = ZonedDateTime.now(),
+            source = SnsType.LOGLEAF
+        )
+
+        dismissPostEntrySheet()
+        onPostTextChange(TextFieldValue(""))
+
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                postDao.insertAll(listOf(newPost))
+            }
+            refreshPosts()
+        }
     }
 
     private fun groupPostsByDay(posts: List<Post>): List<DayLog> {

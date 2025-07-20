@@ -315,7 +315,10 @@ fun MainScreen(
             // ★★★ ここまで ★★★
 
             PostEntryDialog(
-                onDismissRequest = { mainViewModel.dismissPostEntrySheet() }
+                postText = uiState.postText,
+                onTextChange = mainViewModel::onPostTextChange,
+                onPostSubmit = mainViewModel::submitPost,
+                onDismissRequest = mainViewModel::dismissPostEntrySheet
             )
         }
     }

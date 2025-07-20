@@ -20,14 +20,12 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AddPhotoAlternate
-import androidx.compose.material.icons.outlined.PhotoCamera
-import androidx.compose.material.icons.outlined.Tag
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -50,20 +48,24 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import com.example.logleaf.R
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Composable
 fun PostEntryDialog(
+    postText: TextFieldValue,
+    onTextChange: (TextFieldValue) -> Unit,
+    onPostSubmit: () -> Unit,
     onDismissRequest: () -> Unit
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
-    var textFieldValue by remember { mutableStateOf(TextFieldValue("")) }
     val currentDateTime = remember { LocalDateTime.now() }
     val formatter = remember { DateTimeFormatter.ofPattern("M月d日(E) HH:mm", Locale.JAPANESE) }
     val formattedDateTime = remember { currentDateTime.format(formatter) }
@@ -137,8 +139,8 @@ fun PostEntryDialog(
                     modifier = Modifier.padding(16.dp)
                 ) {
                     TextField(
-                        value = textFieldValue,
-                        onValueChange = { textFieldValue = it },
+                        value = postText,
+                        onValueChange = onTextChange,
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 100.dp, max = 350.dp)
@@ -175,11 +177,50 @@ fun PostEntryDialog(
                             .padding(horizontal = 8.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = { /* TODO */ }) { Icon(Icons.Outlined.PhotoCamera, "カメラ", tint = Color.Gray) }
-                        IconButton(onClick = { /* TODO */ }) { Icon(Icons.Outlined.AddPhotoAlternate, "ギャラリー", tint = Color.Gray) }
-                        IconButton(onClick = { /* TODO */ }) { Icon(Icons.Outlined.Tag, "タグ", tint = Color.Gray) }
+                        IconButton(onClick = { /* TODO */ }) {
+                            Icon(
+                                painterResource(id = R.drawable.ic_camera),
+                                "カメラ",
+                                tint = Color.Gray,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        IconButton(onClick = { /* TODO */ }) {
+                            Icon(
+                                painterResource(id = R.drawable.ic_image),
+                                "ギャラリー",
+                                tint = Color.Gray,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        IconButton(onClick = { /* TODO */ }) {
+                            Icon(
+                                painterResource(id = R.drawable.ic_tag),
+                                "タグ",
+                                tint = Color.Gray,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                         Spacer(modifier = Modifier.weight(1f))
-                        Button(onClick = { /* TODO */ }, shape = RoundedCornerShape(8.dp)) { Text("投稿") }
+
+                        // 「投稿」ボタンも、ViewModelの状態（postText）を見て、有効か無効かを判断します
+                        Button(
+                            onClick = onPostSubmit,
+                            enabled = postText.text.isNotBlank(),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                disabledContainerColor = MaterialTheme.colorScheme.primary.copy(
+                                    alpha = 0.5f
+                                ),
+                                disabledContentColor = Color.White
+                            )
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_post),
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
             }

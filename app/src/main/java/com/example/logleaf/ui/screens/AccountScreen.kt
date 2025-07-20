@@ -113,6 +113,7 @@ fun AccountScreen(
                                     id = when (account.snsType) {
                                         SnsType.BLUESKY -> R.drawable.ic_bluesky
                                         SnsType.MASTODON -> R.drawable.ic_mastodon
+                                        SnsType.LOGLEAF -> R.drawable.ic_logleaf
                                     }
                                 ),
                                 contentDescription = account.snsType.name,

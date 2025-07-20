@@ -196,6 +196,7 @@ fun SearchTopBar(
                                     val iconResId = when (sns) {
                                         SnsType.BLUESKY -> R.drawable.ic_bluesky
                                         SnsType.MASTODON -> R.drawable.ic_mastodon
+                                        SnsType.LOGLEAF -> R.drawable.ic_logleaf
                                     }
                                     Icon(
                                         painter = painterResource(id = iconResId),
