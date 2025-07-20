@@ -44,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
@@ -52,7 +53,6 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-// 関数名をPostEntryDialogに変更
 @Composable
 fun PostEntryDialog(
     onDismissRequest: () -> Unit
@@ -148,7 +148,15 @@ fun PostEntryDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 100.dp, max = 350.dp)
-                            .focusRequester(focusRequester),
+                            .focusRequester(focusRequester)
+                            .onKeyEvent { keyEvent ->
+                                if (keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_ENTER) {
+                                    if (keyEvent.nativeKeyEvent.action == android.view.KeyEvent.ACTION_UP) {
+                                        return@onKeyEvent true
+                                    }
+                                }
+                                false
+                            },
                         placeholder = null,
                         colors = TextFieldDefaults.colors(
                             unfocusedContainerColor = Color.Transparent,

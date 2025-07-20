@@ -300,8 +300,10 @@ fun MainScreen(
         Dialog(
             onDismissRequest = { mainViewModel.dismissPostEntrySheet() },
             properties = DialogProperties(
-                usePlatformDefaultWidth = false,      // 幅の制限をなくす
-                decorFitsSystemWindows = false      // OSの自動調整を完全に無効化！
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false,
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false
             )
         ) {
             // ★ 新しく生まれ変わった PostEntryDialog を呼び出す ★
