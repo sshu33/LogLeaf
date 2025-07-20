@@ -79,5 +79,6 @@ dependencies {
     implementation("androidx.datastore:datastore-core:1.1.1")
 
     implementation(libs.ktor.client.logging)
+    implementation("androidx.compose.foundation:foundation-layout:1.5.0")
 
 }

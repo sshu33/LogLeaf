@@ -1,13 +1,6 @@
 package com.example.logleaf.ui.entry
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.ExperimentalAnimationApi
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -29,12 +22,11 @@ import androidx.compose.material.icons.outlined.Tag
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -50,19 +42,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-
-// PostEntrySheet.kt の完成形（安定バージョン）
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
 fun PostEntrySheet(
-    isVisible: Boolean,
     onDismissRequest: () -> Unit
 ) {
+    // --- 変数定義 (シンプルに) ---
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
     var textFieldValue by remember { mutableStateOf(TextFieldValue("")) }
@@ -70,93 +58,86 @@ fun PostEntrySheet(
     val formatter = remember { DateTimeFormatter.ofPattern("M月d日(E) HH:mm", Locale.JAPANESE) }
     val formattedDateTime = remember { currentDateTime.format(formatter) }
 
+    // ★★★ 我々の、勝利の、すべては、この、Boxに、ある ★★★
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            // ★★★ 敵のいない世界で、正規軍が、すべてを、支配する ★★★
+            .imePadding()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {}
+            ),
+        // ★★★ そして、常に、下へ ★★★
         contentAlignment = Alignment.BottomCenter
     ) {
-        // 背景のベール
-        AnimatedVisibility(
-            visible = isVisible,
-            enter = fadeIn(animationSpec = tween(150)),
-            exit = fadeOut(animationSpec = tween(150))
-        ) {
-            BackHandler(onBack = onDismissRequest)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.6f))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onDismissRequest
-                    )
-            )
-        }
+        // 背景の黒ベール
+        BackHandler(onBack = onDismissRequest)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.24f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismissRequest
+                )
+        )
 
-        // 白い入力カード
-        AnimatedVisibility(
-            visible = isVisible,
-            enter = slideInVertically(initialOffsetY = { it / 2 }, animationSpec = tween(300)),
-            exit = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(250))
+        // offsetも、複雑な計算も、何もいらない。ただ、そこに、あるだけの、カード。
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                // 美しさのための、最後の、余白
+                .padding(bottom = 24.dp)
+                .wrapContentHeight(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth(0.9f)
-                    .padding(bottom = 24.dp)
-                    .wrapContentHeight() // ★高さ制御の魔法
-                    .clickable(enabled = false) {},
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White)
+            Column(
+                modifier = Modifier.padding(16.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(
-                        start = 16.dp,
-                        end = 16.dp,
-                        top = 16.dp,
-                        bottom = 4.dp
-                    )
+                TextField(
+                    value = textFieldValue,
+                    onValueChange = { textFieldValue = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 100.dp, max = 350.dp)
+                        .focusRequester(focusRequester),
+                    placeholder = null,
+                    colors = TextFieldDefaults.colors(
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent
+                    ),
+                )
+                Text(
+                    text = formattedDateTime,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray,
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .padding(bottom = 8.dp)
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    OutlinedTextField(
-                        value = textFieldValue,
-                        onValueChange = { textFieldValue = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 80.dp, max = 250.dp) // ★高さ制御
-                            .focusRequester(focusRequester),
-                        colors = TextFieldDefaults.outlinedTextFieldColors(
-                            unfocusedBorderColor = Color.Transparent,
-                            focusedBorderColor = Color.Transparent,
-                            containerColor = Color.Transparent
-                        ),
-                    )
-                    Text(
-                        text = formattedDateTime,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray,
-                        modifier = Modifier
-                            .align(Alignment.End)
-                            .padding(bottom = 8.dp)
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(onClick = { /* TODO */ }) { Icon(Icons.Outlined.PhotoCamera, "カメラ", tint = Color.Gray) }
-                        IconButton(onClick = { /* TODO */ }) { Icon(Icons.Outlined.AddPhotoAlternate, "ギャラリー", tint = Color.Gray) }
-                        IconButton(onClick = { /* TODO */ }) { Icon(Icons.Outlined.Tag, "タグ", tint = Color.Gray) }
-                        Spacer(modifier = Modifier.weight(1f))
-                        Button(onClick = { /* TODO */ }, shape = RoundedCornerShape(8.dp)) { Text("送信") }
-                    }
+                    IconButton(onClick = { /* TODO */ }) { Icon(Icons.Outlined.PhotoCamera, "カメラ", tint = Color.Gray) }
+                    IconButton(onClick = { /* TODO */ }) { Icon(Icons.Outlined.AddPhotoAlternate, "ギャラリー", tint = Color.Gray) }
+                    IconButton(onClick = { /* TODO */ }) { Icon(Icons.Outlined.Tag, "タグ", tint = Color.Gray) }
+                    Spacer(modifier = Modifier.weight(1f))
+                    Button(onClick = { /* TODO */ }, shape = RoundedCornerShape(8.dp)) { Text("投稿") }
                 }
             }
         }
-    }
 
-    LaunchedEffect(isVisible) {
-        if (isVisible) {
-            delay(100)
+        // 起動時のキーボード表示
+        LaunchedEffect(Unit) {
             focusRequester.requestFocus()
             keyboardController?.show()
         }
