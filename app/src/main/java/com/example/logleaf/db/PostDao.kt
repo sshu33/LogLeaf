@@ -34,11 +34,11 @@ interface PostDao {
     suspend fun deletePostById(postId: String)
 
     @Query("""
-        SELECT * FROM posts
-        WHERE accountId IN (:visibleAccountIds)
-        AND (isHidden = 0 OR :includeHidden = 1)
-        ORDER BY createdAt DESC
-    """)
+    SELECT * FROM posts
+    WHERE accountId IN (:visibleAccountIds)
+    AND (isHidden = 0 OR :includeHidden = 1)
+    ORDER BY createdAt DESC
+""")
     fun getAllPosts(visibleAccountIds: List<String>, includeHidden: Int): Flow<List<Post>>
 
     fun searchPostsWithAnd(keywords: List<String>, visibleAccountIds: List<String>, includeHidden: Int): Flow<List<Post>> {

@@ -1,27 +1,32 @@
 package com.example.logleaf
 
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.logleaf.db.PostDao
+import com.example.logleaf.ui.theme.SnsType
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
-import androidx.compose.ui.text.input.TextFieldValue
-import com.example.logleaf.ui.theme.SnsType
-import kotlinx.coroutines.withContext
 import java.time.ZonedDateTime
 import java.util.UUID
-
-
 
 data class DayLog(
     val date: LocalDate,
@@ -36,9 +41,11 @@ data class UiState(
     val isRefreshing: Boolean = false,
     val isPostEntrySheetVisible: Boolean = false,
     val postText: TextFieldValue = TextFieldValue(""),
-    val showHiddenPosts: Boolean = false, // 非表示投稿を表示するかどうかのフラグ
+    val showHiddenPosts: Boolean = false,
     val editingPost: Post? = null
 )
+
+@OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModel(
     private val blueskyApi: BlueskyApi,
     private val mastodonApi: MastodonApi,
@@ -46,44 +53,84 @@ class MainViewModel(
     private val postDao: PostDao
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(UiState(isLoading = true))
-    val uiState = _uiState.asStateFlow()
+    private val _isRefreshing = MutableStateFlow(false)
+
+    private val _postEntryState = MutableStateFlow(
+        PostEntryState(
+            isVisible = false,
+            text = TextFieldValue(""),
+            editingPost = null
+        )
+    )
+    // 非表示投稿を表示するかの状態
+    private val _showHiddenPosts = MutableStateFlow(false)
+
+    // ▼▼▼ [変更点2] リアクティブなデータフローを構築 ▼▼▼
+    // データベースから取得した、常に最新の投稿リスト
+    private val allPostsFlow: Flow<List<Post>> =
+        combine(sessionManager.accountsFlow, _showHiddenPosts) { accounts, showHidden ->
+            val visibleAccountIds = accounts.filter { it.isVisible }.map { it.userId } + "LOGLEAF_INTERNAL_POST"
+            val includeHidden = if (showHidden) 1 else 0
+            Pair(visibleAccountIds, includeHidden)
+        }.flatMapLatest { (accountIds, includeHiddenFlag) ->
+            postDao.getAllPosts(accountIds, includeHiddenFlag)
+        }
+            .map { posts ->
+                // DAOからのリストを、ここで強制的にソートする
+                posts.sortedByDescending { it.createdAt }
+            }
+
+    val uiState: StateFlow<UiState> = combine(
+        allPostsFlow,
+        _postEntryState,
+        _showHiddenPosts,
+        _isRefreshing
+    ) { posts, postEntry, showHidden, isRefreshing ->
+        val dayLogs = groupPostsByDay(posts)
+        UiState(
+            dayLogs = dayLogs,
+            allPosts = posts,
+            isLoading = false,
+            isRefreshing = isRefreshing, // ← [変更点3] ここでUIに状態を渡す
+            isPostEntrySheetVisible = postEntry.isVisible,
+            postText = postEntry.text,
+            editingPost = postEntry.editingPost,
+            showHiddenPosts = showHidden
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = UiState(isLoading = true)
+    )
+
+    // --- 設定バッジのロジックは変更なし ---
     private val _showSettingsBadge = MutableStateFlow(false)
     val showSettingsBadge = _showSettingsBadge.asStateFlow()
 
     init {
+        // 初回ロード処理
         loadInitialData()
-
+        // アカウント変更の監視
         viewModelScope.launch {
-            sessionManager.accountsFlow.drop(1).collect { accounts ->
-                println("【MainViewModel】アカウント変更を検知。自動更新します。")
+            sessionManager.accountsFlow.collect { accounts ->
                 _showSettingsBadge.value = accounts.any { it.needsReauthentication }
-                // ★ 変更点: fetchPostsに渡すアカウントリストはフィルタリングしない（DBには全件保存したいため）
-                fetchPosts(accounts, isInitialLoad = false)
             }
         }
     }
 
     private fun loadInitialData() {
         viewModelScope.launch {
-            val initialAccounts = sessionManager.accountsFlow.first()
-            _showSettingsBadge.value = initialAccounts.any { it.needsReauthentication }
-            println("【MainViewModel】初回データロードを開始します。")
-            fetchPosts(initialAccounts, isInitialLoad = true)
+            fetchPosts(sessionManager.accountsFlow.first()).join()
         }
     }
 
-    private fun fetchPosts(accounts: List<Account>, isInitialLoad: Boolean) {
-        viewModelScope.launch {
-            if (isInitialLoad) {
-                _uiState.update { it.copy(isLoading = true) }
-            }
-
+    // ▼▼▼ [変更点4] fetchPostsはAPIからのデータ取得とDBへの保存だけに専念 ▼▼▼
+    private fun fetchPosts(accounts: List<Account>): Job {
+        return viewModelScope.launch(Dispatchers.IO) {
             val accountsToFetch = accounts.filter { !it.needsReauthentication }
-
             try {
                 val postLists = accountsToFetch.map { account ->
-                    async(Dispatchers.IO) {
+                    async {
                         when (account) {
                             is Account.Bluesky -> blueskyApi.getPostsForAccount(account)
                             is Account.Mastodon -> mastodonApi.getPosts(account).let { result ->
@@ -102,79 +149,78 @@ class MainViewModel(
                         }
                     }
                 }
-
                 val allNewPosts = postLists.awaitAll().flatten()
                 if (allNewPosts.isNotEmpty()) {
                     postDao.insertAll(allNewPosts)
                 }
-
-                val visibleSnsAccountIds = accounts.filter { it.isVisible }.map { it.userId }
-                val finalVisibleIds = visibleSnsAccountIds + "LOGLEAF_INTERNAL_POST"
-                val includeHidden = if (_uiState.value.showHiddenPosts) 1 else 0
-                val postsFromDb = postDao.getAllPosts(finalVisibleIds, includeHidden).first()
-
-                val dayLogs = groupPostsByDay(postsFromDb)
-                _uiState.update { currentState ->
-                    currentState.copy(
-                        dayLogs = dayLogs,
-                        allPosts = postsFromDb,
-                        isLoading = false,
-                        isRefreshing = false
-                    )
-                }
             } catch (e: Exception) {
                 println("Error fetching posts: ${e.message}")
-                _uiState.update { it.copy(isLoading = false, isRefreshing = false) }
             }
         }
     }
 
-    fun refreshPosts(force: Boolean = false) {
-        // forceがtrueの場合は、更新中でも処理を続行する
-        if (_uiState.value.isRefreshing && !force) return
-
+    fun refreshPosts() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isRefreshing = true) }
-            fetchPosts(sessionManager.accountsFlow.first(), isInitialLoad = false)
+            if (_isRefreshing.value) return@launch // すでに更新中なら何もしない
+
+            _isRefreshing.value = true // 更新開始を通知
+            try {
+                fetchPosts(sessionManager.accountsFlow.first()).join() // 終わるまで待つ
+            } finally {
+                _isRefreshing.value = false // 必ず更新終了を通知
+            }
         }
     }
 
-    /**
-     * 投稿入力シートの表示を要求する
-     */
+    // ▼▼▼ [変更点5] UI操作の関数は、トリガーの状態を更新するだけ ▼▼▼
+    fun toggleShowHiddenPosts() {
+        _showHiddenPosts.value = !_showHiddenPosts.value
+    }
+
+    fun setPostHidden(postId: String, isHidden: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            postDao.setPostHiddenStatus(postId, isHidden)
+        }
+    }
+
+    fun deletePost(postId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            postDao.deletePostById(postId)
+        }
+    }
+
+    // --- 投稿ダイアログ関連の処理 ---
+    data class PostEntryState(
+        val isVisible: Boolean,
+        val text: TextFieldValue,
+        val editingPost: Post?
+    )
+
     fun showPostEntrySheet() {
-        _uiState.update { it.copy(isPostEntrySheetVisible = true) }
+        _postEntryState.update { it.copy(isVisible = true) }
     }
 
-    /**
-     * 投稿入力シートの非表示を要求する
-     */
     fun dismissPostEntrySheet() {
-        _uiState.update {
-            it.copy(
-                isPostEntrySheetVisible = false,
-                editingPost = null, // 編集状態をクリア
-                postText = TextFieldValue("") // テキスト入力欄もクリア
-            )
-        }
+        _postEntryState.value = PostEntryState(isVisible = false, text = TextFieldValue(""), editingPost = null)
     }
 
-    /**
-     * 投稿テキストが変更されたときに呼び出される
-     */
     fun onPostTextChange(newText: TextFieldValue) {
-        _uiState.update { it.copy(postText = newText) }
+        _postEntryState.update { it.copy(text = newText) }
     }
 
-    /**
-     * 投稿を確定する
-     */
+    fun startEditingPost(post: Post) {
+        _postEntryState.value = PostEntryState(
+            isVisible = true,
+            text = TextFieldValue(post.text),
+            editingPost = post
+        )
+    }
+
     fun submitPost() {
-        val currentState = uiState.value
-        val currentText = currentState.postText.text
+        val currentState = _postEntryState.value
+        val currentText = currentState.text.text
         if (currentText.isBlank()) return
 
-        // editingPostがnullでなければ、その投稿を更新。nullなら新規作成。
         val postToSave = currentState.editingPost?.copy(
             text = currentText
         ) ?: Post(
@@ -183,17 +229,13 @@ class MainViewModel(
             text = currentText,
             createdAt = ZonedDateTime.now(),
             source = SnsType.LOGLEAF,
-            isHidden = false // 新規作成時は必ず表示状態
+            isHidden = false
         )
 
         dismissPostEntrySheet()
 
         viewModelScope.launch(Dispatchers.IO) {
-            // 複数投稿用のinsertAllから、単一投稿用のinsertへ変更
             postDao.insert(postToSave)
-            withContext(Dispatchers.Main) {
-                refreshPosts()
-            }
         }
     }
 
@@ -205,85 +247,14 @@ class MainViewModel(
             post.createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate()
         }
         return groupedByDate.map { (date, postList) ->
-            val sortedPostList = postList.sortedBy { it.createdAt }
+            // ここでのソートは不要になるが、念のため残しておく
+            val sortedPostList = postList.sortedByDescending { it.createdAt }
             DayLog(
                 date = date,
                 firstPost = sortedPostList.firstOrNull(),
                 totalPosts = postList.size
             )
         }.sortedByDescending { it.date }
-    }
-
-
-    private fun updateUiFromLocalPosts(newShowHiddenState: Boolean) {
-        viewModelScope.launch {
-            // 現在表示しているアカウントのリストを取得
-            val accounts = sessionManager.accountsFlow.first()
-            val visibleSnsAccountIds = accounts.filter { it.isVisible }.map { it.userId }
-            // 引数で渡された新しい状態を元に、DBへの命令を決定
-            val includeHidden = if (newShowHiddenState) 1 else 0
-
-            // ネットワーク通信なしに、ローカルDBからのみ投稿を取得
-            val postsFromDb = postDao.getAllPosts(visibleSnsAccountIds, includeHidden).first()
-            val dayLogs = groupPostsByDay(postsFromDb)
-
-            // UIの状態を更新。allPosts, dayLogs, そしてshowHiddenPostsの状態を一度に更新する
-            _uiState.update {
-                it.copy(
-                    allPosts = postsFromDb,
-                    dayLogs = dayLogs,
-                    showHiddenPosts = newShowHiddenState
-                )
-            }
-        }
-    }
-
-    /**
-     * 非表示投稿の表示／非表示を切り替える
-     */
-    fun toggleShowHiddenPosts() {
-        // これからなるべき新しい状態を計算し、引数として渡す
-        val newShowHiddenState = !_uiState.value.showHiddenPosts
-        updateUiFromLocalPosts(newShowHiddenState)
-    }
-
-    /**
-     * 投稿を非表示、または再表示する
-     */
-    fun setPostHidden(postId: String, isHidden: Boolean) {
-        viewModelScope.launch(Dispatchers.IO) {
-            postDao.setPostHiddenStatus(postId, isHidden)
-            // DB更新後、現在のshowHiddenPostsの状態を維持したまま、軽量な更新をかける
-            withContext(Dispatchers.Main) {
-                updateUiFromLocalPosts(_uiState.value.showHiddenPosts)
-            }
-        }
-    }
-
-    /**
-     * 投稿を削除する
-     */
-    fun deletePost(postId: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            postDao.deletePostById(postId)
-            // DB更新後、現在のshowHiddenPostsの状態を維持したまま、軽量な更新をかける
-            withContext(Dispatchers.Main) {
-                updateUiFromLocalPosts(_uiState.value.showHiddenPosts)
-            }
-        }
-    }
-
-    /**
-     * 投稿の編集を開始する
-     */
-    fun startEditingPost(post: Post) {
-        _uiState.update {
-            it.copy(
-                isPostEntrySheetVisible = true,       // ダイアログを表示
-                editingPost = post,                   // 編集対象の投稿をセット
-                postText = TextFieldValue(post.text)  // テキスト入力欄に既存のテキストをセット
-            )
-        }
     }
 
     companion object {

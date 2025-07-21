@@ -127,7 +127,7 @@ fun CalendarScreen(
         .filter {
             it.createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate() == selectedDate
         }
-        .sortedByDescending { it.createdAt } // 新しい順にソートする
+        //.sortedByDescending { it.createdAt } // 新しい順にソートする
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
