@@ -44,7 +44,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.logleaf.Post
 import com.example.logleaf.R
@@ -56,12 +55,15 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun SearchScreen(
     viewModel: SearchViewModel,
-    onPostClick: (Post) -> Unit
+    onPostClick: (Post) -> Unit,
+    // ▼▼▼ [変更点1] 親からパディング情報を受け取る口を追加 ▼▼▼
+    parentPaddingValues: PaddingValues
 ) {
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedSns by viewModel.selectedSns.collectAsState()
     val searchResultPosts by viewModel.searchResultPosts.collectAsState()
 
+    // この画面の骨格であるScaffoldは、そのまま維持する
     Scaffold(
         topBar = {
             Column(modifier = Modifier.padding(vertical = 8.dp)) {
@@ -74,11 +76,15 @@ fun SearchScreen(
                 )
             }
         }
-    ) { paddingValues ->
+    ) { innerPadding -> // このinnerPaddingは、SearchTopBarの高さ情報を持つ
+
         if (searchQuery.isNotBlank() && searchResultPosts.isEmpty()) {
+            // 「投稿が見つかりません」の表示
             Box(
+                // ▼▼▼ [変更点2] 両方のパディングを適用 ▼▼▼
                 modifier = Modifier
-                    .padding(paddingValues)
+                    .padding(innerPadding) // 上部のパディング
+                    .padding(parentPaddingValues) // 下部のパディング
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
@@ -89,20 +95,26 @@ fun SearchScreen(
                 )
             }
         } else {
+            // 検索結果リスト
             LazyColumn(
+                // ▼▼▼ [変更点3] 上部のパディングのみを適用 ▼▼▼
                 modifier = Modifier
-                    .padding(paddingValues)
+                    .padding(innerPadding)
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+
+                // ▼▼▼ [変更点4] リストの中身のパディングを調整 ▼▼▼
+                contentPadding = PaddingValues(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = 8.dp,
+                ),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // ★★★ ここが最重要の修正箇所 ★★★
                 items(searchResultPosts) { post ->
                     SearchResultItem(
                         post = post,
                         searchQuery = searchQuery,
-                        // ★ クリック命令を、SearchResultItemに渡す
                         onClick = { onPostClick(post) }
                     )
                 }
@@ -110,7 +122,6 @@ fun SearchScreen(
         }
     }
 }
-
 @Composable
 fun SearchTopBar(
     query: String,

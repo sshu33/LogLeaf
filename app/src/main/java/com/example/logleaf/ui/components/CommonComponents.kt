@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -116,58 +117,65 @@ fun SettingsMenuItem(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class) // ★ BadgedBoxのために追加
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BottomNavigationBar(
     navController: NavController,
     showSettingsBadge: Boolean
 ) {
     val items = listOf(Screen.Timeline, Screen.Calendar, Screen.Search, Screen.Settings)
-    Surface(shadowElevation = 4.dp) {
+    Surface(shadowElevation = 4.dp, color = Color.Transparent) {
         NavigationBar(
-            modifier = Modifier.height(70.dp),
-            containerColor = Color(0xFFffffff)
+            modifier = Modifier.height(100.dp),
+            containerColor = Color.White, // 背景色は白
+            tonalElevation = 0.dp // 色合いを適用する高さを0に設定
         ) {
             val navBackStackEntry by navController.currentBackStackEntryAsState()
             val currentRoute = navBackStackEntry?.destination?.route
             items.forEach { screen ->
-                // ★★★ この行を復活させる ★★★
                 val interactionSource = remember { MutableInteractionSource() }
 
                 NavigationBarItem(
                     icon = {
-                        if (screen.route == "settings") {
-                            BadgedBox(
-                                badge = {
-                                    if (showSettingsBadge) {
-                                        Icon(
-                                            painter = painterResource(id = R.drawable.ic_sync2),
-                                            contentDescription = "再認証が必要です",
-                                            modifier = Modifier
-                                                .size(16.dp)
-                                                .offset(x = (-1).dp, y = 12.dp),
-                                            tint = NoticeGreen
-                                        )
-                                    }
+                        // ▼▼▼ [変更点2] アイコンをBoxで囲み、高さを確保する ▼▼▼
+                        Box(
+                            modifier = Modifier.fillMaxHeight(), // アイテムの高さいっぱいに広がる
+                            contentAlignment = Alignment.Center // その中央にアイコンを配置
+                        ) {
+                            if (screen.route == "settings") {
+                                BadgedBox(
+                                    badge = {
+                                        if (showSettingsBadge) {
+                                            Icon(
+                                                painter = painterResource(id = R.drawable.ic_sync2),
+                                                contentDescription = "再認証が必要です",
+                                                modifier = Modifier
+                                                    .size(16.dp)
+                                                    .offset(x = (-1).dp, y = 12.dp),
+                                                tint = NoticeGreen
+                                            )
+                                        }
+                                    },
+                                    modifier = Modifier.offset(y = 3.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = screen.icon,
+                                        contentDescription = screen.label,
+                                        modifier = Modifier.size(28.dp)
+                                    )
                                 }
-                                // ★★★ BadgedBox自身のmodifierは削除する ★★★
-                            ) {
-                                // 歯車アイコンは、offsetの影響を受けずに中央に表示される
+                            } else {
                                 Icon(
                                     imageVector = screen.icon,
                                     contentDescription = screen.label,
-                                    modifier = Modifier.size(28.dp)
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .offset(y = 3.dp) // 例：下にずらす
                                 )
                             }
-                        } else {
-                            Icon(
-                                imageVector = screen.icon,
-                                contentDescription = screen.label,
-                                modifier = Modifier.size(28.dp)
-                            )
                         }
                     },
-                    label = { },
+                    label = { }, // ラベルは意図通り、空のまま
                     selected = currentRoute?.startsWith(screen.route) == true,
                     onClick = {
                         navController.navigate(screen.route) {
@@ -176,10 +184,12 @@ fun BottomNavigationBar(
                             restoreState = true
                         }
                     },
-                    // ★★★ この行を復活させる ★★★
                     interactionSource = interactionSource,
                     colors = NavigationBarItemDefaults.colors(
-                        indicatorColor = Color.Transparent
+                        indicatorColor = Color.Transparent,
+                        // 選択・非選択時のアイコンの色だけ指定する
+                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
             }

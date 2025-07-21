@@ -287,7 +287,7 @@ fun MainScreen(
 
             composable("search") {
                 SearchScreen(
-                    viewModel = searchViewModel, // ★ 外で作った、長生きのViewModelを渡すだけ！
+                    viewModel = searchViewModel,
                     onPostClick = { post ->
                         val localDate =
                             post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
@@ -295,7 +295,10 @@ fun MainScreen(
                         val date = localDate.toString()
                         val postId = post.id
                         navController.navigate("calendar?date=$date&postId=$postId")
-                    }
+                    },
+                    // ▼▼▼ この一行を追加 ▼▼▼
+                    // 親のScaffoldが持つパディング情報を、子に渡す
+                    parentPaddingValues = innerPadding
                 )
             }
         }

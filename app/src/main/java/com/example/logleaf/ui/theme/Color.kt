@@ -14,7 +14,7 @@ val NoticeGreen = Color(0xFF4CAF50)
 val GrayLimeGreen = Color(0xFFdee4d9)
 val LimeGreen = Color(0xFFb0de3a)
 val RedPink = Color(0xFFe55fa3)
-val Orange = Color(0xFFfca735)
+val Orange = Color(0xFFe5a145)
 val OrangeGray = Color(0xFFeee9e4)
 
 
