@@ -194,38 +194,6 @@ fun SettingsScreen(
                 )
             }
 
-            // --- 5. "Backup & Privacy" セクション ---
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
-                SettingsSectionHeader(title = "Backup & Privacy")
-            }
-            item {
-                SettingsMenuItem(
-                    icon = Icons.Default.Backup,
-                    title = "バックアップ",
-                    onClick = {
-                        Toast.makeText(
-                            context,
-                            "「バックアップ」は開発中です",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                )
-            }
-            item {
-                SettingsMenuItem(
-                    icon = Icons.Default.Lock,
-                    title = "パスワード",
-                    onClick = {
-                        Toast.makeText(
-                            context,
-                            "「パスワード」は開発中です",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                )
-            }
-
             // ★★★ 6. ログアウトを一番下に配置 ★★★
             item {
                 // 他のセクションとの間に、少し大きめのスペースを空けて区別する

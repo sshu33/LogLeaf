@@ -59,6 +59,9 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.ClipboardManager
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -66,6 +69,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.logleaf.Post
 import com.example.logleaf.UiState
+import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
 import kotlinx.coroutines.delay
 import java.time.LocalDate
@@ -105,7 +109,7 @@ fun CalendarScreen(
     var selectedDate by remember { mutableStateOf(initialDate) }
     val listState = rememberLazyListState()
     var focusedPostIdForRipple by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(initialDate, uiState.allPosts, targetPostId) {
+    LaunchedEffect(initialDate, targetPostId) {
         selectedDate = initialDate
         if (targetPostId != null) {
             val postsForDay = uiState.allPosts.filter {
@@ -455,11 +459,12 @@ fun DayCell(
 fun CalendarPostCardItem(
     post: Post,
     isFocused: Boolean,
-    // ▼▼▼ ここから追加 ▼▼▼
     onStartEditing: () -> Unit,
     onSetHidden: (Boolean) -> Unit,
     onDelete: () -> Unit
 ) {
+
+    val clipboardManager: ClipboardManager = LocalClipboardManager.current
     val localDateTime = post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
     val timeString = localDateTime.format(DateTimeFormatter.ofPattern("HH:mm"))
     val interactionSource = remember { MutableInteractionSource() }
@@ -503,12 +508,15 @@ fun CalendarPostCardItem(
                     .height(IntrinsicSize.Min),
                 verticalAlignment = Alignment.Top
             ) {
-                Text(
-                    text = timeString,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.Gray,
-                    modifier = Modifier.width(56.dp)
-                )
+                SettingsTheme {
+                    Text(
+                        text = timeString,
+                        style = MaterialTheme.typography.bodyMedium, // このスタイルが固定される
+                        color = Color.Gray,
+                        modifier = Modifier.width(56.dp)
+                    )
+                }
+
                 Row(modifier = Modifier.fillMaxHeight()) {
                     Box(
                         modifier = Modifier
@@ -525,47 +533,71 @@ fun CalendarPostCardItem(
             }
         }
 
-        // ドロップダウンメニュー
-        DropdownMenu(
-            expanded = isMenuExpanded,
-            onDismissRequest = { isMenuExpanded = false },
-            modifier = Modifier
-                .width(80.dp)
-                .background(
-                    color = Color.White,
-                    shape = RoundedCornerShape(4.dp) // この数値を大きくすると、もっと丸くなります
-                )
-        ) {
-            // ★ メニュー項目の縦のスキマは、このpaddingで調整できます
-            val customPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
+        SettingsTheme {
 
-            if (post.source == SnsType.LOGLEAF) {
+            // ドロップダウンメニュー
+            DropdownMenu(
+                expanded = isMenuExpanded,
+                onDismissRequest = { isMenuExpanded = false },
+                modifier = Modifier
+                    .width(80.dp)
+                    .background(
+                        color = Color.White,
+                        shape = RoundedCornerShape(4.dp) // この数値を大きくすると、もっと丸くなります
+                    )
+            ) {
+                // ★ メニュー項目の縦のスキマは、このpaddingで調整できます
+                val customPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
+
+                val itemModifier = Modifier.height(35.dp)
+                val itemPadding = PaddingValues(horizontal = 14.dp)
+
                 DropdownMenuItem(
-                    text = { Text("編集") },
+                    text = { Text("コピー") },
                     onClick = {
-                        onStartEditing()
+                        clipboardManager.setText(AnnotatedString(post.text))
                         isMenuExpanded = false
                     },
-                    contentPadding = customPadding
+                    modifier = itemModifier,
+                    contentPadding = itemPadding
                 )
-            }
-            DropdownMenuItem(
-                text = { Text(if (post.isHidden) "再表示" else "非表示") },
-                onClick = {
-                    onSetHidden(!post.isHidden)
-                    isMenuExpanded = false
-                },
-                contentPadding = customPadding
-            )
-            if (post.source == SnsType.LOGLEAF) {
+
+                // 「編集」メニュー
+                if (post.source == SnsType.LOGLEAF) {
+                    DropdownMenuItem(
+                        text = { Text("編集") },
+                        onClick = {
+                            onStartEditing()
+                            isMenuExpanded = false
+                        },
+                        modifier = itemModifier,
+                        contentPadding = itemPadding
+                    )
+                }
+
+                // 「非表示/再表示」メニュー
                 DropdownMenuItem(
-                    text = { Text("削除") },
+                    text = { Text(if (post.isHidden) "再表示" else "非表示") },
                     onClick = {
-                        onDelete()
+                        onSetHidden(!post.isHidden)
                         isMenuExpanded = false
                     },
-                    contentPadding = customPadding
+                    modifier = itemModifier,
+                    contentPadding = itemPadding
                 )
+
+                // 「削除」メニュー
+                if (post.source == SnsType.LOGLEAF) {
+                    DropdownMenuItem(
+                        text = { Text("削除",) },
+                        onClick = {
+                            onDelete()
+                            isMenuExpanded = false
+                        },
+                        modifier = itemModifier,
+                        contentPadding = itemPadding
+                    )
+                }
             }
         }
     }

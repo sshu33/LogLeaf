@@ -217,11 +217,37 @@ class MainViewModel(
         }.sortedByDescending { it.date }
     }
 
-    fun toggleShowHiddenPosts() {
+
+    private fun updateUiFromLocalPosts(newShowHiddenState: Boolean) {
         viewModelScope.launch {
-            _uiState.update { it.copy(showHiddenPosts = !it.showHiddenPosts) }
-            refreshPosts(force = true) // 表示を最新の状態に更新
+            // 現在表示しているアカウントのリストを取得
+            val accounts = sessionManager.accountsFlow.first()
+            val visibleSnsAccountIds = accounts.filter { it.isVisible }.map { it.userId }
+            // 引数で渡された新しい状態を元に、DBへの命令を決定
+            val includeHidden = if (newShowHiddenState) 1 else 0
+
+            // ネットワーク通信なしに、ローカルDBからのみ投稿を取得
+            val postsFromDb = postDao.getAllPosts(visibleSnsAccountIds, includeHidden).first()
+            val dayLogs = groupPostsByDay(postsFromDb)
+
+            // UIの状態を更新。allPosts, dayLogs, そしてshowHiddenPostsの状態を一度に更新する
+            _uiState.update {
+                it.copy(
+                    allPosts = postsFromDb,
+                    dayLogs = dayLogs,
+                    showHiddenPosts = newShowHiddenState
+                )
+            }
         }
+    }
+
+    /**
+     * 非表示投稿の表示／非表示を切り替える
+     */
+    fun toggleShowHiddenPosts() {
+        // これからなるべき新しい状態を計算し、引数として渡す
+        val newShowHiddenState = !_uiState.value.showHiddenPosts
+        updateUiFromLocalPosts(newShowHiddenState)
     }
 
     /**
@@ -230,8 +256,9 @@ class MainViewModel(
     fun setPostHidden(postId: String, isHidden: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             postDao.setPostHiddenStatus(postId, isHidden)
+            // DB更新後、現在のshowHiddenPostsの状態を維持したまま、軽量な更新をかける
             withContext(Dispatchers.Main) {
-                refreshPosts(force = true)
+                updateUiFromLocalPosts(_uiState.value.showHiddenPosts)
             }
         }
     }
@@ -242,8 +269,9 @@ class MainViewModel(
     fun deletePost(postId: String) {
         viewModelScope.launch(Dispatchers.IO) {
             postDao.deletePostById(postId)
+            // DB更新後、現在のshowHiddenPostsの状態を維持したまま、軽量な更新をかける
             withContext(Dispatchers.Main) {
-                refreshPosts(force = true)
+                updateUiFromLocalPosts(_uiState.value.showHiddenPosts)
             }
         }
     }
