@@ -35,31 +35,28 @@ interface PostDao {
 
     @Query("""
         SELECT * FROM posts
-        WHERE (accountId IN (:visibleAccountIds) OR source = :logLeafSnsType)
+        WHERE accountId IN (:visibleAccountIds)
         AND (isHidden = 0 OR :includeHidden = 1)
         ORDER BY createdAt DESC
     """)
-    fun getAllPosts(visibleAccountIds: List<String>, includeHidden: Int, logLeafSnsType: String = "LOGLEAF"): Flow<List<Post>>
+    fun getAllPosts(visibleAccountIds: List<String>, includeHidden: Int): Flow<List<Post>>
 
     fun searchPostsWithAnd(keywords: List<String>, visibleAccountIds: List<String>, includeHidden: Int): Flow<List<Post>> {
         if (keywords.isEmpty()) {
             return getAllPosts(visibleAccountIds, includeHidden)
         }
 
+        // ViewModel側でLOGLEAF用のIDも渡すようにしたので、ここでもIDリストを準備
+        val finalVisibleIds = visibleAccountIds + "LOGLEAF_INTERNAL_POST"
+
         val queryBuilder = StringBuilder()
         val args = mutableListOf<Any>()
 
-        // 条件句: (アカウントID条件 OR LogLeaf条件)
-        queryBuilder.append("SELECT * FROM posts WHERE (")
-        if (visibleAccountIds.isNotEmpty()) {
-            queryBuilder.append("accountId IN (")
-            queryBuilder.append(visibleAccountIds.joinToString(",") { "?" })
-            queryBuilder.append(") OR ")
-            args.addAll(visibleAccountIds)
-        }
-        queryBuilder.append("source = ?")
-        args.add(SnsType.LOGLEAF.name)
+        // 条件句: WHERE accountId IN (...)
+        queryBuilder.append("SELECT * FROM posts WHERE accountId IN (")
+        queryBuilder.append(finalVisibleIds.joinToString(",") { "?" })
         queryBuilder.append(") ")
+        args.addAll(finalVisibleIds)
 
         // 条件句: AND (キーワード条件)
         queryBuilder.append("AND (")

@@ -110,13 +110,14 @@ class BlueskyApi(private val sessionManager: SessionManager) {
         val response: BskyFeedResponse = client.get("https://bsky.social/xrpc/app.bsky.feed.getAuthorFeed") {
             headers { append(HttpHeaders.Authorization, "Bearer $token") }
             parameter("actor", did)
+            parameter("limit", 100) // 取得件数の上限を最大値の100に設定
         }.body()
 
         return response.feed.map { feedItem ->
             val postRecord = feedItem.post.record
             Post(
                 id = feedItem.post.uri,
-                accountId = accountId, // ◀️ ここでaccountIdをセット！
+                accountId = accountId,
                 createdAt = ZonedDateTime.parse(postRecord.createdAt),
                 text = postRecord.text,
                 source = SnsType.BLUESKY

@@ -102,19 +102,16 @@ class MainViewModel(
                         }
                     }
                 }
+
                 val allNewPosts = postLists.awaitAll().flatten()
                 if (allNewPosts.isNotEmpty()) {
                     postDao.insertAll(allNewPosts)
                 }
 
-                // ▼▼▼ ここのDB取得ロジックを修正 ▼▼▼
                 val visibleSnsAccountIds = accounts.filter { it.isVisible }.map { it.userId }
+                val finalVisibleIds = visibleSnsAccountIds + "LOGLEAF_INTERNAL_POST"
                 val includeHidden = if (_uiState.value.showHiddenPosts) 1 else 0
-
-                // LOGLEAF_INTERNAL_POST はDAOが自動で含めるように今後修正するため、ここでは不要
-                // isHiddenを考慮した新しいgetAllPostsを呼ぶ
-                val postsFromDb = postDao.getAllPosts(visibleSnsAccountIds, includeHidden).first()
-                // ▲▲▲ 修正箇所ここまで ▲▲▲
+                val postsFromDb = postDao.getAllPosts(finalVisibleIds, includeHidden).first()
 
                 val dayLogs = groupPostsByDay(postsFromDb)
                 _uiState.update { currentState ->
