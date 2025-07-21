@@ -9,8 +9,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.logleaf.Post
 
-// データベースのバージョンを2に更新
-@Database(entities = [Post::class], version = 2, exportSchema = false)
+@Database(entities = [Post::class], version = 3, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
 
@@ -20,15 +19,15 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
-        /**
-         * バージョン1から2へのマイグレーション定義。
-         * postsテーブルにaccountIdカラムを追加します。
-         */
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(database: SupportSQLiteDatabase) {
-                // postsテーブルにaccountIdカラム(TEXT型、NULL不許可)を追加。
-                // 既存のデータには、デフォルト値として空文字('')を設定します。
                 database.execSQL("ALTER TABLE posts ADD COLUMN accountId TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE posts ADD COLUMN isHidden INTEGER NOT NULL DEFAULT 0")
             }
         }
 
@@ -37,9 +36,10 @@ abstract class AppDatabase : RoomDatabase() {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
-                    "logleaf_database" // データベースファイル名
+                    "logleaf_database"
                 )
-                    .addMigrations(MIGRATION_1_2) // ◀️ 定義したマイグレーションをビルダーに追加
+                    // ▼ 変更点3: MIGRATION_2_3 を追加
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                 INSTANCE = instance
                 instance

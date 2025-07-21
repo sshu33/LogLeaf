@@ -1,8 +1,10 @@
 package com.example.logleaf.ui.screens
 
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Arrangement
@@ -30,10 +32,14 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
@@ -49,6 +55,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -59,6 +66,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.logleaf.Post
 import com.example.logleaf.UiState
+import com.example.logleaf.ui.theme.SnsType
 import kotlinx.coroutines.delay
 import java.time.LocalDate
 import java.time.Month
@@ -76,7 +84,11 @@ fun CalendarScreen(
     onRefresh: () -> Unit,
     isRefreshing: Boolean,
     onShowPostEntry: () -> Unit,
-    onDismissPostEntry: () -> Unit
+    onDismissPostEntry: () -> Unit,
+    onToggleShowHidden: () -> Unit,
+    onStartEditingPost: (Post) -> Unit,
+    onSetPostHidden: (String, Boolean) -> Unit,
+    onDeletePost: (String) -> Unit
 ) {
 
     val initialDate = remember(initialDateString) {
@@ -128,7 +140,9 @@ fun CalendarScreen(
                     },
                     onMonthTitleClick = { selectedDate = LocalDate.now() },
                     onRefresh = onRefresh,
-                    isRefreshing = isRefreshing
+                    isRefreshing = isRefreshing,
+                    showHiddenPosts = uiState.showHiddenPosts,
+                    onToggleShowHidden = onToggleShowHidden
                 )
                 CalendarGrid(
                     posts = uiState.allPosts,
@@ -155,7 +169,10 @@ fun CalendarScreen(
                         items(postsForSelectedDay, key = { it.id }) { post ->
                             CalendarPostCardItem(
                                 post = post,
-                                isFocused = (post.id == focusedPostIdForRipple)
+                                isFocused = (post.id == focusedPostIdForRipple),
+                                onStartEditing = { onStartEditingPost(post) },
+                                onSetHidden = { isHidden -> onSetPostHidden(post.id, isHidden) },
+                                onDelete = { onDeletePost(post.id) }
                             )
                         }
                     }
@@ -205,7 +222,9 @@ fun CalendarHeader(
     onYearChanged: (Int) -> Unit,
     onMonthTitleClick: () -> Unit,
     onRefresh: () -> Unit,
-    isRefreshing: Boolean // ★ 追加
+    isRefreshing: Boolean,
+    showHiddenPosts: Boolean,
+    onToggleShowHidden: () -> Unit
 ) {
     val monthString = yearMonth.format(DateTimeFormatter.ofPattern("MMMM", Locale.ENGLISH))
 
@@ -218,7 +237,14 @@ fun CalendarHeader(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Spacer(modifier = Modifier.size(48.dp))
+            // ▼▼▼ 変更点: 左端のスペーサーをアイコンボタンに置き換える ▼▼▼
+            IconButton(onClick = onToggleShowHidden) {
+                Icon(
+                    imageVector = if (showHiddenPosts) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                    contentDescription = if (showHiddenPosts) "非表示投稿を隠す" else "非表示投稿を表示",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
             // 中央の年移動UI
             Row(
@@ -424,15 +450,22 @@ fun DayCell(
 }
 
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun CalendarPostCardItem(
     post: Post,
-    isFocused: Boolean
+    isFocused: Boolean,
+    // ▼▼▼ ここから追加 ▼▼▼
+    onStartEditing: () -> Unit,
+    onSetHidden: (Boolean) -> Unit,
+    onDelete: () -> Unit
 ) {
     val localDateTime = post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
     val timeString = localDateTime.format(DateTimeFormatter.ofPattern("HH:mm"))
-
     val interactionSource = remember { MutableInteractionSource() }
+
+    // メニューの開閉状態を管理
+    var isMenuExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(isFocused) {
         if (isFocused) {
@@ -443,47 +476,95 @@ fun CalendarPostCardItem(
         }
     }
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(
-                interactionSource = interactionSource,
-                indication = rememberRipple(),
-                onClick = {}
-            ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = RoundedCornerShape(12.dp),
-        // ★★★ この colors の設定が復活しました ★★★
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White, // 背景を白に固定
-            contentColor = MaterialTheme.colorScheme.onSurface // 文字色を黒系に固定
-        )
-    ) {
-        // --- ここから下のレイアウトは変更なし ---
-        Row(
+    Box {
+        Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-                .height(IntrinsicSize.Min),
-            verticalAlignment = Alignment.Top
-        ) {
-            Text(
-                text = timeString,
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.Gray,
-                modifier = Modifier.width(56.dp)
+                // 非表示投稿は半透明にする
+                .alpha(if (post.isHidden) 0.6f else 1.0f)
+                // 長押しを検知できるように変更
+                .combinedClickable(
+                    interactionSource = interactionSource,
+                    indication = rememberRipple(),
+                    onClick = {}, // 短いクリックの動作はなし
+                    onLongClick = { isMenuExpanded = true } // 長押しでメニューを開く
+                ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color.White,
+                contentColor = MaterialTheme.colorScheme.onSurface
             )
-            Row(modifier = Modifier.fillMaxHeight()) {
-                Box(
-                    modifier = Modifier
-                        .width(4.dp)
-                        .fillMaxHeight()
-                        .background(post.source.brandColor)
-                )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .height(IntrinsicSize.Min),
+                verticalAlignment = Alignment.Top
+            ) {
                 Text(
-                    text = post.text,
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(start = 12.dp)
+                    text = timeString,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Gray,
+                    modifier = Modifier.width(56.dp)
+                )
+                Row(modifier = Modifier.fillMaxHeight()) {
+                    Box(
+                        modifier = Modifier
+                            .width(4.dp)
+                            .fillMaxHeight()
+                            .background(post.source.brandColor)
+                    )
+                    Text(
+                        text = post.text,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(start = 12.dp)
+                    )
+                }
+            }
+        }
+
+        // ドロップダウンメニュー
+        DropdownMenu(
+            expanded = isMenuExpanded,
+            onDismissRequest = { isMenuExpanded = false },
+            modifier = Modifier
+                .width(80.dp)
+                .background(
+                    color = Color.White,
+                    shape = RoundedCornerShape(4.dp) // この数値を大きくすると、もっと丸くなります
+                )
+        ) {
+            // ★ メニュー項目の縦のスキマは、このpaddingで調整できます
+            val customPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
+
+            if (post.source == SnsType.LOGLEAF) {
+                DropdownMenuItem(
+                    text = { Text("編集") },
+                    onClick = {
+                        onStartEditing()
+                        isMenuExpanded = false
+                    },
+                    contentPadding = customPadding
+                )
+            }
+            DropdownMenuItem(
+                text = { Text(if (post.isHidden) "再表示" else "非表示") },
+                onClick = {
+                    onSetHidden(!post.isHidden)
+                    isMenuExpanded = false
+                },
+                contentPadding = customPadding
+            )
+            if (post.source == SnsType.LOGLEAF) {
+                DropdownMenuItem(
+                    text = { Text("削除") },
+                    onClick = {
+                        onDelete()
+                        isMenuExpanded = false
+                    },
+                    contentPadding = customPadding
                 )
             }
         }

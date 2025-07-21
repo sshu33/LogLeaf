@@ -35,7 +35,9 @@ data class UiState(
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
     val isPostEntrySheetVisible: Boolean = false,
-    val postText: TextFieldValue = TextFieldValue("")
+    val postText: TextFieldValue = TextFieldValue(""),
+    val showHiddenPosts: Boolean = false, // 非表示投稿を表示するかどうかのフラグ
+    val editingPost: Post? = null
 )
 class MainViewModel(
     private val blueskyApi: BlueskyApi,
@@ -105,9 +107,14 @@ class MainViewModel(
                     postDao.insertAll(allNewPosts)
                 }
 
+                // ▼▼▼ ここのDB取得ロジックを修正 ▼▼▼
                 val visibleSnsAccountIds = accounts.filter { it.isVisible }.map { it.userId }
-                val finalVisibleIds = visibleSnsAccountIds + "LOGLEAF_INTERNAL_POST"
-                val postsFromDb = postDao.getAllPosts(finalVisibleIds).first()
+                val includeHidden = if (_uiState.value.showHiddenPosts) 1 else 0
+
+                // LOGLEAF_INTERNAL_POST はDAOが自動で含めるように今後修正するため、ここでは不要
+                // isHiddenを考慮した新しいgetAllPostsを呼ぶ
+                val postsFromDb = postDao.getAllPosts(visibleSnsAccountIds, includeHidden).first()
+                // ▲▲▲ 修正箇所ここまで ▲▲▲
 
                 val dayLogs = groupPostsByDay(postsFromDb)
                 _uiState.update { currentState ->
@@ -125,8 +132,10 @@ class MainViewModel(
         }
     }
 
-    fun refreshPosts() {
-        if (_uiState.value.isRefreshing) return
+    fun refreshPosts(force: Boolean = false) {
+        // forceがtrueの場合は、更新中でも処理を続行する
+        if (_uiState.value.isRefreshing && !force) return
+
         viewModelScope.launch {
             _uiState.update { it.copy(isRefreshing = true) }
             fetchPosts(sessionManager.accountsFlow.first(), isInitialLoad = false)
@@ -144,7 +153,13 @@ class MainViewModel(
      * 投稿入力シートの非表示を要求する
      */
     fun dismissPostEntrySheet() {
-        _uiState.update { it.copy(isPostEntrySheetVisible = false) }
+        _uiState.update {
+            it.copy(
+                isPostEntrySheetVisible = false,
+                editingPost = null, // 編集状態をクリア
+                postText = TextFieldValue("") // テキスト入力欄もクリア
+            )
+        }
     }
 
     /**
@@ -158,27 +173,30 @@ class MainViewModel(
      * 投稿を確定する
      */
     fun submitPost() {
-        val currentText = uiState.value.postText.text
-        if (currentText.isBlank()) {
-            return
-        }
+        val currentState = uiState.value
+        val currentText = currentState.postText.text
+        if (currentText.isBlank()) return
 
-        val newPost = Post(
+        // editingPostがnullでなければ、その投稿を更新。nullなら新規作成。
+        val postToSave = currentState.editingPost?.copy(
+            text = currentText
+        ) ?: Post(
             id = UUID.randomUUID().toString(),
             accountId = "LOGLEAF_INTERNAL_POST",
             text = currentText,
             createdAt = ZonedDateTime.now(),
-            source = SnsType.LOGLEAF
+            source = SnsType.LOGLEAF,
+            isHidden = false // 新規作成時は必ず表示状態
         )
 
         dismissPostEntrySheet()
-        onPostTextChange(TextFieldValue(""))
 
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) {
-                postDao.insertAll(listOf(newPost))
+        viewModelScope.launch(Dispatchers.IO) {
+            // 複数投稿用のinsertAllから、単一投稿用のinsertへ変更
+            postDao.insert(postToSave)
+            withContext(Dispatchers.Main) {
+                refreshPosts()
             }
-            refreshPosts()
         }
     }
 
@@ -197,6 +215,50 @@ class MainViewModel(
                 totalPosts = postList.size
             )
         }.sortedByDescending { it.date }
+    }
+
+    fun toggleShowHiddenPosts() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(showHiddenPosts = !it.showHiddenPosts) }
+            refreshPosts(force = true) // 表示を最新の状態に更新
+        }
+    }
+
+    /**
+     * 投稿を非表示、または再表示する
+     */
+    fun setPostHidden(postId: String, isHidden: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            postDao.setPostHiddenStatus(postId, isHidden)
+            withContext(Dispatchers.Main) {
+                refreshPosts(force = true)
+            }
+        }
+    }
+
+    /**
+     * 投稿を削除する
+     */
+    fun deletePost(postId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            postDao.deletePostById(postId)
+            withContext(Dispatchers.Main) {
+                refreshPosts(force = true)
+            }
+        }
+    }
+
+    /**
+     * 投稿の編集を開始する
+     */
+    fun startEditingPost(post: Post) {
+        _uiState.update {
+            it.copy(
+                isPostEntrySheetVisible = true,       // ダイアログを表示
+                editingPost = post,                   // 編集対象の投稿をセット
+                postText = TextFieldValue(post.text)  // テキスト入力欄に既存のテキストをセット
+            )
+        }
     }
 
     companion object {

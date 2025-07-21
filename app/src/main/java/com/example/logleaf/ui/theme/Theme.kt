@@ -9,6 +9,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -25,9 +26,12 @@ private val DarkColorScheme = darkColorScheme(
 private val LightColorScheme = lightColorScheme(
     primary = Orange,
     secondary = OrangeGray,
-    tertiary = Pink40,
-    surfaceVariant = OrangeGray
-
+    tertiary = RedPink, // ← あなたのRedPink
+    surfaceVariant = OrangeGray,
+    surface = Color.White,
+    background = Color.White,
+    onSurface = Color.Black,
+    onBackground = Color.Black
 
     /* Other default colors to override
     background = Color(0xFFFFFBFE),

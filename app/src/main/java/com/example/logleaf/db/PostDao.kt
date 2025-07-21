@@ -3,6 +3,7 @@ package com.example.logleaf.db
 import androidx.room.*
 import androidx.sqlite.db.SimpleSQLiteQuery
 import com.example.logleaf.Post
+import com.example.logleaf.ui.theme.SnsType
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -11,42 +12,71 @@ interface PostDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(posts: List<Post>)
 
-    @Query("""
-        SELECT * FROM posts
-        WHERE accountId IN (:visibleAccountIds)
-        ORDER BY createdAt DESC
-    """)
-    fun getAllPosts(visibleAccountIds: List<String>): Flow<List<Post>>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(post: Post)
 
     /**
-     * ▼ 変更点: @Transactionアノテーションを削除します。
-     * この関数はクエリを組み立てるだけで、直接DBアクセスする複数の処理をまとめている訳ではないため、@Transactionは不要であり、エラーの原因でした。
+     * 1件の投稿を更新する。編集機能で使用。
      */
-    fun searchPostsWithAnd(keywords: List<String>, visibleAccountIds: List<String>): Flow<List<Post>> {
-        // キーワードが空の場合は、全表示対象投稿を返す
-        if (keywords.any { it.isBlank() }) {
-            return getAllPosts(visibleAccountIds)
+    @Update
+    suspend fun update(post: Post)
+
+    /**
+     * 投稿の表示／非表示の状態だけを効率的に更新する。
+     */
+    @Query("UPDATE posts SET isHidden = :isHidden WHERE id = :postId")
+    suspend fun setPostHiddenStatus(postId: String, isHidden: Boolean)
+
+    /**
+     * IDを指定して1件の投稿を削除する。
+     */
+    @Query("DELETE FROM posts WHERE id = :postId")
+    suspend fun deletePostById(postId: String)
+
+    @Query("""
+        SELECT * FROM posts
+        WHERE (accountId IN (:visibleAccountIds) OR source = :logLeafSnsType)
+        AND (isHidden = 0 OR :includeHidden = 1)
+        ORDER BY createdAt DESC
+    """)
+    fun getAllPosts(visibleAccountIds: List<String>, includeHidden: Int, logLeafSnsType: String = "LOGLEAF"): Flow<List<Post>>
+
+    fun searchPostsWithAnd(keywords: List<String>, visibleAccountIds: List<String>, includeHidden: Int): Flow<List<Post>> {
+        if (keywords.isEmpty()) {
+            return getAllPosts(visibleAccountIds, includeHidden)
         }
 
-        // 表示対象アカウントの中から、さらにキーワードで絞り込む
         val queryBuilder = StringBuilder()
-        queryBuilder.append("SELECT * FROM posts WHERE accountId IN (")
-        // accountIdのプレースホルダを追加
-        visibleAccountIds.forEachIndexed { index, _ ->
-            queryBuilder.append("?")
-            if (index < visibleAccountIds.size - 1) queryBuilder.append(",")
-        }
-        queryBuilder.append(") AND (")
-        // キーワードのプレースホルダを追加
-        queryBuilder.append(keywords.joinToString(separator = " AND ") { "text LIKE ?" })
-        queryBuilder.append(") ORDER BY createdAt DESC")
+        val args = mutableListOf<Any>()
 
-        // 引数リストを作成（アカウントID + キーワード）
-        val args = visibleAccountIds.toMutableList()
+        // 条件句: (アカウントID条件 OR LogLeaf条件)
+        queryBuilder.append("SELECT * FROM posts WHERE (")
+        if (visibleAccountIds.isNotEmpty()) {
+            queryBuilder.append("accountId IN (")
+            queryBuilder.append(visibleAccountIds.joinToString(",") { "?" })
+            queryBuilder.append(") OR ")
+            args.addAll(visibleAccountIds)
+        }
+        queryBuilder.append("source = ?")
+        args.add(SnsType.LOGLEAF.name)
+        queryBuilder.append(") ")
+
+        // 条件句: AND (キーワード条件)
+        queryBuilder.append("AND (")
+        queryBuilder.append(keywords.joinToString(separator = " AND ") { "text LIKE ?" })
+        queryBuilder.append(") ")
         args.addAll(keywords.map { "%$it%" })
+
+        // 条件句: AND (非表示条件)
+        if (includeHidden == 0) {
+            queryBuilder.append("AND isHidden = 0 ")
+        }
+
+        queryBuilder.append("ORDER BY createdAt DESC")
 
         return searchPostsWithAndRaw(SimpleSQLiteQuery(queryBuilder.toString(), args.toTypedArray()))
     }
+
 
     @RawQuery(observedEntities = [Post::class])
     fun searchPostsWithAndRaw(query: SimpleSQLiteQuery): Flow<List<Post>>

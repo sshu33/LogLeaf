@@ -175,7 +175,8 @@ fun SearchTopBar(
                 // --- ドロップダウンメニュー ---
                 DropdownMenu(
                     expanded = snsFilterMenuExpanded,
-                    onDismissRequest = { snsFilterMenuExpanded = false }
+                    onDismissRequest = { snsFilterMenuExpanded = false },
+                    modifier = Modifier.background(Color.White)
                 ) {
                     // 「全て」のメニュー項目 (contentPaddingは削除)
                     DropdownMenuItem(

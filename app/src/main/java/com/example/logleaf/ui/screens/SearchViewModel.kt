@@ -50,7 +50,11 @@ class SearchViewModel(
                     if (visibleAccountIds.isEmpty()) {
                         flowOf(emptyList())
                     } else {
-                        postDao.searchPostsWithAnd(keywords, visibleAccountIds)
+                        postDao.searchPostsWithAnd(
+                            keywords = keywords,
+                            visibleAccountIds = visibleAccountIds,
+                            includeHidden = 0 // 非表示の投稿は含めない
+                        )
                     }
                 }
             }

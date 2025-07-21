@@ -1,23 +1,26 @@
 package com.example.logleaf
 
 import androidx.compose.ui.graphics.Color
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.example.logleaf.ui.theme.SnsType
 import java.time.ZonedDateTime
 
-@Entity(tableName = "posts") // このクラスを"posts"という名前のテーブルとして定義
+@Entity(tableName = "posts")
 data class Post(
-    @PrimaryKey // これを主キー（各行を一位に識別するID）として定義
+    @PrimaryKey
     val id: String,
 
-    val accountId: String, // ◀️ 追加：この投稿が属するアカウントのID (Account.userId)
+    val accountId: String,
 
     val text: String,
     val createdAt: ZonedDateTime,
-    val source: SnsType
+    val source: SnsType,
+
+    @ColumnInfo(name = "isHidden", defaultValue = "0")
+    val isHidden: Boolean = false
 ) {
-    // データベースに保存する必要はないので、Roomはこれを無視する
     @delegate:androidx.room.Ignore
-    val color: Color by lazy { source.brandColor } // Ignoreアノテーションのつけ方を修正
+    val color: Color by lazy { source.brandColor }
 }

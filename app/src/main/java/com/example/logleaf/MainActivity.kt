@@ -193,11 +193,12 @@ fun MainScreen(
                     navController = navController,
                     onRefresh = mainViewModel::refreshPosts,
                     isRefreshing = uiState.isRefreshing,
-                    // ★★★ ここから下が新しい命令系統です ★★★
-                    // 1. `onAddPost` を `onShowPostEntry` に変更し、ViewModelの関数を呼び出します
                     onShowPostEntry = { mainViewModel.showPostEntrySheet() },
-                    // 2. 新たに `onDismissPostEntry` を追加し、ViewModelの関数を呼び出します
-                    onDismissPostEntry = { mainViewModel.dismissPostEntrySheet() }
+                    onDismissPostEntry = { mainViewModel.dismissPostEntrySheet() },
+                    onToggleShowHidden = { mainViewModel.toggleShowHiddenPosts() },
+                    onStartEditingPost = { post -> mainViewModel.startEditingPost(post) },
+                    onSetPostHidden = { postId, isHidden -> mainViewModel.setPostHidden(postId, isHidden) },
+                    onDeletePost = { postId -> mainViewModel.deletePost(postId) }
                 )
             }
 
