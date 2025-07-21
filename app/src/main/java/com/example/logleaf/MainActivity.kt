@@ -296,9 +296,6 @@ fun MainScreen(
                         val postId = post.id
                         navController.navigate("calendar?date=$date&postId=$postId")
                     },
-                    // ▼▼▼ この一行を追加 ▼▼▼
-                    // 親のScaffoldが持つパディング情報を、子に渡す
-                    parentPaddingValues = innerPadding
                 )
             }
         }

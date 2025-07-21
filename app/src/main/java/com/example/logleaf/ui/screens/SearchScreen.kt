@@ -31,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -55,38 +56,35 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun SearchScreen(
     viewModel: SearchViewModel,
-    onPostClick: (Post) -> Unit,
-    // ▼▼▼ [変更点1] 親からパディング情報を受け取る口を追加 ▼▼▼
-    parentPaddingValues: PaddingValues
+    onPostClick: (Post) -> Unit
 ) {
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedSns by viewModel.selectedSns.collectAsState()
     val searchResultPosts by viewModel.searchResultPosts.collectAsState()
 
-    // この画面の骨格であるScaffoldは、そのまま維持する
-    Scaffold(
-        topBar = {
-            Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                SearchTopBar(
-                    query = searchQuery,
-                    onQueryChanged = viewModel::onQueryChanged,
-                    selectedSns = selectedSns,
-                    onSnsFilterChanged = viewModel::onSnsFilterChanged,
-                    onReset = viewModel::onReset
-                )
-            }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        // ▼▼▼ [変更点1] Boxを削除し、Surfaceだけに戻す ▼▼▼
+        Surface(
+            shadowElevation = 2.dp
+        ) {
+            SearchTopBar(
+                query = searchQuery,
+                onQueryChanged = viewModel::onQueryChanged,
+                selectedSns = selectedSns,
+                onSnsFilterChanged = viewModel::onSnsFilterChanged,
+                onReset = viewModel::onReset
+            )
         }
-    ) { innerPadding -> // このinnerPaddingは、SearchTopBarの高さ情報を持つ
 
         if (searchQuery.isNotBlank() && searchResultPosts.isEmpty()) {
-            // 「投稿が見つかりません」の表示
             Box(
-                // ▼▼▼ [変更点2] 両方のパディングを適用 ▼▼▼
                 modifier = Modifier
-                    .padding(innerPadding) // 上部のパディング
-                    .padding(parentPaddingValues) // 下部のパディング
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                    .fillMaxWidth()
+                    .weight(1f),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -95,20 +93,9 @@ fun SearchScreen(
                 )
             }
         } else {
-            // 検索結果リスト
             LazyColumn(
-                // ▼▼▼ [変更点3] 上部のパディングのみを適用 ▼▼▼
-                modifier = Modifier
-                    .padding(innerPadding)
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-
-                // ▼▼▼ [変更点4] リストの中身のパディングを調整 ▼▼▼
-                contentPadding = PaddingValues(
-                    start = 16.dp,
-                    end = 16.dp,
-                    top = 8.dp,
-                ),
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(searchResultPosts) { post ->
@@ -122,6 +109,8 @@ fun SearchScreen(
         }
     }
 }
+
+
 @Composable
 fun SearchTopBar(
     query: String,
@@ -133,18 +122,20 @@ fun SearchTopBar(
     var snsFilterMenuExpanded by remember { mutableStateOf(false) }
 
     Row(
+        // ▼▼▼ [変更点2] ここに、上下の余白を追加する ▼▼▼
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp), // 上下12dpの余白を追加
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // --- 検索バー ---
         TextField(
             value = query,
             onValueChange = onQueryChanged,
+            // ▼▼▼ [変更点3] heightを、安全なdefaultMinSizeに戻す ▼▼▼
             modifier = Modifier
                 .weight(1f)
-                .defaultMinSize(minHeight = 30.dp), // ★★★ .height() を .defaultMinSize() に変更 ★★★
+                .defaultMinSize(minHeight = 48.dp), // 最小の高さを48dpに指定
             placeholder = { Text("投稿を検索...") },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search Icon") },
             trailingIcon = {
@@ -155,8 +146,7 @@ fun SearchTopBar(
                 }
             },
             singleLine = true,
-            shape = RoundedCornerShape(24.dp), // 高さに合わせて角丸も調整
-
+            shape = RoundedCornerShape(24.dp),
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                 unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -164,7 +154,6 @@ fun SearchTopBar(
                 unfocusedIndicatorColor = Color.Transparent,
             )
         )
-        // ★★★ アイコン群と検索バーの間に、手動でスペースを設ける ★★★
         Spacer(modifier = Modifier.width(8.dp))
 
         // --- フィルターとリセットのアイコンをグループ化 ---
