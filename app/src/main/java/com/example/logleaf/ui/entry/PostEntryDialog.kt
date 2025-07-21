@@ -62,7 +62,7 @@ fun PostEntryDialog(
     postText: TextFieldValue,
     onTextChange: (TextFieldValue) -> Unit,
     onPostSubmit: () -> Unit,
-    onDismissRequest: () -> Unit
+    onDismissRequest: () -> Unit // ← 背景タップで呼ばれるのはコレ！
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }

@@ -200,8 +200,16 @@ class MainViewModel(
         _postEntryState.update { it.copy(isVisible = true) }
     }
 
+    fun cancelPostEntry() {
+        _postEntryState.update { it.copy(isVisible = false) }
+    }
+
     fun dismissPostEntrySheet() {
-        _postEntryState.value = PostEntryState(isVisible = false, text = TextFieldValue(""), editingPost = null)
+        _postEntryState.value = PostEntryState(
+            isVisible = false,
+            text = TextFieldValue(""),
+            editingPost = null
+        )
     }
 
     fun onPostTextChange(newText: TextFieldValue) {
@@ -232,11 +240,13 @@ class MainViewModel(
             isHidden = false
         )
 
-        dismissPostEntrySheet()
-
+        // 3. 最後に、DBへの保存とUIのリセットを行う
         viewModelScope.launch(Dispatchers.IO) {
             postDao.insert(postToSave)
         }
+
+        // 2. 投稿が完了したら、状態をリセットしてダイアログを閉じる
+        dismissPostEntrySheet()
     }
 
     private fun groupPostsByDay(posts: List<Post>): List<DayLog> {

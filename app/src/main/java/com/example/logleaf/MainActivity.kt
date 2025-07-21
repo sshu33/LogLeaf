@@ -319,7 +319,7 @@ fun MainScreen(
                 postText = uiState.postText,
                 onTextChange = mainViewModel::onPostTextChange,
                 onPostSubmit = mainViewModel::submitPost,
-                onDismissRequest = mainViewModel::dismissPostEntrySheet
+                onDismissRequest = mainViewModel::cancelPostEntry
             )
         }
     }
