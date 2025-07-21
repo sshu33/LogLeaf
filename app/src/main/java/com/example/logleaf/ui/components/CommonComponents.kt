@@ -9,13 +9,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.BadgedBox
@@ -47,7 +47,6 @@ import com.example.logleaf.ui.screens.Screen
 import com.example.logleaf.ui.theme.NoticeGreen
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-
 
 @Composable
 fun SettingsSectionHeader(title: String) {
@@ -134,14 +133,46 @@ fun BottomNavigationBar(
             val currentRoute = navBackStackEntry?.destination?.route
             items.forEach { screen ->
                 val interactionSource = remember { MutableInteractionSource() }
+                val isSelected = currentRoute?.startsWith(screen.route) == true
+
 
                 NavigationBarItem(
+                    selected = isSelected,
+                    onClick = {
+                        navController.navigate(screen.route) {
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    label = { },
+                    interactionSource = interactionSource,
+                    // ▼▼▼ [変更点1] デフォルトのインジケーターは、完全に透明にする ▼▼▼
+                    colors = NavigationBarItemDefaults.colors(
+                        indicatorColor = Color.Transparent,
+                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
                     icon = {
-                        // ▼▼▼ [変更点2] アイコンをBoxで囲み、高さを確保する ▼▼▼
+                        // ▼▼▼ [変更点2] 我々自身の手で、完璧な「飲み薬」を描画する ▼▼▼
                         Box(
-                            modifier = Modifier.fillMaxHeight(), // アイテムの高さいっぱいに広がる
-                            contentAlignment = Alignment.Center // その中央にアイコンを配置
+                            modifier = Modifier
+                                // これが「飲み薬」のサイズだ！
+                                .height(32.dp)
+                                .width(64.dp)
+                                .background(
+                                    // 選択されている時だけ、君が気に入ってくれた色で塗る
+                                    color = if (isSelected) {
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                    } else {
+                                        Color.Transparent
+                                    },
+                                    // これが「飲み薬」の形だ！
+                                    shape = CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
                         ) {
+                            // 「飲み薬」の真ん中に、アイコンを配置する
                             if (screen.route == "settings") {
                                 BadgedBox(
                                     badge = {
@@ -155,8 +186,7 @@ fun BottomNavigationBar(
                                                 tint = NoticeGreen
                                             )
                                         }
-                                    },
-                                    modifier = Modifier.offset(y = 3.dp)
+                                    }
                                 ) {
                                     Icon(
                                         imageVector = screen.icon,
@@ -168,29 +198,11 @@ fun BottomNavigationBar(
                                 Icon(
                                     imageVector = screen.icon,
                                     contentDescription = screen.label,
-                                    modifier = Modifier
-                                        .size(28.dp)
-                                        .offset(y = 3.dp) // 例：下にずらす
+                                    modifier = Modifier.size(28.dp)
                                 )
                             }
                         }
-                    },
-                    label = { }, // ラベルは意図通り、空のまま
-                    selected = currentRoute?.startsWith(screen.route) == true,
-                    onClick = {
-                        navController.navigate(screen.route) {
-                            popUpTo(navController.graph.startDestinationId) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                    interactionSource = interactionSource,
-                    colors = NavigationBarItemDefaults.colors(
-                        indicatorColor = Color.Transparent,
-                        // 選択・非選択時のアイコンの色だけ指定する
-                        selectedIconColor = MaterialTheme.colorScheme.primary,
-                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    }
                 )
             }
         }
