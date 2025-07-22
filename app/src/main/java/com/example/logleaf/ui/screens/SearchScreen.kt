@@ -50,6 +50,7 @@ import com.example.logleaf.Post
 import com.example.logleaf.R
 import com.example.logleaf.ui.components.HighlightedText
 import com.example.logleaf.ui.theme.SnsType
+import com.yourpackage.logleaf.ui.components.UserFontText
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -180,7 +181,7 @@ fun SearchTopBar(
                 ) {
                     // 「全て」のメニュー項目 (contentPaddingは削除)
                     DropdownMenuItem(
-                        text = { Text("All") },
+                        text = { UserFontText(text = "All") },
                         leadingIcon = { /* アイコンなし */ },
                         onClick = {
                             onSnsFilterChanged(null)
@@ -190,7 +191,9 @@ fun SearchTopBar(
 
                     SnsType.entries.forEach { sns ->
                         DropdownMenuItem(
-                            text = { Text(sns.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                            text = {
+                                UserFontText(
+                                    text = sns.name.lowercase().replaceFirstChar { it.uppercase() })},
                             leadingIcon = {
                                 // ★★★ アイコンとテキストの間を詰めるためのRow ★★★
                                 Row(verticalAlignment = Alignment.CenterVertically) {

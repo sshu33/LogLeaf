@@ -2,6 +2,7 @@ package com.example.logleaf.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
@@ -9,11 +10,12 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.example.logleaf.FontSettingsUiState
 
@@ -44,11 +46,12 @@ private val LightColorScheme = lightColorScheme(
     */
 )
 
+val LocalUserFontFamily = staticCompositionLocalOf<FontFamily> { FontFamily.Default }
+
 @Composable
 fun LogLeafTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = false,
-    // ★★★ 引数を、UiStateオブジェクト、ただ一つにする！ ★★★
     fontSettings: FontSettingsUiState = FontSettingsUiState(),
     content: @Composable () -> Unit
 ) {
@@ -88,11 +91,28 @@ fun LogLeafTheme(
         )
     )
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = customTypography, // ★ 動的に生成したTypographyを、テーマに適用！
-        content = content
-    )
+    CompositionLocalProvider(
+        LocalUserFontFamily provides fontSettings.selectedFontFamily
+    ) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = customTypography,
+            content = content
+        )
+    }
+}
+
+@Composable
+fun WithUserFont(
+    baseStyle: TextStyle = MaterialTheme.typography.bodyLarge,
+    content: @Composable () -> Unit
+) {
+    val userFontFamily = LocalUserFontFamily.current
+    val finalStyle = baseStyle.copy(fontFamily = userFontFamily)
+
+    CompositionLocalProvider(LocalTextStyle provides finalStyle) {
+        content()
+    }
 }
 
 @Composable

@@ -1,5 +1,3 @@
-// ★★★ FontDefinition.kt (ハイブリッド対応 最終版) ★★★
-
 package com.example.logleaf.ui.settings.font // あなたのパッケージ名に合わせてください
 
 import androidx.compose.ui.text.font.FontFamily

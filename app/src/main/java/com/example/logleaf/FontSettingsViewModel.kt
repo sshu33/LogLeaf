@@ -35,7 +35,6 @@ data class FontSettingsUiState(
     val lineHeight: Float = 1.5f,
     val letterSpacing: Float = 0.1f
 )
-
 // --- ViewModel本体 ---
 class FontSettingsViewModel(
     private val application: Application,

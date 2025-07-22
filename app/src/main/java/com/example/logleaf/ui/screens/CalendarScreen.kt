@@ -71,6 +71,7 @@ import com.example.logleaf.Post
 import com.example.logleaf.UiState
 import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
+import com.yourpackage.logleaf.ui.components.UserFontText
 import kotlinx.coroutines.delay
 import java.time.LocalDate
 import java.time.Month
@@ -261,7 +262,7 @@ fun CalendarHeader(
                 IconButton(onClick = { onYearChanged(-1) }) {
                     Icon(Icons.Default.KeyboardArrowLeft, contentDescription = "Previous Year")
                 }
-                Text(
+                UserFontText(
                     text = yearMonth.year.toString(),
                     style = MaterialTheme.typography.titleMedium,
                     color = Color.Gray,
@@ -310,10 +311,10 @@ fun CalendarHeader(
         }
 
         // --- 3段目: 月のタイトル (変更なし) ---
-        Text(
+        UserFontText(
             text = monthString,
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Bold,
+            // styleとfontWeightを、copyを使って一つにまとめます
+            style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
             modifier = Modifier.clickable { onMonthTitleClick() }
         )
     }
@@ -359,10 +360,11 @@ fun CalendarGrid(
             ) {
                 listOf("SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT").forEach { day ->
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        Text(
+                        // 標準のTextの代わりに、我々が作ったUserFontTextを呼び出す！
+                        UserFontText(
                             text = day,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Bold
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                         )
                     }
                 }
@@ -555,7 +557,7 @@ fun CalendarPostCardItem(
                 val itemPadding = PaddingValues(horizontal = 14.dp)
 
                 DropdownMenuItem(
-                    text = { Text("コピー") },
+                    text = { UserFontText(text="コピー") },
                     onClick = {
                         clipboardManager.setText(AnnotatedString(post.text))
                         isMenuExpanded = false
@@ -567,7 +569,7 @@ fun CalendarPostCardItem(
                 // 「編集」メニュー
                 if (post.source == SnsType.LOGLEAF) {
                     DropdownMenuItem(
-                        text = { Text("編集") },
+                        text = { UserFontText(text="編集") },
                         onClick = {
                             onStartEditing()
                             isMenuExpanded = false
@@ -579,7 +581,7 @@ fun CalendarPostCardItem(
 
                 // 「非表示/再表示」メニュー
                 DropdownMenuItem(
-                    text = { Text(if (post.isHidden) "再表示" else "非表示") },
+                    text = { UserFontText(text = if (post.isHidden) "再表示" else "非表示") },
                     onClick = {
                         onSetHidden(!post.isHidden)
                         isMenuExpanded = false
@@ -591,7 +593,7 @@ fun CalendarPostCardItem(
                 // 「削除」メニュー
                 if (post.source == SnsType.LOGLEAF) {
                     DropdownMenuItem(
-                        text = { Text("削除",) },
+                        text = { UserFontText(text="削除") },
                         onClick = {
                             onDelete()
                             isMenuExpanded = false

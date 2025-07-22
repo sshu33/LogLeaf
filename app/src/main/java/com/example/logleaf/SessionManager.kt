@@ -68,6 +68,15 @@ class SessionManager(context: Context) {
     }
 
     fun deleteAccount(accountToDelete: Account) {
+
+        val stackTrace = Thread.currentThread().stackTrace.joinToString(separator = "\n") { "  at $it" }
+        Log.e("ACCOUNT_DELETE_INVESTIGATION", "deleteAccountが呼び出されました！")
+        Log.e("ACCOUNT_DELETE_INVESTIGATION", "--- 削除対象アカウント情報 ---")
+        Log.e("ACCOUNT_DELETE_INVESTIGATION", accountToDelete.toString())
+        Log.e("ACCOUNT_DELETE_INVESTIGATION", "--- 呼び出し元の履歴（スタックトレース） ---")
+        Log.e("ACCOUNT_DELETE_INVESTIGATION", stackTrace)
+        Log.e("ACCOUNT_DELETE_INVESTIGATION", "------------------------------------")
+
         val currentAccounts = getAccounts().toMutableList()
         currentAccounts.removeAll { it.userId == accountToDelete.userId && it.snsType == accountToDelete.snsType }
         saveAccountsList(currentAccounts)

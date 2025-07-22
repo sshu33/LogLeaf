@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.logleaf.DayLog
 import com.example.logleaf.UiState
+import com.yourpackage.logleaf.ui.components.UserFontText
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -112,7 +113,7 @@ fun TimelineScreen(
                     groupedByMonth.forEach { (yearMonth, logsInMonth) ->
                         stickyHeader {
                             val monthString = yearMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH))
-                            Text(
+                            UserFontText(
                                 text = monthString,
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,

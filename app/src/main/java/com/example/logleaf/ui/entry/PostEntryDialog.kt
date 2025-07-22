@@ -53,6 +53,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import com.example.logleaf.R
+import com.yourpackage.logleaf.ui.components.UserFontText
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -163,7 +164,7 @@ fun PostEntryDialog(
                         singleLine = false,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default)
                     )
-                    Text(
+                    UserFontText(
                         text = formattedDateTime,
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.Gray,
