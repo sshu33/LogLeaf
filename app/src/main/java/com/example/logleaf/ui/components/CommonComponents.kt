@@ -47,6 +47,19 @@ import com.example.logleaf.ui.screens.Screen
 import com.example.logleaf.ui.theme.NoticeGreen
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import androidx.compose.material.ripple.LocalRippleTheme
+import androidx.compose.material.ripple.RippleAlpha
+import androidx.compose.material.ripple.RippleTheme
+import androidx.compose.runtime.CompositionLocalProvider
+
+
+object NoRippleTheme : RippleTheme {
+    @Composable
+    override fun defaultColor() = Color.Unspecified
+
+    @Composable
+    override fun rippleAlpha(): RippleAlpha = RippleAlpha(0.0f, 0.0f, 0.0f, 0.0f)
+}
 
 @Composable
 fun SettingsSectionHeader(title: String) {
@@ -123,87 +136,92 @@ fun BottomNavigationBar(
     showSettingsBadge: Boolean
 ) {
     val items = listOf(Screen.Timeline, Screen.Calendar, Screen.Search, Screen.Settings)
-    Surface(shadowElevation = 4.dp, color = Color.Transparent) {
-        NavigationBar(
-            modifier = Modifier.height(100.dp),
-            containerColor = Color.White, // 背景色は白
-            tonalElevation = 0.dp // 色合いを適用する高さを0に設定
-        ) {
-            val navBackStackEntry by navController.currentBackStackEntryAsState()
-            val currentRoute = navBackStackEntry?.destination?.route
-            items.forEach { screen ->
-                val interactionSource = remember { MutableInteractionSource() }
-                val isSelected = currentRoute?.startsWith(screen.route) == true
 
+    // ✅ リップル効果を透明にするテーマでラップ
+    CompositionLocalProvider(
+        LocalRippleTheme provides NoRippleTheme
+    ) {
+        Surface(shadowElevation = 4.dp, color = Color.Transparent) {
+            NavigationBar(
+                modifier = Modifier.height(100.dp),
+                containerColor = Color.White, // 背景色は白
+                tonalElevation = 0.dp // 色合いを適用する高さを0に設定
+            ) {
+                val navBackStackEntry by navController.currentBackStackEntryAsState()
+                val currentRoute = navBackStackEntry?.destination?.route
+                items.forEach { screen ->
+                    val interactionSource = remember { MutableInteractionSource() }
+                    val isSelected = currentRoute?.startsWith(screen.route) == true
 
-                NavigationBarItem(
-                    selected = isSelected,
-                    onClick = {
-                        navController.navigate(screen.route) {
-                            popUpTo(navController.graph.startDestinationId) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                    label = { },
-                    interactionSource = interactionSource,
-                    // ▼▼▼ [変更点1] デフォルトのインジケーターは、完全に透明にする ▼▼▼
-                    colors = NavigationBarItemDefaults.colors(
-                        indicatorColor = Color.Transparent,
-                        selectedIconColor = MaterialTheme.colorScheme.primary,
-                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    ),
-                    icon = {
-                        // ▼▼▼ [変更点2] 我々自身の手で、完璧な「飲み薬」を描画する ▼▼▼
-                        Box(
-                            modifier = Modifier
-                                // これが「飲み薬」のサイズだ！
-                                .height(32.dp)
-                                .width(64.dp)
-                                .background(
-                                    // 選択されている時だけ、君が気に入ってくれた色で塗る
-                                    color = if (isSelected) {
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-                                    } else {
-                                        Color.Transparent
-                                    },
-                                    // これが「飲み薬」の形だ！
-                                    shape = CircleShape
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            // 「飲み薬」の真ん中に、アイコンを配置する
-                            if (screen.route == "settings") {
-                                BadgedBox(
-                                    badge = {
-                                        if (showSettingsBadge) {
-                                            Icon(
-                                                painter = painterResource(id = R.drawable.ic_sync2),
-                                                contentDescription = "再認証が必要です",
-                                                modifier = Modifier
-                                                    .size(16.dp)
-                                                    .offset(x = (-1).dp, y = 12.dp),
-                                                tint = NoticeGreen
-                                            )
+                    NavigationBarItem(
+                        selected = isSelected,
+                        onClick = {
+                            navController.navigate(screen.route) {
+                                popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        label = { },
+                        interactionSource = interactionSource,
+                        // ▼▼▼ [変更点1] デフォルトのインジケーターは、完全に透明にする ▼▼▼
+                        colors = NavigationBarItemDefaults.colors(
+                            indicatorColor = Color.Transparent,
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        icon = {
+                            // ▼▼▼ [変更点2] 我々自身の手で、完璧な「飲み薬」を描画する ▼▼▼
+                            Box(
+                                modifier = Modifier
+                                    // これが「飲み薬」のサイズだ！
+                                    .height(32.dp)
+                                    .width(64.dp)
+                                    .background(
+                                        // 選択されている時だけ、君が気に入ってくれた色で塗る
+                                        color = if (isSelected) {
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                        } else {
+                                            Color.Transparent
+                                        },
+                                        // これが「飲み薬」の形だ！
+                                        shape = CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                // 「飲み薬」の真ん中に、アイコンを配置する
+                                if (screen.route == "settings") {
+                                    BadgedBox(
+                                        badge = {
+                                            if (showSettingsBadge) {
+                                                Icon(
+                                                    painter = painterResource(id = R.drawable.ic_sync2),
+                                                    contentDescription = "再認証が必要です",
+                                                    modifier = Modifier
+                                                        .size(16.dp)
+                                                        .offset(x = (-1).dp, y = 12.dp),
+                                                    tint = NoticeGreen
+                                                )
+                                            }
                                         }
+                                    ) {
+                                        Icon(
+                                            imageVector = screen.icon,
+                                            contentDescription = screen.label,
+                                            modifier = Modifier.size(28.dp)
+                                        )
                                     }
-                                ) {
+                                } else {
                                     Icon(
                                         imageVector = screen.icon,
                                         contentDescription = screen.label,
                                         modifier = Modifier.size(28.dp)
                                     )
                                 }
-                            } else {
-                                Icon(
-                                    imageVector = screen.icon,
-                                    contentDescription = screen.label,
-                                    modifier = Modifier.size(28.dp)
-                                )
                             }
                         }
-                    }
-                )
+                    )
+                }
             }
         }
     }
@@ -280,3 +298,4 @@ fun SearchResultPostItem(post: Post, onClick: () -> Unit = {}) {
         }
     }
 }
+
