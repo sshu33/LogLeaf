@@ -317,9 +317,11 @@ fun MainScreen(
 
             PostEntryDialog(
                 postText = uiState.postText,
-                onTextChange = mainViewModel::onPostTextChange,
-                onPostSubmit = mainViewModel::submitPost,
-                onDismissRequest = mainViewModel::cancelPostEntry
+                onTextChange = { mainViewModel.onPostTextChange(it) },
+                onPostSubmit = { mainViewModel.submitPost() },
+                onDismissRequest = { mainViewModel.cancelPostEntry() },
+                dateTime = uiState.editingDateTime,
+                onDateTimeChange = { newDateTime -> mainViewModel.onDateTimeChange(newDateTime) }
             )
         }
     }

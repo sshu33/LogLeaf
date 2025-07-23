@@ -42,7 +42,8 @@ data class UiState(
     val isPostEntrySheetVisible: Boolean = false,
     val postText: TextFieldValue = TextFieldValue(""),
     val showHiddenPosts: Boolean = false,
-    val editingPost: Post? = null
+    val editingPost: Post? = null,
+    val editingDateTime: ZonedDateTime = ZonedDateTime.now()
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -59,7 +60,8 @@ class MainViewModel(
         PostEntryState(
             isVisible = false,
             text = TextFieldValue(""),
-            editingPost = null
+            editingPost = null,
+            dateTime = ZonedDateTime.now()
         )
     )
     // 非表示投稿を表示するかの状態
@@ -95,6 +97,7 @@ class MainViewModel(
             isPostEntrySheetVisible = postEntry.isVisible,
             postText = postEntry.text,
             editingPost = postEntry.editingPost,
+            editingDateTime = postEntry.dateTime,
             showHiddenPosts = showHidden
         )
     }.stateIn(
@@ -193,11 +196,18 @@ class MainViewModel(
     data class PostEntryState(
         val isVisible: Boolean,
         val text: TextFieldValue,
-        val editingPost: Post?
+        val editingPost: Post?,
+        val dateTime: ZonedDateTime
     )
 
     fun showPostEntrySheet() {
-        _postEntryState.update { it.copy(isVisible = true) }
+        // ◀◀◀ 修正：ダイアログを開く際に、日時を現在時刻にリセットする
+        _postEntryState.update {
+            it.copy(
+                isVisible = true,
+                dateTime = ZonedDateTime.now()
+            )
+        }
     }
 
     fun cancelPostEntry() {
@@ -205,10 +215,12 @@ class MainViewModel(
     }
 
     fun dismissPostEntrySheet() {
+        // ◀◀◀ 修正：ダイアログを閉じる際に、全状態をリセットする
         _postEntryState.value = PostEntryState(
             isVisible = false,
             text = TextFieldValue(""),
-            editingPost = null
+            editingPost = null,
+            dateTime = ZonedDateTime.now() // 次回開くときのためにリセット
         )
     }
 
@@ -216,11 +228,17 @@ class MainViewModel(
         _postEntryState.update { it.copy(text = newText) }
     }
 
+    fun onDateTimeChange(newDateTime: ZonedDateTime) {
+        _postEntryState.update { it.copy(dateTime = newDateTime) }
+    }
+
     fun startEditingPost(post: Post) {
+        // ◀◀◀ 修正：編集開始時に、投稿の作成日時をセットする
         _postEntryState.value = PostEntryState(
             isVisible = true,
             text = TextFieldValue(post.text),
-            editingPost = post
+            editingPost = post,
+            dateTime = post.createdAt // ◀◀◀ 投稿の日時を反映
         )
     }
 
@@ -230,22 +248,21 @@ class MainViewModel(
         if (currentText.isBlank()) return
 
         val postToSave = currentState.editingPost?.copy(
-            text = currentText
+            text = currentText,
+            createdAt = currentState.dateTime // ◀◀◀ 修正：編集した日時を反映
         ) ?: Post(
             id = UUID.randomUUID().toString(),
             accountId = "LOGLEAF_INTERNAL_POST",
             text = currentText,
-            createdAt = ZonedDateTime.now(),
+            createdAt = currentState.dateTime, // ◀◀◀ 修正：ユーザーが選択した日時で投稿
             source = SnsType.LOGLEAF,
             isHidden = false
         )
 
-        // 3. 最後に、DBへの保存とUIのリセットを行う
         viewModelScope.launch(Dispatchers.IO) {
-            postDao.insert(postToSave)
+            postDao.insert(postToSave) // insertはUpsert(挿入or更新)として機能する
         }
 
-        // 2. 投稿が完了したら、状態をリセットしてダイアログを閉じる
         dismissPostEntrySheet()
     }
 
