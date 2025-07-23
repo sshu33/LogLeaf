@@ -108,6 +108,24 @@ fun PostEntryDialog(
     val confirmedDateTime = remember(dateTime) {
         dateTime.withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime()
     }
+    var timeText by remember {
+        val initialString = confirmedDateTime.format(DateTimeFormatter.ofPattern("HHmm"))
+        mutableStateOf(
+            TextFieldValue(
+                text = initialString,
+                selection = TextRange(0, initialString.length)
+            )
+        )
+    }
+    val confirmAndFinishEditing = {
+        val text = timeText.text.padEnd(4, '0')
+        val hour = text.substring(0, 2).toIntOrNull()?.coerceIn(0, 23) ?: confirmedDateTime.hour
+        val minute = text.substring(2, 4).toIntOrNull()?.coerceIn(0, 59) ?: confirmedDateTime.minute
+        val newDateTime = confirmedDateTime.withHour(hour).withMinute(minute)
+        onDateTimeChange(newDateTime.atZone(ZoneId.systemDefault()))
+        isTimeEditing = false
+        bodyFocusRequester.requestFocus()
+    }
     var dateRowPosition by remember { mutableStateOf(IntOffset.Zero) }
 
     LaunchedEffect(isCalendarVisible, isTimeEditing) {
@@ -135,8 +153,9 @@ fun PostEntryDialog(
                     indication = null,
                     onClick = {
                         if (isCalendarVisible) isCalendarVisible = false
-                        if (isTimeEditing) isTimeEditing = false
-                        if (!isCalendarVisible && !isTimeEditing) {
+                        if (isTimeEditing) {
+                            confirmAndFinishEditing() // 確定処理を呼ぶ
+                        } else if (!isCalendarVisible) {
                             onDismissRequest()
                         }
                     }
@@ -163,7 +182,16 @@ fun PostEntryDialog(
                 modifier = Modifier
                     .fillMaxWidth(0.9f)
                     .wrapContentHeight()
-                    .clickable(enabled = false) {},
+                    .clickable(
+                        enabled = isTimeEditing, // ◀◀◀ 時刻編集中だけクリック可能にする
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null, // 波紋エフェクトはなし
+                        onClick = {
+                            if (isTimeEditing) {
+                                confirmAndFinishEditing() // ◀◀◀ タップで確定処理を呼ぶ
+                            }
+                        }
+                    ),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White)
             ) {
@@ -174,7 +202,12 @@ fun PostEntryDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 100.dp, max = 350.dp)
-                            .focusRequester(bodyFocusRequester),
+                            .focusRequester(bodyFocusRequester)
+                            .onFocusChanged { focusState ->
+                                if (focusState.isFocused && isTimeEditing) {
+                                    confirmAndFinishEditing()
+                                }
+                            },
                         placeholder = null,
                         colors = TextFieldDefaults.colors(
                             unfocusedContainerColor = Color.Transparent,
@@ -205,7 +238,7 @@ fun PostEntryDialog(
                             style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
                             color = Color.Gray,
                             modifier = Modifier.clickable {
-                                isCalendarVisible = !isCalendarVisible
+                                isCalendarVisible = true
                                 isTimeEditing = false
                             }
                         )
@@ -215,33 +248,6 @@ fun PostEntryDialog(
                         if (isTimeEditing) {
                             val keyboardController = LocalSoftwareKeyboardController.current
                             val timeFocusRequester = remember { FocusRequester() }
-                            var timeText by remember {
-                                val initialString =
-                                    confirmedDateTime.format(DateTimeFormatter.ofPattern("HHmm"))
-                                mutableStateOf(
-                                    TextFieldValue(
-                                        text = initialString,
-                                        selection = TextRange(0, initialString.length)
-                                    )
-                                )
-                            }
-
-                            val confirmAndFinishEditing = {
-                                val text = timeText.text.padEnd(4, '0')
-                                val hour = text.substring(0, 2).toIntOrNull()?.coerceIn(0, 23)
-                                    ?: confirmedDateTime.hour
-                                val minute = text.substring(2, 4).toIntOrNull()?.coerceIn(0, 59)
-                                    ?: confirmedDateTime.minute
-
-                                val newDateTime = confirmedDateTime.withHour(hour).withMinute(minute)
-                                onDateTimeChange(newDateTime.atZone(ZoneId.systemDefault()))
-
-                                isTimeEditing = false
-                                bodyFocusRequester.requestFocus() // 本文の入力欄にフォーカスを戻す
-                                // keyboardController?.show() は不要。フォーカスが当たれば自動でキーボードは切り替わる
-                            }
-
-                            // フォーカス状態を監視するための変数
                             var hasFocus by remember { mutableStateOf(false) }
 
                             LaunchedEffect(Unit) {
@@ -269,13 +275,6 @@ fun PostEntryDialog(
                                 ),
                                 modifier = Modifier
                                     .focusRequester(timeFocusRequester)
-                                    .onFocusChanged { focusState ->
-                                        if (hasFocus && !focusState.isFocused) {
-                                            // 以前はフォーカスがあったのに、今は無い -> 外側がタップされた
-                                            confirmAndFinishEditing()
-                                        }
-                                        hasFocus = focusState.isFocused
-                                    }
                                     .width(60.dp)
                                     .background(
                                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
@@ -356,6 +355,19 @@ fun PostEntryDialog(
                     }
                 }
             }
+        }
+
+        if (isCalendarVisible) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Transparent)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { isCalendarVisible = false }
+                    )
+            )
         }
 
         // 3. カレンダーPopup (投稿BOXとは完全に独立)
