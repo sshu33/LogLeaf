@@ -203,31 +203,42 @@ class MainViewModel(
     )
 
     fun showPostEntrySheet() {
-        val now = ZonedDateTime.now()
-        _postEntryState.update {
-            it.copy(
-                isVisible = true,
-                text = TextFieldValue(""),
-                editingPost = null,
-                dateTime = now,
-                originalDateTime = now // ◀◀◀ 編集前の時刻として現在時刻を記憶
-            )
+        _postEntryState.update { currentState ->
+            // もし、直前の状態が「既存投稿の編集中」だった場合
+            if (currentState.editingPost != null) {
+                // 下書きを完全にリセットして、まっさらな新規投稿画面を開く
+                val now = ZonedDateTime.now()
+                currentState.copy(
+                    isVisible = true,
+                    text = TextFieldValue(""),
+                    editingPost = null,
+                    dateTime = now,
+                    originalDateTime = now
+                )
+            } else {
+                // 直前の状態が「新規投稿」のままなら、書きかけの内容を維持して表示する
+                currentState.copy(isVisible = true)
+            }
         }
     }
 
-    fun cancelPostEntry() {
-        _postEntryState.update { it.copy(isVisible = false) }
-    }
-
     fun dismissPostEntrySheet() {
-        // ◀◀◀ 修正：ダイアログを閉じる際に、全状態をリセットする
-        _postEntryState.value = PostEntryState(
-            isVisible = false,
-            text = TextFieldValue(""),
-            editingPost = null,
-            dateTime = ZonedDateTime.now(),
-            originalDateTime = ZonedDateTime.now(),
-        )
+        val currentState = _postEntryState.value
+        // もし、現在の状態が「既存投稿の編集中」だった場合
+        if (currentState.editingPost != null) {
+            // 編集内容を完全に破棄し、まっさらな状態に戻す
+            val now = ZonedDateTime.now()
+            _postEntryState.value = PostEntryState(
+                isVisible = false,
+                text = TextFieldValue(""),
+                editingPost = null,
+                dateTime = now,
+                originalDateTime = now
+            )
+        } else {
+            // 現在の状態が「新規投稿」なら、下書きを保持したまま非表示にするだけ
+            _postEntryState.update { it.copy(isVisible = false) }
+        }
     }
 
     fun onPostTextChange(newText: TextFieldValue) {

@@ -319,7 +319,7 @@ fun MainScreen(
                 postText = uiState.postText,
                 onTextChange = { mainViewModel.onPostTextChange(it) },
                 onPostSubmit = { mainViewModel.submitPost() },
-                onDismissRequest = { mainViewModel.cancelPostEntry() },
+                onDismissRequest = { mainViewModel.dismissPostEntrySheet() },
                 dateTime = uiState.editingDateTime,
                 onDateTimeChange = { newDateTime -> mainViewModel.onDateTimeChange(newDateTime) },
                 onRevertDateTime = { mainViewModel.revertDateTime() }
