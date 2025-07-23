@@ -19,14 +19,12 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.time.ZonedDateTime
 
-// ★★★ 不足していたデータクラス ★★★
 @Serializable
 data class AppRegistrationResponse(
     @SerialName("client_id") val clientId: String,
     @SerialName("client_secret") val clientSecret: String,
 )
 
-// ★★★ 今回追加したデータクラス ★★★
 @Serializable
 data class TokenResponse(
     @SerialName("access_token") val accessToken: String,
@@ -174,11 +172,13 @@ class MastodonApi {
 
                 val posts = mastodonStatuses.map { mastodonStatus ->
                     val sanitizedText = Html.fromHtml(mastodonStatus.content, Html.FROM_HTML_MODE_LEGACY).toString()
+                    val imageUrl = mastodonStatus.mediaAttachments.firstOrNull { it.type == "image" }?.url
                     Post(
                         id = mastodonStatus.id,
                         accountId = account.userId,
                         text = sanitizedText.trim(),
                         createdAt = ZonedDateTime.parse(mastodonStatus.createdAt),
+                        imageUrl = imageUrl, // ◀◀◀ ここを修正
                         source = SnsType.MASTODON
                     )
                 }

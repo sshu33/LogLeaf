@@ -11,7 +11,14 @@ import kotlinx.serialization.Serializable
 data class MastodonStatus(
     @SerialName("id") val id: String,
     @SerialName("content") val content: String,
-    @SerialName("created_at") val createdAt: String
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("media_attachments") val mediaAttachments: List<MastodonMediaAttachment>
+)
+
+@Serializable
+data class MastodonMediaAttachment(
+    @SerialName("type") val type: String, // "image", "video" など
+    @SerialName("url") val url: String     // ◀◀◀ これが画像のURL
 )
 
 @Serializable

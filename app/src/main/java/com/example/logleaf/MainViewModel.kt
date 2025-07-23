@@ -1,5 +1,6 @@
 package com.example.logleaf
 
+import android.net.Uri
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -43,7 +44,8 @@ data class UiState(
     val postText: TextFieldValue = TextFieldValue(""),
     val showHiddenPosts: Boolean = false,
     val editingPost: Post? = null,
-    val editingDateTime: ZonedDateTime = ZonedDateTime.now()
+    val editingDateTime: ZonedDateTime = ZonedDateTime.now(),
+    val selectedImageUri: Uri? = null
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -62,7 +64,8 @@ class MainViewModel(
             text = TextFieldValue(""),
             editingPost = null,
             dateTime = ZonedDateTime.now(),
-            originalDateTime = ZonedDateTime.now() // ◀◀◀ これを追加
+            originalDateTime = ZonedDateTime.now(),
+            selectedImageUri = null // ◀◀◀ 初期値はnull
         )
     )
     // 非表示投稿を表示するかの状態
@@ -99,7 +102,8 @@ class MainViewModel(
             postText = postEntry.text,
             editingPost = postEntry.editingPost,
             editingDateTime = postEntry.dateTime,
-            showHiddenPosts = showHidden
+            showHiddenPosts = showHidden,
+            selectedImageUri = postEntry.selectedImageUri
         )
     }.stateIn(
         scope = viewModelScope,
@@ -199,7 +203,8 @@ class MainViewModel(
         val text: TextFieldValue,
         val editingPost: Post?,
         val dateTime: ZonedDateTime,
-        val originalDateTime: ZonedDateTime
+        val originalDateTime: ZonedDateTime,
+        val selectedImageUri: Uri?
     )
 
     fun showPostEntrySheet() {
@@ -233,7 +238,8 @@ class MainViewModel(
                 text = TextFieldValue(""),
                 editingPost = null,
                 dateTime = now,
-                originalDateTime = now
+                originalDateTime = now,
+                selectedImageUri = null // ◀◀◀ ここも null でOK
             )
         } else {
             // 現在の状態が「新規投稿」なら、下書きを保持したまま非表示にするだけ
@@ -255,8 +261,13 @@ class MainViewModel(
             text = TextFieldValue(post.text),
             editingPost = post,
             dateTime = post.createdAt,
-            originalDateTime = post.createdAt // ◀◀◀ 投稿の本来の時刻を記憶
+            originalDateTime = post.createdAt,
+            selectedImageUri = post.imageUrl?.let { Uri.parse(it) }
         )
+    }
+
+    fun onImageSelected(uri: Uri?) {
+        _postEntryState.update { it.copy(selectedImageUri = uri) }
     }
 
     fun submitPost() {
@@ -266,13 +277,14 @@ class MainViewModel(
 
         val postToSave = currentState.editingPost?.copy(
             text = currentText,
-            createdAt = currentState.dateTime // ◀◀◀ 修正：編集した日時を反映
+            createdAt = currentState.dateTime
         ) ?: Post(
             id = UUID.randomUUID().toString(),
             accountId = "LOGLEAF_INTERNAL_POST",
             text = currentText,
-            createdAt = currentState.dateTime, // ◀◀◀ 修正：ユーザーが選択した日時で投稿
+            createdAt = currentState.dateTime,
             source = SnsType.LOGLEAF,
+            imageUrl = null, // ◀◀◀ この行を追加
             isHidden = false
         )
 

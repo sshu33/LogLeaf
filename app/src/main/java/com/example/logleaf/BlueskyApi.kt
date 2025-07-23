@@ -32,13 +32,24 @@ data class BskyFeedResponse(val feed: List<BskyFeedItem>)
 @Serializable
 data class BskyFeedItem(val post: BskyPost)
 @Serializable
-data class BskyPost(val uri: String, val record: BskyRecord)
+data class BskyPost(
+    val uri: String,
+    val record: BskyRecord,
+    val embed: BskyEmbed? = null // ◀◀◀ 画像情報などが入る場所を追加
+)
 @Serializable
 data class BskyRecord(val text: String, val createdAt: String)
-
+@Serializable
+data class BskyEmbed(
+    val images: List<BskyImage>? = null
+)
+@Serializable
+data class BskyImage(
+    val fullsize: String, // ◀◀◀ これが画像のURL
+    val alt: String
+)
 
 class BlueskyApi(private val sessionManager: SessionManager) {
-    // ↓↓↓↓↓↓ この client の初期化部分を変更します ↓↓↓↓↓↓
     private val client = HttpClient(CIO) {
         // JSONの変換設定 (これは元々ありました)
         install(ContentNegotiation) {
@@ -114,12 +125,13 @@ class BlueskyApi(private val sessionManager: SessionManager) {
         }.body()
 
         return response.feed.map { feedItem ->
-            val postRecord = feedItem.post.record
+            val post = feedItem.post
             Post(
-                id = feedItem.post.uri,
+                id = post.uri,
                 accountId = accountId,
-                createdAt = ZonedDateTime.parse(postRecord.createdAt),
-                text = postRecord.text,
+                createdAt = ZonedDateTime.parse(post.record.createdAt),
+                text = post.record.text,
+                imageUrl = post.embed?.images?.firstOrNull()?.fullsize,
                 source = SnsType.BLUESKY
             )
         }

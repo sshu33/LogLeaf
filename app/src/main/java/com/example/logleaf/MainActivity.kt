@@ -5,7 +5,10 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -73,10 +76,8 @@ class MainActivity : ComponentActivity() {
                 )
             )
 
-            // 4. ViewModelが持つ、最新のUiStateを、ここで監視する！
             val fontUiState by fontSettingsViewModel.uiState.collectAsState()
 
-            // 5. 監視したUiStateを、丸ごと、LogLeafThemeに渡す！
             LogLeafTheme(
                 fontSettings = fontUiState
             ) {
@@ -144,6 +145,14 @@ fun MainScreen(
 
     val uiState by mainViewModel.uiState.collectAsState()
     val showSettingsBadge by mainViewModel.showSettingsBadge.collectAsState()
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia(),
+        onResult = { uri ->
+            // 画像が選択されたら、ViewModelにそのURIを渡す
+            mainViewModel.onImageSelected(uri)
+        }
+    )
 
     val searchViewModel: SearchViewModel = viewModel(
         factory = SearchViewModel.provideFactory(
@@ -322,7 +331,14 @@ fun MainScreen(
                 onDismissRequest = { mainViewModel.dismissPostEntrySheet() },
                 dateTime = uiState.editingDateTime,
                 onDateTimeChange = { newDateTime -> mainViewModel.onDateTimeChange(newDateTime) },
-                onRevertDateTime = { mainViewModel.revertDateTime() }
+                onRevertDateTime = { mainViewModel.revertDateTime() },
+                selectedImageUri = uiState.selectedImageUri,
+                onLaunchPhotoPicker = {
+                    photoPickerLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                },
+                onImageSelected = { uri -> mainViewModel.onImageSelected(uri) }
             )
         }
     }

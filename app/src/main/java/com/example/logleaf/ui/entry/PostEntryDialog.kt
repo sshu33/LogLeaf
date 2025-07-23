@@ -1,5 +1,6 @@
 package com.leaf.logleaf.ui.entry
 
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.fadeIn
@@ -32,6 +33,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.AlertDialog
@@ -60,6 +62,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
@@ -80,6 +83,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
+import coil.compose.AsyncImage
 import com.example.logleaf.R
 import com.yourpackage.logleaf.ui.components.UserFontText
 import java.time.LocalDate
@@ -99,7 +103,10 @@ fun PostEntryDialog(
     onDismissRequest: () -> Unit,
     dateTime: ZonedDateTime,
     onDateTimeChange: (ZonedDateTime) -> Unit,
-    onRevertDateTime: () -> Unit
+    onRevertDateTime: () -> Unit,
+    selectedImageUri: Uri?,
+    onLaunchPhotoPicker: () -> Unit,
+    onImageSelected: (Uri?) -> Unit
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
     val bodyFocusRequester = remember { FocusRequester() }
@@ -219,6 +226,35 @@ fun PostEntryDialog(
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default)
                     )
 
+                    AnimatedVisibility(visible = selectedImageUri != null) {
+                        Box(modifier = Modifier.padding(top = 8.dp)) {
+                            AsyncImage(
+                                model = selectedImageUri,
+                                contentDescription = "選択された画像",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 200.dp) // 画像の最大の高さを指定
+                                    .clip(RoundedCornerShape(8.dp)),
+                                contentScale = ContentScale.Crop
+                            )
+                            // 画像を削除するボタン
+                            IconButton(
+                                onClick = { onImageSelected(null) }, // ◀◀◀ 画像をクリアする処理
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(4.dp)
+                                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "画像を削除",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+
                     // あなたが調整したカスタムUIをここに配置
                     Row(
                         modifier = Modifier
@@ -320,7 +356,7 @@ fun PostEntryDialog(
                                 modifier = Modifier.size(24.dp)
                             )
                         }
-                        IconButton(onClick = { /* TODO */ }) {
+                        IconButton(onClick = { onLaunchPhotoPicker() }) {
                             Icon(
                                 painterResource(id = R.drawable.ic_image),
                                 "ギャラリー",

@@ -11,13 +11,11 @@ import java.time.ZonedDateTime
 data class Post(
     @PrimaryKey
     val id: String,
-
     val accountId: String,
-
     val text: String,
     val createdAt: ZonedDateTime,
     val source: SnsType,
-
+    val imageUrl: String?,
     @ColumnInfo(name = "isHidden", defaultValue = "0")
     val isHidden: Boolean = false
 ) {
