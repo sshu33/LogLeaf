@@ -1,7 +1,10 @@
 package com.example.logleaf
 
+import android.app.Application
 import android.net.Uri
+import android.util.Log
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -24,6 +27,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -50,11 +56,12 @@ data class UiState(
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModel(
+    application: Application,
     private val blueskyApi: BlueskyApi,
     private val mastodonApi: MastodonApi,
     private val sessionManager: SessionManager,
     private val postDao: PostDao
-) : ViewModel() {
+) : AndroidViewModel(application) {
 
     private val _isRefreshing = MutableStateFlow(false)
 
@@ -275,24 +282,55 @@ class MainViewModel(
         val currentText = currentState.text.text
         if (currentText.isBlank()) return
 
-        val postToSave = currentState.editingPost?.copy(
-            text = currentText,
-            createdAt = currentState.dateTime
-        ) ?: Post(
-            id = UUID.randomUUID().toString(),
-            accountId = "LOGLEAF_INTERNAL_POST",
-            text = currentText,
-            createdAt = currentState.dateTime,
-            source = SnsType.LOGLEAF,
-            imageUrl = null, // ◀◀◀ この行を追加
-            isHidden = false
-        )
+        Log.d("ImageDebug", "1. submitPostが呼ばれました。")
+        Log.d("ImageDebug", "2. 選択中の画像のURI: ${currentState.selectedImageUri}")
 
-        viewModelScope.launch(Dispatchers.IO) {
-            postDao.insert(postToSave) // insertはUpsert(挿入or更新)として機能する
+        viewModelScope.launch {
+            val imageUrl = currentState.selectedImageUri?.let { uri ->
+                Log.d("ImageDebug", "3. 画像保存処理を開始します。URI: $uri")
+                val savedPath = saveImageToInternalStorage(uri)
+                Log.d("ImageDebug", "4. 画像保存処理が完了しました。保存先のパス: $savedPath")
+                savedPath
+            }
+
+            val postToSave = currentState.editingPost?.copy(
+                text = currentText,
+                createdAt = currentState.dateTime,
+                imageUrl = imageUrl ?: currentState.editingPost.imageUrl
+            ) ?: Post(
+                id = UUID.randomUUID().toString(),
+                accountId = "LOGLEAF_INTERNAL_POST",
+                text = currentText,
+                createdAt = currentState.dateTime,
+                source = SnsType.LOGLEAF,
+                imageUrl = imageUrl,
+                isHidden = false
+            )
+
+            Log.d("ImageDebug", "5. データベースに保存するPostオブジェクトのimageUrl: ${postToSave.imageUrl}")
+            postDao.insert(postToSave)
+            Log.d("ImageDebug", "6. データベースへの保存が完了しました。")
+            dismissPostEntrySheet()
         }
+    }
 
-        dismissPostEntrySheet()
+    private suspend fun saveImageToInternalStorage(uri: Uri): String? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val context = getApplication<Application>().applicationContext
+                val inputStream = context.contentResolver.openInputStream(uri)
+                val fileName = "IMG_${System.currentTimeMillis()}.jpg"
+                val file = File(context.filesDir, fileName)
+                val outputStream = FileOutputStream(file)
+                inputStream?.copyTo(outputStream)
+                inputStream?.close()
+                outputStream.close()
+                Uri.fromFile(file).toString() // 保存したファイルのURIを返す
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
+            }
+        }
     }
 
     fun revertDateTime() {
@@ -319,6 +357,7 @@ class MainViewModel(
 
     companion object {
         fun provideFactory(
+            application: Application,
             blueskyApi: BlueskyApi,
             mastodonApi: MastodonApi,
             sessionManager: SessionManager,
@@ -326,7 +365,7 @@ class MainViewModel(
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return MainViewModel(blueskyApi, mastodonApi, sessionManager, postDao) as T
+                return MainViewModel(application, blueskyApi, mastodonApi, sessionManager, postDao) as T
             }
         }
     }

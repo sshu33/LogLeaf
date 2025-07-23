@@ -134,8 +134,10 @@ fun MainScreen(
     val db = remember { AppDatabase.getDatabase(context) }
     val postDao = remember { db.postDao() }
 
+    val application = LocalContext.current.applicationContext as Application // ◀◀◀ この行を追加
     val mainViewModel: MainViewModel = viewModel(
         factory = MainViewModel.provideFactory(
+            application = application, // ◀◀◀ applicationを渡す
             blueskyApi = BlueskyApi(sessionManager),
             mastodonApi = MastodonApi(),
             sessionManager = sessionManager,

@@ -1,6 +1,8 @@
 package com.example.logleaf.ui.screens
 
 
+import android.net.Uri
+import android.util.Log
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -59,6 +61,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
@@ -67,12 +70,14 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.example.logleaf.Post
 import com.example.logleaf.UiState
 import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
 import com.yourpackage.logleaf.ui.components.UserFontText
 import kotlinx.coroutines.delay
+import java.io.File
 import java.time.LocalDate
 import java.time.Month
 import java.time.YearMonth
@@ -528,11 +533,40 @@ fun CalendarPostCardItem(
                             .fillMaxHeight()
                             .background(post.source.brandColor)
                     )
-                    Text(
-                        text = post.text,
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(start = 12.dp)
-                    )
+
+                    // テキストと画像を縦に並べるためのColumn
+                    Column(modifier = Modifier.padding(start = 12.dp)) {
+                        if (post.imageUrl != null) {
+                            Log.d("ImageDebug", "表示しようとしている画像のURL: ${post.imageUrl}")
+                        }
+                        Text(
+                            text = post.text,
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+
+                        // もし画像のURLが存在すれば、画像を表示する
+                        if (post.imageUrl != null) {
+                            // imageUrl文字列をURIに変換し、さらにFileオブジェクトに変換する
+                            val imageFile = try {
+                                File(Uri.parse(post.imageUrl).path!!)
+                            } catch (e: Exception) {
+                                null
+                            }
+
+                            if (imageFile?.exists() == true) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                AsyncImage(
+                                    model = imageFile, // ◀◀◀ 文字列ではなく、Fileオブジェクトを渡す
+                                    contentDescription = "投稿画像",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(180.dp)
+                                        .clip(RoundedCornerShape(8.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
