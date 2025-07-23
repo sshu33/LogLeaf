@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,28 +25,30 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.ExperimentalMaterial3Api // これも必要です
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TimePickerLayoutType
 import androidx.compose.material3.TimePickerState
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,21 +56,26 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import com.example.logleaf.R
 import com.yourpackage.logleaf.ui.components.UserFontText
 import java.time.Instant
-import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -83,14 +91,12 @@ fun PostEntryDialog(
     dateTime: ZonedDateTime,
     onDateTimeChange: (ZonedDateTime) -> Unit
 ) {
-    // ----------------------------------------------------------------
-    // ▼ この関数内のコードは、前回から変更ありません ▼
-    // ----------------------------------------------------------------
+
     val keyboardController = LocalSoftwareKeyboardController.current
-    val focusRequester = remember { FocusRequester() }
+    val bodyFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
+        bodyFocusRequester.requestFocus()
         keyboardController?.show()
     }
 
@@ -141,7 +147,7 @@ fun PostEntryDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 100.dp, max = 350.dp)
-                        .focusRequester(focusRequester)
+                        .focusRequester(bodyFocusRequester)
                         .onKeyEvent { keyEvent ->
                             if (keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_ENTER) {
                                 return@onKeyEvent keyEvent.nativeKeyEvent.action == android.view.KeyEvent.ACTION_UP
@@ -159,15 +165,14 @@ fun PostEntryDialog(
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default)
                 )
 
-                // ----------------------------------------------------------------
-                // ▼ 日時ピッカー関連のロジック（ここが今回の修正点です）▼
-                // ----------------------------------------------------------------
                 var showDatePicker by remember { mutableStateOf(false) }
-                var showTimePicker by remember { mutableStateOf(false) }
+
+                var isTimeEditing by remember { mutableStateOf(false) }
 
                 val localDateTime = remember(dateTime) {
                     dateTime.withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime()
                 }
+
 
                 // 日付ピッカー本体
                 if (showDatePicker) {
@@ -194,64 +199,141 @@ fun PostEntryDialog(
                 }
 
                 // 時刻ピッカー本体（AlertDialogでラップする形に修正）
-                if (showTimePicker) {
-                    val timePickerState = rememberTimePickerState(
-                        initialHour = localDateTime.hour,
-                        initialMinute = localDateTime.minute,
-                        is24Hour = true
+                if (showDatePicker) {
+                    val datePickerState = rememberDatePickerState(
+                        initialSelectedDateMillis = dateTime.toInstant().toEpochMilli()
                     )
-                    AlertDialog(
-                        onDismissRequest = { showTimePicker = false },
+                    DatePickerDialog(
+                        onDismissRequest = { showDatePicker = false },
                         confirmButton = {
                             TextButton(onClick = {
-                                showTimePicker = false
-                                val newDateTime = localDateTime.withHour(timePickerState.hour).withMinute(timePickerState.minute)
-                                onDateTimeChange(newDateTime.atZone(ZoneId.systemDefault()))
-                            }) { Text("保存") }
+                                showDatePicker = false
+                                datePickerState.selectedDateMillis?.let { millis ->
+                                    val newDate = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+                                    onDateTimeChange(localDateTime.with(newDate).atZone(ZoneId.systemDefault()))
+                                }
+                            }) { Text("OK") }
                         },
                         dismissButton = {
-                            TextButton(onClick = { showTimePicker = false }) { Text("キャンセル") }
-                        },
-                        title = { Text("時刻の選択") },
-                        text = {
-                            TimePicker(state = timePickerState, layoutType = TimePickerLayoutType.Vertical)
+                            TextButton(onClick = { showDatePicker = false }) { Text("キャンセル") }
                         }
-                    )
+                    ) {
+                        DatePicker(state = datePickerState)
+                    }
                 }
+
 
                 // 日時表示エリア
                 Row(
                     modifier = Modifier.align(Alignment.End).padding(top = 8.dp, bottom = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+
+                    UserFontText(
+                        text = localDateTime.format(DateTimeFormatter.ofPattern("M月d日(E)", Locale.JAPAN)),
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = 13.sp ),
+                        color = Color.Gray,
+                        modifier = Modifier.clickable { showDatePicker = true }
+                    )
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // --- 2. isTimeEditing の状態によって、表示を切り替える ---
+                    if (isTimeEditing) {
+                        val keyboardController = LocalSoftwareKeyboardController.current
+                        val timeFocusRequester = remember { FocusRequester() }
+                        var timeText by remember {
+                            val initialString = localDateTime.format(DateTimeFormatter.ofPattern("HHmm"))
+                            mutableStateOf(
+                                TextFieldValue(
+                                    text = initialString,
+                                    selection = TextRange(0, initialString.length)
+                                )
+                            )
+                        }
+
+                        val confirmAndFinishEditing = {
+                            val text = timeText.text.padEnd(4, '0')
+                            val hour = text.substring(0, 2).toIntOrNull()?.coerceIn(0, 23) ?: localDateTime.hour
+                            val minute = text.substring(2, 4).toIntOrNull()?.coerceIn(0, 59) ?: localDateTime.minute
+
+                            val newDateTime = localDateTime.withHour(hour).withMinute(minute)
+                            onDateTimeChange(newDateTime.atZone(ZoneId.systemDefault()))
+
+                            isTimeEditing = false
+                            bodyFocusRequester.requestFocus() // 本文の入力欄にフォーカスを戻す
+                            // keyboardController?.show() は不要。フォーカスが当たれば自動でキーボードは切り替わる
+                        }
+
+                        // フォーカス状態を監視するための変数
+                        var hasFocus by remember { mutableStateOf(false) }
+
+                        LaunchedEffect(Unit) {
+                            timeFocusRequester.requestFocus()
+                        }
+
+                        BasicTextField(
+                            value = timeText, // valueにTextFieldValueを渡す
+                            onValueChange = { newValue ->
+                                // --- ★★★ 修正点②：4桁制限の判定を .text で行う ★★★ ---
+                                if (newValue.text.length <= 4 && newValue.text.all { it.isDigit() }) {
+                                    timeText = newValue
+                                }
+                            },
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                color = Color.Gray,
+                                textAlign = TextAlign.Center
+                            ),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number,
+                                imeAction = ImeAction.Done
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onDone = { confirmAndFinishEditing() } // エンターキーで確定
+                            ),
+                            modifier = Modifier
+                                .focusRequester(timeFocusRequester)
+                                .onFocusChanged { focusState ->
+                                    if (hasFocus && !focusState.isFocused) {
+                                        // 以前はフォーカスがあったのに、今は無い -> 外側がタップされた
+                                        confirmAndFinishEditing()
+                                    }
+                                    hasFocus = focusState.isFocused
+                                }
+                                .width(60.dp)
+                                .background(
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                    shape = RoundedCornerShape(4.dp)
+                                )
+                                .padding(vertical = 4.dp)
+                        )
+                        // --- ▲ 編集モードの時のUI ▲ ---
+                    } else {
+                        // --- ▼ 通常表示モードの時のUI (ただのテキスト) ▼ ---
+                        UserFontText(
+                            text = localDateTime.format(DateTimeFormatter.ofPattern("HH:mm")),
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = 13.sp ),
+                            color = Color.Gray,
+                            modifier = Modifier.clickable { isTimeEditing = true } // タップで編集モードに切り替え
+                        )
+                        // --- ▲ 通常表示モードの時のUI ▲ ---
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
                     IconButton(
                         onClick = { onDateTimeChange(ZonedDateTime.now()) },
                         modifier = Modifier.size(20.dp)
                     ) {
                         Icon(
-                            painter = painterResource(id = R.drawable.ic_sync), // TODO: ic_refresh.xml を drawable に追加してください
+                            painter = painterResource(id = R.drawable.ic_sync),
                             contentDescription = "現在時刻にリセット",
                             tint = Color.Gray
                         )
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    UserFontText(
-                        text = localDateTime.format(DateTimeFormatter.ofPattern("M月d日(E)", Locale.JAPAN)),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray,
-                        modifier = Modifier.clickable { showDatePicker = true }
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    UserFontText(
-                        text = localDateTime.format(DateTimeFormatter.ofPattern("HH:mm")),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray,
-                        modifier = Modifier.clickable { showTimePicker = true }
-                    )
                 }
-                // ----------------------------------------------------------------
-                // ▲ 日時ピッカー関連のロジックはここまで ▲
-                // ----------------------------------------------------------------
 
                 Row(
                     modifier = Modifier
@@ -287,33 +369,123 @@ fun PostEntryDialog(
     }
 }
 
+private enum class ActiveField { HOUR, MINUTE }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CustomTimePickerDialog(
     onDismissRequest: () -> Unit,
-    onConfirm: () -> Unit,
-    state: TimePickerState
+    onConfirm: (hour: Int, minute: Int) -> Unit,
+    initialHour: Int,
+    initialMinute: Int
 ) {
+    // --- ▼▼▼ ここからが変更箇所です ▼▼▼ ---
+    var hour by remember { mutableStateOf(initialHour.toString().padStart(2, '0')) }
+    var minute by remember { mutableStateOf(initialMinute.toString().padStart(2, '0')) }
+
+    var activeField by remember { mutableStateOf(ActiveField.HOUR) }
+
+    // フォーカスをプログラムで制御するための準備
+    val hourFocusRequester = remember { FocusRequester() }
+    val minuteFocusRequester = remember { FocusRequester() }
+
+    // activeFieldが変更されたら、対応する入力欄にフォーカスを当てる
+    LaunchedEffect(activeField) {
+        if (activeField == ActiveField.HOUR) {
+            hourFocusRequester.requestFocus()
+        } else {
+            minuteFocusRequester.requestFocus()
+        }
+    }
+    // --- ▲▲▲ ここまでが変更箇所です ▲▲▲ ---
+
     AlertDialog(
         onDismissRequest = onDismissRequest,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-        modifier = Modifier.width(320.dp), // 横幅を固定
-        shape = RoundedCornerShape(28.dp), // 角を丸くする
-        containerColor = Color.White, // 背景色
+        shape = RoundedCornerShape(28.dp),
+        containerColor = Color.White,
         title = {
             Text(
                 "時刻を選択",
                 style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 12.dp)
+                modifier = Modifier.padding(start = 24.dp, top = 24.dp, end = 24.dp)
             )
         },
         text = {
-            // TimePicker自体は変更なし
-            TimePicker(state = state, layoutType = TimePickerLayoutType.Vertical)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // --- ▼▼▼ 時間入力欄の見た目を変更 ▼▼▼ ---
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(
+                            if (activeField == ActiveField.HOUR) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent
+                        )
+                        .clickable { activeField = ActiveField.HOUR }
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    BasicTextField(
+                        value = hour,
+                        onValueChange = { newValue ->
+                            if (newValue.length <= 2 && newValue.all { it.isDigit() }) {
+                                hour = newValue
+                                // 2桁入力されたら、自動で「分」の入力欄にフォーカスを移動
+                                if (newValue.length == 2) {
+                                    activeField = ActiveField.MINUTE
+                                }
+                            }
+                        },
+                        textStyle = MaterialTheme.typography.displayLarge.copy(textAlign = TextAlign.Center),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier
+                            .width(96.dp)
+                            .focusRequester(hourFocusRequester)
+                    )
+                }
+
+                Text(
+                    text = ":",
+                    style = MaterialTheme.typography.displayLarge,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+
+                // --- ▼▼▼ 分入力欄の見た目を変更 ▼▼▼ ---
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(
+                            if (activeField == ActiveField.MINUTE) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent
+                        )
+                        .clickable { activeField = ActiveField.MINUTE }
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    BasicTextField(
+                        value = minute,
+                        onValueChange = { newValue ->
+                            if (newValue.length <= 2 && newValue.all { it.isDigit() }) {
+                                minute = newValue
+                            }
+                        },
+                        textStyle = MaterialTheme.typography.displayLarge.copy(textAlign = TextAlign.Center),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier
+                            .width(96.dp)
+                            .focusRequester(minuteFocusRequester)
+                    )
+                }
+            }
         },
         confirmButton = {
             TextButton(
-                onClick = onConfirm,
+                onClick = {
+                    val finalHour = hour.toIntOrNull() ?: initialHour
+                    val finalMinute = minute.toIntOrNull() ?: initialMinute
+                    val validatedHour = finalHour.coerceIn(0, 23)
+                    val validatedMinute = finalMinute.coerceIn(0, 59)
+                    onConfirm(validatedHour, validatedMinute)
+                },
                 modifier = Modifier.padding(end = 8.dp, bottom = 8.dp)
             ) {
                 Text("保存")
