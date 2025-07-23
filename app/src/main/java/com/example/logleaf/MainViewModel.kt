@@ -61,7 +61,8 @@ class MainViewModel(
             isVisible = false,
             text = TextFieldValue(""),
             editingPost = null,
-            dateTime = ZonedDateTime.now()
+            dateTime = ZonedDateTime.now(),
+            originalDateTime = ZonedDateTime.now() // ◀◀◀ これを追加
         )
     )
     // 非表示投稿を表示するかの状態
@@ -197,15 +198,19 @@ class MainViewModel(
         val isVisible: Boolean,
         val text: TextFieldValue,
         val editingPost: Post?,
-        val dateTime: ZonedDateTime
+        val dateTime: ZonedDateTime,
+        val originalDateTime: ZonedDateTime
     )
 
     fun showPostEntrySheet() {
-        // ◀◀◀ 修正：ダイアログを開く際に、日時を現在時刻にリセットする
+        val now = ZonedDateTime.now()
         _postEntryState.update {
             it.copy(
                 isVisible = true,
-                dateTime = ZonedDateTime.now()
+                text = TextFieldValue(""),
+                editingPost = null,
+                dateTime = now,
+                originalDateTime = now // ◀◀◀ 編集前の時刻として現在時刻を記憶
             )
         }
     }
@@ -220,7 +225,8 @@ class MainViewModel(
             isVisible = false,
             text = TextFieldValue(""),
             editingPost = null,
-            dateTime = ZonedDateTime.now() // 次回開くときのためにリセット
+            dateTime = ZonedDateTime.now(),
+            originalDateTime = ZonedDateTime.now(),
         )
     }
 
@@ -233,12 +239,12 @@ class MainViewModel(
     }
 
     fun startEditingPost(post: Post) {
-        // ◀◀◀ 修正：編集開始時に、投稿の作成日時をセットする
         _postEntryState.value = PostEntryState(
             isVisible = true,
             text = TextFieldValue(post.text),
             editingPost = post,
-            dateTime = post.createdAt // ◀◀◀ 投稿の日時を反映
+            dateTime = post.createdAt,
+            originalDateTime = post.createdAt // ◀◀◀ 投稿の本来の時刻を記憶
         )
     }
 
@@ -264,6 +270,10 @@ class MainViewModel(
         }
 
         dismissPostEntrySheet()
+    }
+
+    fun revertDateTime() {
+        _postEntryState.update { it.copy(dateTime = it.originalDateTime) }
     }
 
     private fun groupPostsByDay(posts: List<Post>): List<DayLog> {

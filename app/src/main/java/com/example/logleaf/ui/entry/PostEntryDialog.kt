@@ -89,7 +89,8 @@ fun PostEntryDialog(
     onPostSubmit: () -> Unit,
     onDismissRequest: () -> Unit,
     dateTime: ZonedDateTime,
-    onDateTimeChange: (ZonedDateTime) -> Unit
+    onDateTimeChange: (ZonedDateTime) -> Unit,
+    onRevertDateTime: () -> Unit
 ) {
 
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -324,12 +325,12 @@ fun PostEntryDialog(
                     Spacer(modifier = Modifier.width(8.dp))
 
                     IconButton(
-                        onClick = { onDateTimeChange(ZonedDateTime.now()) },
+                        onClick = { onRevertDateTime() },
                         modifier = Modifier.size(20.dp)
                     ) {
                         Icon(
                             painter = painterResource(id = R.drawable.ic_sync),
-                            contentDescription = "現在時刻にリセット",
+                            contentDescription = "元に戻す",
                             tint = Color.Gray
                         )
                     }
