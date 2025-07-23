@@ -4,6 +4,7 @@ import android.app.Application
 import android.net.Uri
 import android.util.Log
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -280,6 +281,21 @@ class MainViewModel(
             selectedImageUri = uri,
             requestFocus = uri != null // ◀◀◀ uriが選択されたらtrueにする
         ) }
+    }
+
+    fun createImageUri(): Uri {
+        val context = getApplication<Application>().applicationContext
+        // 保存先のファイルを作成（まだ中身は空）
+        val imageFile = File(
+            context.filesDir, // アプリの内部ストレージの files ディレクトリ
+            "CAMERA_${System.currentTimeMillis()}.jpg"
+        )
+        // FileProviderを使って、そのファイルへの安全なURIを取得
+        return FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.provider",
+            imageFile
+        )
     }
 
     fun submitPost() {

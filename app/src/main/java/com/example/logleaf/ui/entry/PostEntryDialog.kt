@@ -1,6 +1,10 @@
 package com.leaf.logleaf.ui.entry
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.fadeIn
@@ -23,7 +27,6 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
@@ -65,6 +68,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
@@ -83,6 +87,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
+import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
 import com.example.logleaf.R
 import com.yourpackage.logleaf.ui.components.UserFontText
@@ -107,10 +112,43 @@ fun PostEntryDialog(
     selectedImageUri: Uri?,
     onLaunchPhotoPicker: () -> Unit,
     onImageSelected: (Uri?) -> Unit,
+    onCreateCameraImageUri: () -> Uri,
     requestFocus: Boolean,
     onFocusConsumed: () -> Unit
 ) {
 
+    val context = LocalContext.current
+    var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
+
+    // カメラアプリを起動し、結果を受け取るためのランチャー
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture(),
+        onResult = { success ->
+            // 撮影が成功した場合
+            if (success) {
+                // 覚えておいたURIをViewModelに渡して、画像選択状態を更新する
+                tempCameraUri?.let { uri ->
+                    onImageSelected(uri)
+                }
+            }
+        }
+    )
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { isGranted ->
+            if (isGranted) {
+                // ユーザーが権限を許可してくれた場合
+                // 再度カメラ起動の処理を（安全に）実行する
+                val newUri = onCreateCameraImageUri()
+                tempCameraUri = newUri
+                cameraLauncher.launch(newUri)
+            } else {
+                // 権限を拒否された場合の処理（今回は何もしない）
+                // 必要であれば、トーストで「権限が必要です」と表示しても良い
+            }
+        }
+    )
 
     val keyboardController = LocalSoftwareKeyboardController.current
     val bodyFocusRequester = remember { FocusRequester() }
@@ -364,7 +402,22 @@ fun PostEntryDialog(
                             .padding(horizontal = 8.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = { /* TODO */ }) {
+                        IconButton(onClick = {
+                            // ステップ1: 現在カメラの権限があるかチェックする
+                            val permissionCheckResult = ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.CAMERA
+                            )
+                            if (permissionCheckResult == PackageManager.PERMISSION_GRANTED) {
+                                // ステップ2A: 権限がすでにある場合 -> 直接カメラを起動
+                                val newUri = onCreateCameraImageUri()
+                                tempCameraUri = newUri
+                                cameraLauncher.launch(newUri)
+                            } else {
+                                // ステップ2B: 権限がない場合 -> 権限をリクエストする
+                                permissionLauncher.launch(Manifest.permission.CAMERA)
+                            }
+                        }) {
                             Icon(
                                 painterResource(id = R.drawable.ic_camera),
                                 "カメラ",

@@ -341,6 +341,7 @@ fun MainScreen(
                     )
                 },
                 onImageSelected = { uri -> mainViewModel.onImageSelected(uri) },
+                onCreateCameraImageUri = { mainViewModel.createImageUri() }, // ◀◀◀ これを追加
                 requestFocus = uiState.requestFocus,
                 onFocusConsumed = { mainViewModel.consumeFocusRequest() }
             )
