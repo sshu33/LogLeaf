@@ -51,6 +51,7 @@ ktor-client-logging = { group = "io.ktor", name = "ktor-client-logging-jvm", ver
 
 firebase-dataconnect = { group = "com.google.firebase", name = "firebase-dataconnect", version.ref = "firebaseDataconnect" }
 androidx-foundation-desktop = { group = "androidx.compose.foundation", name = "foundation-desktop", version.ref = "foundationDesktop" }
+android-desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version = "2.0.4" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -2,7 +2,6 @@ package com.leaf.logleaf.ui.entry
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -17,24 +16,29 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -43,11 +47,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TimePicker
-import androidx.compose.material3.TimePickerLayoutType
-import androidx.compose.material3.TimePickerState
-import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -61,27 +60,37 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
 import com.example.logleaf.R
 import com.yourpackage.logleaf.ui.components.UserFontText
-import java.time.Instant
+import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.roundToInt
 
-@OptIn(ExperimentalMaterial3Api::class) // ◀◀◀ 1. Experimental APIの警告を抑制します
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PostEntryDialog(
     postText: TextFieldValue,
@@ -92,278 +101,303 @@ fun PostEntryDialog(
     onDateTimeChange: (ZonedDateTime) -> Unit,
     onRevertDateTime: () -> Unit
 ) {
-
     val keyboardController = LocalSoftwareKeyboardController.current
     val bodyFocusRequester = remember { FocusRequester() }
+    var isCalendarVisible by remember { mutableStateOf(false) }
+    var isTimeEditing by remember { mutableStateOf(false) }
+    val confirmedDateTime = remember(dateTime) {
+        dateTime.withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime()
+    }
+    var dateRowPosition by remember { mutableStateOf(IntOffset.Zero) }
 
-    LaunchedEffect(Unit) {
-        bodyFocusRequester.requestFocus()
-        keyboardController?.show()
+    LaunchedEffect(isCalendarVisible, isTimeEditing) {
+        if (!isCalendarVisible && !isTimeEditing) {
+            bodyFocusRequester.requestFocus()
+        }
     }
 
     val imeInsets = WindowInsets.ime
     val isKeyboardVisible = imeInsets.getBottom(LocalDensity.current) > 0
     val keyboardHeight = imeInsets.asPaddingValues().calculateBottomPadding()
-
     val animatedOffset by animateDpAsState(
         targetValue = if (isKeyboardVisible) -(keyboardHeight + 42.dp) else 0.dp,
         label = "PostBoxOffsetAnimation"
     )
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onDismissRequest
-            ),
-        contentAlignment = Alignment.BottomCenter
-    ) {
-        AnimatedVisibility(
-            visible = true,
-            enter = fadeIn(animationSpec = tween(250)),
-            exit = fadeOut(animationSpec = tween(250))
+    // --- ▼▼▼ ここからが正しいレイアウト構造です ▼▼▼ ---
+    Box(modifier = Modifier.fillMaxSize()) {
+        // 1. 背景の黒ベール (タップでダイアログを閉じる機能を持つ)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {
+                        if (isCalendarVisible) isCalendarVisible = false
+                        if (isTimeEditing) isTimeEditing = false
+                        if (!isCalendarVisible && !isTimeEditing) {
+                            onDismissRequest()
+                        }
+                    }
+                )
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.32f))
-            )
+            AnimatedVisibility(visible = true, enter = fadeIn(), exit = fadeOut()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.32f))
+                )
+            }
         }
 
-        Card(
+        // 2. 投稿BOX本体
+        Column(
             modifier = Modifier
-                .fillMaxWidth(0.9f)
-                .wrapContentHeight()
-                .offset(y = animatedOffset)
-                .clickable(enabled = false) {},
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .offset(y = animatedOffset),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                TextField(
-                    value = postText,
-                    onValueChange = onTextChange,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 100.dp, max = 350.dp)
-                        .focusRequester(bodyFocusRequester)
-                        .onKeyEvent { keyEvent ->
-                            if (keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_ENTER) {
-                                return@onKeyEvent keyEvent.nativeKeyEvent.action == android.view.KeyEvent.ACTION_UP
-                            }
-                            false
-                        },
-                    placeholder = null,
-                    colors = TextFieldDefaults.colors(
-                        unfocusedContainerColor = Color.Transparent,
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent
-                    ),
-                    singleLine = false,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default)
-                )
-
-                var showDatePicker by remember { mutableStateOf(false) }
-
-                var isTimeEditing by remember { mutableStateOf(false) }
-
-                val localDateTime = remember(dateTime) {
-                    dateTime.withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime()
-                }
-
-
-                // 日付ピッカー本体
-                if (showDatePicker) {
-                    val datePickerState = rememberDatePickerState(
-                        initialSelectedDateMillis = dateTime.toInstant().toEpochMilli()
-                    )
-                    DatePickerDialog(
-                        onDismissRequest = { showDatePicker = false },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                showDatePicker = false
-                                datePickerState.selectedDateMillis?.let { millis ->
-                                    val newDate = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
-                                    onDateTimeChange(localDateTime.with(newDate).atZone(ZoneId.systemDefault()))
-                                }
-                            }) { Text("OK") }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showDatePicker = false }) { Text("キャンセル") }
-                        }
-                    ) {
-                        DatePicker(state = datePickerState)
-                    }
-                }
-
-                // 時刻ピッカー本体（AlertDialogでラップする形に修正）
-                if (showDatePicker) {
-                    val datePickerState = rememberDatePickerState(
-                        initialSelectedDateMillis = dateTime.toInstant().toEpochMilli()
-                    )
-                    DatePickerDialog(
-                        onDismissRequest = { showDatePicker = false },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                showDatePicker = false
-                                datePickerState.selectedDateMillis?.let { millis ->
-                                    val newDate = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
-                                    onDateTimeChange(localDateTime.with(newDate).atZone(ZoneId.systemDefault()))
-                                }
-                            }) { Text("OK") }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showDatePicker = false }) { Text("キャンセル") }
-                        }
-                    ) {
-                        DatePicker(state = datePickerState)
-                    }
-                }
-
-
-                // 日時表示エリア
-                Row(
-                    modifier = Modifier.align(Alignment.End).padding(top = 8.dp, bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-
-                    UserFontText(
-                        text = localDateTime.format(DateTimeFormatter.ofPattern("M月d日(E)", Locale.JAPAN)),
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontSize = 13.sp ),
-                        color = Color.Gray,
-                        modifier = Modifier.clickable { showDatePicker = true }
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth(0.9f)
+                    .wrapContentHeight()
+                    .clickable(enabled = false) {},
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    TextField(
+                        value = postText,
+                        onValueChange = onTextChange,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 100.dp, max = 350.dp)
+                            .focusRequester(bodyFocusRequester),
+                        placeholder = null,
+                        colors = TextFieldDefaults.colors(
+                            unfocusedContainerColor = Color.Transparent,
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent
+                        ),
+                        singleLine = false,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default)
                     )
 
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    // --- 2. isTimeEditing の状態によって、表示を切り替える ---
-                    if (isTimeEditing) {
-                        val keyboardController = LocalSoftwareKeyboardController.current
-                        val timeFocusRequester = remember { FocusRequester() }
-                        var timeText by remember {
-                            val initialString = localDateTime.format(DateTimeFormatter.ofPattern("HHmm"))
-                            mutableStateOf(
-                                TextFieldValue(
-                                    text = initialString,
-                                    selection = TextRange(0, initialString.length)
+                    // あなたが調整したカスタムUIをここに配置
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.End)
+                            .padding(top = 8.dp, bottom = 8.dp)
+                            .onGloballyPositioned { coordinates ->
+                                val positionInRoot = coordinates.positionInRoot()
+                                dateRowPosition = IntOffset(
+                                    positionInRoot.x.roundToInt(),
+                                    positionInRoot.y.roundToInt()
                                 )
+                            },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        UserFontText(
+                            text = confirmedDateTime.format(DateTimeFormatter.ofPattern("M月d日(E)", Locale.JAPAN)),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                            color = Color.Gray,
+                            modifier = Modifier.clickable {
+                                isCalendarVisible = !isCalendarVisible
+                                isTimeEditing = false
+                            }
+                        )
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        if (isTimeEditing) {
+                            val keyboardController = LocalSoftwareKeyboardController.current
+                            val timeFocusRequester = remember { FocusRequester() }
+                            var timeText by remember {
+                                val initialString =
+                                    confirmedDateTime.format(DateTimeFormatter.ofPattern("HHmm"))
+                                mutableStateOf(
+                                    TextFieldValue(
+                                        text = initialString,
+                                        selection = TextRange(0, initialString.length)
+                                    )
+                                )
+                            }
+
+                            val confirmAndFinishEditing = {
+                                val text = timeText.text.padEnd(4, '0')
+                                val hour = text.substring(0, 2).toIntOrNull()?.coerceIn(0, 23)
+                                    ?: confirmedDateTime.hour
+                                val minute = text.substring(2, 4).toIntOrNull()?.coerceIn(0, 59)
+                                    ?: confirmedDateTime.minute
+
+                                val newDateTime = confirmedDateTime.withHour(hour).withMinute(minute)
+                                onDateTimeChange(newDateTime.atZone(ZoneId.systemDefault()))
+
+                                isTimeEditing = false
+                                bodyFocusRequester.requestFocus() // 本文の入力欄にフォーカスを戻す
+                                // keyboardController?.show() は不要。フォーカスが当たれば自動でキーボードは切り替わる
+                            }
+
+                            // フォーカス状態を監視するための変数
+                            var hasFocus by remember { mutableStateOf(false) }
+
+                            LaunchedEffect(Unit) {
+                                timeFocusRequester.requestFocus()
+                            }
+
+                            BasicTextField(
+                                value = timeText, // valueにTextFieldValueを渡す
+                                onValueChange = { newValue ->
+                                    // --- ★★★ 修正点②：4桁制限の判定を .text で行う ★★★ ---
+                                    if (newValue.text.length <= 4 && newValue.text.all { it.isDigit() }) {
+                                        timeText = newValue
+                                    }
+                                },
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                    color = Color.Gray,
+                                    textAlign = TextAlign.Center
+                                ),
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Number,
+                                    imeAction = ImeAction.Done
+                                ),
+                                keyboardActions = KeyboardActions(
+                                    onDone = { confirmAndFinishEditing() } // エンターキーで確定
+                                ),
+                                modifier = Modifier
+                                    .focusRequester(timeFocusRequester)
+                                    .onFocusChanged { focusState ->
+                                        if (hasFocus && !focusState.isFocused) {
+                                            // 以前はフォーカスがあったのに、今は無い -> 外側がタップされた
+                                            confirmAndFinishEditing()
+                                        }
+                                        hasFocus = focusState.isFocused
+                                    }
+                                    .width(60.dp)
+                                    .background(
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                        shape = RoundedCornerShape(4.dp)
+                                    )
+                                    .padding(vertical = 4.dp)
+                            )
+                            // --- ▲ 編集モードの時のUI ▲ ---
+                        } else {
+                            UserFontText(
+                                text = confirmedDateTime.format(DateTimeFormatter.ofPattern("HH:mm")),
+                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                                color = Color.Gray,
+                                modifier = Modifier.clickable { isTimeEditing = true }
                             )
                         }
 
-                        val confirmAndFinishEditing = {
-                            val text = timeText.text.padEnd(4, '0')
-                            val hour = text.substring(0, 2).toIntOrNull()?.coerceIn(0, 23) ?: localDateTime.hour
-                            val minute = text.substring(2, 4).toIntOrNull()?.coerceIn(0, 59) ?: localDateTime.minute
+                        Spacer(modifier = Modifier.width(8.dp))
 
-                            val newDateTime = localDateTime.withHour(hour).withMinute(minute)
-                            onDateTimeChange(newDateTime.atZone(ZoneId.systemDefault()))
-
-                            isTimeEditing = false
-                            bodyFocusRequester.requestFocus() // 本文の入力欄にフォーカスを戻す
-                            // keyboardController?.show() は不要。フォーカスが当たれば自動でキーボードは切り替わる
+                        IconButton(
+                            onClick = { onRevertDateTime() },
+                            modifier = Modifier.size(20.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_sync),
+                                contentDescription = "元に戻す",
+                                tint = Color.Gray
+                            )
                         }
-
-                        // フォーカス状態を監視するための変数
-                        var hasFocus by remember { mutableStateOf(false) }
-
-                        LaunchedEffect(Unit) {
-                            timeFocusRequester.requestFocus()
-                        }
-
-                        BasicTextField(
-                            value = timeText, // valueにTextFieldValueを渡す
-                            onValueChange = { newValue ->
-                                // --- ★★★ 修正点②：4桁制限の判定を .text で行う ★★★ ---
-                                if (newValue.text.length <= 4 && newValue.text.all { it.isDigit() }) {
-                                    timeText = newValue
-                                }
-                            },
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(
-                                color = Color.Gray,
-                                textAlign = TextAlign.Center
-                            ),
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Number,
-                                imeAction = ImeAction.Done
-                            ),
-                            keyboardActions = KeyboardActions(
-                                onDone = { confirmAndFinishEditing() } // エンターキーで確定
-                            ),
-                            modifier = Modifier
-                                .focusRequester(timeFocusRequester)
-                                .onFocusChanged { focusState ->
-                                    if (hasFocus && !focusState.isFocused) {
-                                        // 以前はフォーカスがあったのに、今は無い -> 外側がタップされた
-                                        confirmAndFinishEditing()
-                                    }
-                                    hasFocus = focusState.isFocused
-                                }
-                                .width(60.dp)
-                                .background(
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                                    shape = RoundedCornerShape(4.dp)
-                                )
-                                .padding(vertical = 4.dp)
-                        )
-                        // --- ▲ 編集モードの時のUI ▲ ---
-                    } else {
-                        // --- ▼ 通常表示モードの時のUI (ただのテキスト) ▼ ---
-                        UserFontText(
-                            text = localDateTime.format(DateTimeFormatter.ofPattern("HH:mm")),
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = 13.sp ),
-                            color = Color.Gray,
-                            modifier = Modifier.clickable { isTimeEditing = true } // タップで編集モードに切り替え
-                        )
-                        // --- ▲ 通常表示モードの時のUI ▲ ---
                     }
 
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    IconButton(
-                        onClick = { onRevertDateTime() },
-                        modifier = Modifier.size(20.dp)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_sync),
-                            contentDescription = "元に戻す",
-                            tint = Color.Gray
-                        )
+                        IconButton(onClick = { /* TODO */ }) {
+                            Icon(
+                                painterResource(id = R.drawable.ic_camera),
+                                "カメラ",
+                                tint = Color.Gray,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        IconButton(onClick = { /* TODO */ }) {
+                            Icon(
+                                painterResource(id = R.drawable.ic_image),
+                                "ギャラリー",
+                                tint = Color.Gray,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        IconButton(onClick = { /* TODO */ }) {
+                            Icon(
+                                painterResource(id = R.drawable.ic_tag),
+                                "タグ",
+                                tint = Color.Gray,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.weight(1f))
+                        Button(
+                            onClick = onPostSubmit,
+                            enabled = postText.text.isNotBlank(),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                                disabledContentColor = Color.White
+                            )
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_post),
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
+            }
+        }
 
-                Row(
+        // 3. カレンダーPopup (投稿BOXとは完全に独立)
+        if (isCalendarVisible) {
+            val popupPositionProvider = object : PopupPositionProvider {
+                override fun calculatePosition(
+                    anchorBounds: IntRect, windowSize: IntSize,
+                    layoutDirection: LayoutDirection, popupContentSize: IntSize
+                ): IntOffset {
+                    // dateRowPositionを使用してタップ位置の上に配置
+                    val targetY = (dateRowPosition.y - popupContentSize.height - 16).coerceAtLeast(50)
+                    val targetX = (windowSize.width - popupContentSize.width) / 2
+
+                    return IntOffset(targetX, targetY)
+                }
+            }
+            Popup(
+                popupPositionProvider = popupPositionProvider,
+                properties = PopupProperties(focusable = false),
+                onDismissRequest = { isCalendarVisible = false }
+            ) {
+                Card(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .fillMaxWidth(0.9f)
+                        .wrapContentHeight(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color.White,
+                        contentColor = Color.Black
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
-                    // (...省略... アイコンボタンや投稿ボタンのコードは変更なし)
-                    IconButton(onClick = { /* TODO */ }) {
-                        Icon(painterResource(id = R.drawable.ic_camera), "カメラ", tint = Color.Gray, modifier = Modifier.size(24.dp))
-                    }
-                    IconButton(onClick = { /* TODO */ }) {
-                        Icon(painterResource(id = R.drawable.ic_image), "ギャラリー", tint = Color.Gray, modifier = Modifier.size(24.dp))
-                    }
-                    IconButton(onClick = { /* TODO */ }) {
-                        Icon(painterResource(id = R.drawable.ic_tag), "タグ", tint = Color.Gray, modifier = Modifier.size(24.dp))
-                    }
-                    Spacer(modifier = Modifier.weight(1f))
-                    Button(
-                        onClick = onPostSubmit,
-                        enabled = postText.text.isNotBlank(),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                            disabledContentColor = Color.White
-                        )
-                    ) {
-                        Icon(painter = painterResource(id = R.drawable.ic_post), contentDescription = null, modifier = Modifier.size(20.dp))
-                    }
+                    MinimalCalendar(
+                        selectedDate = confirmedDateTime.toLocalDate(),
+                        onDateSelected = { newDate ->
+                            onDateTimeChange(confirmedDateTime.with(newDate).atZone(ZoneId.systemDefault()))
+                            isCalendarVisible = false
+                        },
+                        modifier = Modifier
+                            .padding(8.dp)
+                            .background(Color.White) // 追加：明示的に白背景を設定
+                    )
                 }
             }
         }
@@ -413,7 +447,9 @@ private fun CustomTimePickerDialog(
         },
         text = {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -422,7 +458,9 @@ private fun CustomTimePickerDialog(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
                         .background(
-                            if (activeField == ActiveField.HOUR) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent
+                            if (activeField == ActiveField.HOUR) MaterialTheme.colorScheme.primary.copy(
+                                alpha = 0.1f
+                            ) else Color.Transparent
                         )
                         .clickable { activeField = ActiveField.HOUR }
                         .padding(horizontal = 12.dp, vertical = 8.dp)
@@ -457,7 +495,9 @@ private fun CustomTimePickerDialog(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
                         .background(
-                            if (activeField == ActiveField.MINUTE) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent
+                            if (activeField == ActiveField.MINUTE) MaterialTheme.colorScheme.primary.copy(
+                                alpha = 0.1f
+                            ) else Color.Transparent
                         )
                         .clickable { activeField = ActiveField.MINUTE }
                         .padding(horizontal = 12.dp, vertical = 8.dp)
@@ -501,4 +541,126 @@ private fun CustomTimePickerDialog(
             }
         }
     )
+}
+
+@Composable
+private fun MinimalCalendar(
+    selectedDate: LocalDate,
+    onDateSelected: (LocalDate) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val currentMonth = YearMonth.from(selectedDate)
+    var displayedMonth by remember { mutableStateOf(currentMonth) }
+
+    Column(
+        modifier = modifier
+            .padding(vertical = 8.dp)
+            .background(Color.White) // 追加：明示的に白背景を設定
+    ) {
+        // --- 1. 月移動のヘッダー ---
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.White), // 追加：ヘッダーも白背景
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { displayedMonth = displayedMonth.minusMonths(1) }) {
+                Icon(
+                    Icons.Default.KeyboardArrowLeft,
+                    contentDescription = "前の月",
+                    tint = Color.Black // 追加：アイコンを黒色に
+                )
+            }
+            UserFontText(
+                text = displayedMonth.format(
+                    DateTimeFormatter.ofPattern(
+                        "yyyy年 MMMM",
+                        Locale.JAPAN
+                    )
+                ),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black // 追加：テキストを黒色に
+            )
+            IconButton(onClick = { displayedMonth = displayedMonth.plusMonths(1) }) {
+                Icon(
+                    Icons.Default.KeyboardArrowRight,
+                    contentDescription = "次の月",
+                    tint = Color.Black // 追加：アイコンを黒色に
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // --- 2. 曜日のヘッダー ---
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.White) // 追加：曜日ヘッダーも白背景
+        ) {
+            listOf("日", "月", "火", "水", "木", "金", "土").forEach { day ->
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    UserFontText(
+                        text = day,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Black // 追加：曜日テキストを黒色に
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // --- 3. 日付グリッド ---
+        val daysInMonth = displayedMonth.lengthOfMonth()
+        val firstDayOfMonth = displayedMonth.atDay(1).dayOfWeek.value % 7
+        val dayCells =
+            (1..firstDayOfMonth).map { null } + (1..daysInMonth).map { displayedMonth.atDay(it) }
+
+        val weekChunks = dayCells.chunked(7) // 事前に計算してローカル変数に保存
+
+        weekChunks.forEachIndexed { weekIndex, week ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White)
+            ) {
+                week.forEach { date ->
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (date != null) {
+                            Text(
+                                text = date.dayOfMonth.toString(),
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .clickable { onDateSelected(date) }
+                                    .background(
+                                        if (date == selectedDate) MaterialTheme.colorScheme.primary else Color.Transparent
+                                    )
+                                    .wrapContentSize(Alignment.Center),
+                                color = if (date == selectedDate) MaterialTheme.colorScheme.onPrimary else Color.Black,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+                // 足りない分のスペーサーを追加
+                if (week.size < 7) {
+                    repeat(7 - week.size) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+
+            // 最後の週以外は行間スペーサーを追加
+            if (weekIndex < weekChunks.size - 1) {
+                Spacer(modifier = Modifier.height(8.dp)) // ここで余白を調整
+            }
+        }
+    }
 }
