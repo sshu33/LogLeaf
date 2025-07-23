@@ -106,8 +106,12 @@ fun PostEntryDialog(
     onRevertDateTime: () -> Unit,
     selectedImageUri: Uri?,
     onLaunchPhotoPicker: () -> Unit,
-    onImageSelected: (Uri?) -> Unit
+    onImageSelected: (Uri?) -> Unit,
+    requestFocus: Boolean,
+    onFocusConsumed: () -> Unit
 ) {
+
+
     val keyboardController = LocalSoftwareKeyboardController.current
     val bodyFocusRequester = remember { FocusRequester() }
     var isCalendarVisible by remember { mutableStateOf(false) }
@@ -134,6 +138,14 @@ fun PostEntryDialog(
         bodyFocusRequester.requestFocus()
     }
     var dateRowPosition by remember { mutableStateOf(IntOffset.Zero) }
+
+    LaunchedEffect(requestFocus) {
+        if (requestFocus) {
+            bodyFocusRequester.requestFocus()
+            keyboardController?.show()
+            onFocusConsumed() // トリガーをリセット
+        }
+    }
 
     LaunchedEffect(isCalendarVisible, isTimeEditing) {
         if (!isCalendarVisible && !isTimeEditing) {
@@ -227,29 +239,33 @@ fun PostEntryDialog(
                     )
 
                     AnimatedVisibility(visible = selectedImageUri != null) {
-                        Box(modifier = Modifier.padding(top = 8.dp)) {
+                        // 画像をタップで削除できるように、Boxで囲む
+                        Box(
+                            modifier = Modifier
+                                .padding(top = 8.dp)
+                                .size(80.dp) // ◀◀◀ サムネイルのサイズを小さく固定
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onImageSelected(null) } // ◀◀◀ タップで削除
+                        ) {
                             AsyncImage(
                                 model = selectedImageUri,
                                 contentDescription = "選択された画像",
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(max = 200.dp) // 画像の最大の高さを指定
-                                    .clip(RoundedCornerShape(8.dp)),
+                                modifier = Modifier.fillMaxSize(), // Boxのサイズに合わせる
                                 contentScale = ContentScale.Crop
                             )
-                            // 画像を削除するボタン
-                            IconButton(
-                                onClick = { onImageSelected(null) }, // ◀◀◀ 画像をクリアする処理
+                            // 「削除」の目印として、半透明の×アイコンを右上に表示
+                            Box(
                                 modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(4.dp)
-                                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                                    .matchParentSize()
+                                    .background(Color.Black.copy(alpha = 0.3f))
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Close,
                                     contentDescription = "画像を削除",
                                     tint = Color.White,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .align(Alignment.Center)
                                 )
                             }
                         }

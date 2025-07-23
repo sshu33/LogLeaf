@@ -340,7 +340,9 @@ fun MainScreen(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                     )
                 },
-                onImageSelected = { uri -> mainViewModel.onImageSelected(uri) }
+                onImageSelected = { uri -> mainViewModel.onImageSelected(uri) },
+                requestFocus = uiState.requestFocus,
+                onFocusConsumed = { mainViewModel.consumeFocusRequest() }
             )
         }
     }

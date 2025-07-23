@@ -51,9 +51,9 @@ data class UiState(
     val showHiddenPosts: Boolean = false,
     val editingPost: Post? = null,
     val editingDateTime: ZonedDateTime = ZonedDateTime.now(),
-    val selectedImageUri: Uri? = null
+    val selectedImageUri: Uri? = null,
+    val requestFocus: Boolean = false // ◀◀◀ これを追加
 )
-
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModel(
     application: Application,
@@ -110,7 +110,8 @@ class MainViewModel(
             editingPost = postEntry.editingPost,
             editingDateTime = postEntry.dateTime,
             showHiddenPosts = showHidden,
-            selectedImageUri = postEntry.selectedImageUri
+            selectedImageUri = postEntry.selectedImageUri,
+            requestFocus = postEntry.requestFocus // ◀◀◀ これを追加
         )
     }.stateIn(
         scope = viewModelScope,
@@ -211,7 +212,8 @@ class MainViewModel(
         val editingPost: Post?,
         val dateTime: ZonedDateTime,
         val originalDateTime: ZonedDateTime,
-        val selectedImageUri: Uri?
+        val selectedImageUri: Uri?,
+        val requestFocus: Boolean = false // ◀◀◀ これを追加
     )
 
     fun showPostEntrySheet() {
@@ -274,42 +276,49 @@ class MainViewModel(
     }
 
     fun onImageSelected(uri: Uri?) {
-        _postEntryState.update { it.copy(selectedImageUri = uri) }
+        _postEntryState.update { it.copy(
+            selectedImageUri = uri,
+            requestFocus = uri != null // ◀◀◀ uriが選択されたらtrueにする
+        ) }
     }
 
     fun submitPost() {
         val currentState = _postEntryState.value
         val currentText = currentState.text.text
-        if (currentText.isBlank()) return
-
-        Log.d("ImageDebug", "1. submitPostが呼ばれました。")
-        Log.d("ImageDebug", "2. 選択中の画像のURI: ${currentState.selectedImageUri}")
+        if (currentText.isBlank() && currentState.selectedImageUri == null) return
 
         viewModelScope.launch {
-            val imageUrl = currentState.selectedImageUri?.let { uri ->
-                Log.d("ImageDebug", "3. 画像保存処理を開始します。URI: $uri")
-                val savedPath = saveImageToInternalStorage(uri)
-                Log.d("ImageDebug", "4. 画像保存処理が完了しました。保存先のパス: $savedPath")
-                savedPath
-            }
+            val finalImageUrl: String?
 
+            if (currentState.selectedImageUri != null) {
+                // もし画像が選択されていれば
+                val uri = currentState.selectedImageUri
+                if (uri.scheme == "content") {
+                    // それがギャラリーから選んだ新しい画像なら、内部ストレージに保存する
+                    finalImageUrl = saveImageToInternalStorage(uri)
+                } else {
+                    // すでに保存済みの画像なら、そのパスをそのまま使う
+                    finalImageUrl = uri.toString()
+                }
+            } else {
+                // 画像が選択されていなければ、最終的なURLはnull（=削除）
+                finalImageUrl = null
+            }
             val postToSave = currentState.editingPost?.copy(
                 text = currentText,
                 createdAt = currentState.dateTime,
-                imageUrl = imageUrl ?: currentState.editingPost.imageUrl
+                imageUrl = finalImageUrl // ◀◀◀ 常に最終的なURLで上書きする
             ) ?: Post(
                 id = UUID.randomUUID().toString(),
                 accountId = "LOGLEAF_INTERNAL_POST",
                 text = currentText,
                 createdAt = currentState.dateTime,
                 source = SnsType.LOGLEAF,
-                imageUrl = imageUrl,
+                imageUrl = finalImageUrl, // ◀◀◀ 新規投稿でも最終的なURLを使用
                 isHidden = false
             )
 
-            Log.d("ImageDebug", "5. データベースに保存するPostオブジェクトのimageUrl: ${postToSave.imageUrl}")
             postDao.insert(postToSave)
-            Log.d("ImageDebug", "6. データベースへの保存が完了しました。")
             dismissPostEntrySheet()
         }
     }
@@ -335,6 +344,10 @@ class MainViewModel(
 
     fun revertDateTime() {
         _postEntryState.update { it.copy(dateTime = it.originalDateTime) }
+    }
+
+    fun consumeFocusRequest() {
+        _postEntryState.update { it.copy(requestFocus = false) }
     }
 
     private fun groupPostsByDay(posts: List<Post>): List<DayLog> {

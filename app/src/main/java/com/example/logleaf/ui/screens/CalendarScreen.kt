@@ -526,46 +526,39 @@ fun CalendarPostCardItem(
                     )
                 }
 
-                Row(modifier = Modifier.fillMaxHeight()) {
-                    Box(
-                        modifier = Modifier
-                            .width(4.dp)
-                            .fillMaxHeight()
-                            .background(post.source.brandColor)
-                    )
-
-                    // テキストと画像を縦に並べるためのColumn
-                    Column(modifier = Modifier.padding(start = 12.dp)) {
-                        if (post.imageUrl != null) {
-                            Log.d("ImageDebug", "表示しようとしている画像のURL: ${post.imageUrl}")
-                        }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    // --- 左側：カラーバーとテキスト ---
+                    Row(
+                        modifier = Modifier.weight(1f), // ◀◀◀ 横方向の余ったスペースをすべて使う
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(4.dp)
+                                .fillMaxHeight()
+                                .background(post.source.brandColor)
+                        )
                         Text(
                             text = post.text,
                             style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.padding(start = 12.dp)
                         )
+                    }
 
-                        // もし画像のURLが存在すれば、画像を表示する
-                        if (post.imageUrl != null) {
-                            // imageUrl文字列をURIに変換し、さらにFileオブジェクトに変換する
-                            val imageFile = try {
-                                File(Uri.parse(post.imageUrl).path!!)
-                            } catch (e: Exception) {
-                                null
-                            }
-
-                            if (imageFile?.exists() == true) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                AsyncImage(
-                                    model = imageFile, // ◀◀◀ 文字列ではなく、Fileオブジェクトを渡す
-                                    contentDescription = "投稿画像",
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(180.dp)
-                                        .clip(RoundedCornerShape(8.dp)),
-                                    contentScale = ContentScale.Crop
-                                )
-                            }
-                        }
+                    // --- 右側：画像 ---
+                    if (post.imageUrl != null) {
+                        Spacer(modifier = Modifier.width(8.dp)) // テキストと画像の間に余白
+                        AsyncImage(
+                            model = Uri.parse(post.imageUrl),
+                            contentDescription = "投稿画像",
+                            modifier = Modifier
+                                .size(72.dp) // ◀◀◀ 高さ約3行分の大きさに固定
+                                .clip(RoundedCornerShape(8.dp)),
+                            contentScale = ContentScale.Crop
+                        )
                     }
                 }
             }
