@@ -2,7 +2,6 @@ package com.example.logleaf.ui.screens
 
 
 import android.net.Uri
-import android.util.Log
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -64,7 +63,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -75,14 +73,11 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.logleaf.Post
-import com.example.logleaf.SessionManager
 import com.example.logleaf.UiState
-import com.example.logleaf.db.AppDatabase
 import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
 import com.yourpackage.logleaf.ui.components.UserFontText
 import kotlinx.coroutines.delay
-import java.io.File
 import java.time.LocalDate
 import java.time.Month
 import java.time.YearMonth
@@ -202,20 +197,14 @@ fun CalendarScreen(
         }
 
         if (showDetailDialog) {
-            val context = LocalContext.current
-            val db = remember { AppDatabase.getDatabase(context) }
-            val postDao = remember { db.postDao() }
-            val sessionManager = remember { SessionManager(context.applicationContext) }
-
             Dialog(
                 onDismissRequest = { postForDetail = null },
                 properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
             ) {
+                // LogViewScreenを直接呼び出すだけにします
                 LogViewScreen(
-                    dateString = postForDetail!!.createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate().toString(),
+                    posts = postsForSelectedDay,
                     targetPostId = postForDetail!!.id,
-                    postDao = postDao,
-                    sessionManager = sessionManager,
                     onDismiss = { postForDetail = null }
                 )
             }
@@ -548,11 +537,11 @@ fun CalendarPostCardItem(
                 verticalAlignment = Alignment.Top
             ) {
                 SettingsTheme {
-                    Text(
+                    UserFontText(
                         text = timeString,
                         style = MaterialTheme.typography.bodyMedium, // このスタイルが固定される
                         color = Color.Gray,
-                        modifier = Modifier.width(56.dp)
+                        modifier = Modifier.width(52.dp)
                     )
                 }
 
