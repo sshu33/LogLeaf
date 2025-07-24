@@ -205,7 +205,7 @@ fun MainScreen(
                     onRefresh = mainViewModel::refreshPosts,
                     isRefreshing = uiState.isRefreshing,
                     onShowPostEntry = { mainViewModel.showPostEntrySheet() },
-                    onDismissPostEntry = { mainViewModel.dismissPostEntrySheet() },
+                    onDismissPostEntry = { mainViewModel.onCancel() },
                     onToggleShowHidden = { mainViewModel.toggleShowHiddenPosts() },
                     onStartEditingPost = { post -> mainViewModel.startEditingPost(post) },
                     onSetPostHidden = { postId, isHidden -> mainViewModel.setPostHidden(postId, isHidden) },
@@ -313,7 +313,7 @@ fun MainScreen(
     }
     if (uiState.isPostEntrySheetVisible) { // ViewModelの状態を監視
         Dialog(
-            onDismissRequest = { mainViewModel.dismissPostEntrySheet() },
+            onDismissRequest = { mainViewModel.onCancel() },
             properties = DialogProperties(
                 usePlatformDefaultWidth = false,
                 decorFitsSystemWindows = false, // これも引き続き重要
@@ -330,7 +330,7 @@ fun MainScreen(
                 postText = uiState.postText,
                 onTextChange = { mainViewModel.onPostTextChange(it) },
                 onPostSubmit = { mainViewModel.submitPost() },
-                onDismissRequest = { mainViewModel.dismissPostEntrySheet() },
+                onDismissRequest = { mainViewModel.onCancel() },
                 dateTime = uiState.editingDateTime,
                 onDateTimeChange = { newDateTime -> mainViewModel.onDateTimeChange(newDateTime) },
                 onRevertDateTime = { mainViewModel.revertDateTime() },

@@ -219,41 +219,33 @@ class MainViewModel(
 
     fun showPostEntrySheet() {
         _postEntryState.update { currentState ->
-            // もし、直前の状態が「既存投稿の編集中」だった場合
+            // ▼▼▼ [修正] ifブロックの処理を修正 ▼▼▼
             if (currentState.editingPost != null) {
-                // 下書きを完全にリセットして、まっさらな新規投稿画面を開く
+                // 直前が「編集」なら、まっさらな新規投稿の状態を直接作成して返す
                 val now = ZonedDateTime.now()
-                currentState.copy(
-                    isVisible = true,
+                PostEntryState(
+                    isVisible = true, // isVisibleをtrueに
                     text = TextFieldValue(""),
                     editingPost = null,
                     dateTime = now,
-                    originalDateTime = now
+                    originalDateTime = now,
+                    selectedImageUri = null,
+                    requestFocus = true // 新規作成なのでフォーカスを要求
                 )
             } else {
-                // 直前の状態が「新規投稿」のままなら、書きかけの内容を維持して表示する
-                currentState.copy(isVisible = true)
+                // 直前が「新規」なら、下書きを維持して表示するだけ（ここは変更なし）
+                currentState.copy(isVisible = true, requestFocus = true)
             }
         }
     }
-
-    fun dismissPostEntrySheet() {
+    fun onCancel() {
         val currentState = _postEntryState.value
-        // もし、現在の状態が「既存投稿の編集中」だった場合
         if (currentState.editingPost != null) {
-            // 編集内容を完全に破棄し、まっさらな状態に戻す
-            val now = ZonedDateTime.now()
-            _postEntryState.value = PostEntryState(
-                isVisible = false,
-                text = TextFieldValue(""),
-                editingPost = null,
-                dateTime = now,
-                originalDateTime = now,
-                selectedImageUri = null // ◀◀◀ ここも null でOK
-            )
+            // 編集モードの場合、問答無用で変更を破棄
+            clearDraftAndDismiss()
         } else {
-            // 現在の状態が「新規投稿」なら、下書きを保持したまま非表示にするだけ
-            _postEntryState.update { it.copy(isVisible = false) }
+            // 新規モードの場合、下書きを保持したまま非表示にするだけ
+            _postEntryState.update { it.copy(isVisible = false, requestFocus = false) }
         }
     }
 
@@ -301,41 +293,44 @@ class MainViewModel(
     fun submitPost() {
         val currentState = _postEntryState.value
         val currentText = currentState.text.text
-        if (currentText.isBlank() && currentState.selectedImageUri == null) return
+        val isNewPost = currentState.editingPost == null
+        val isContentEmpty = currentText.isBlank() && currentState.selectedImageUri == null
+
+        if (isContentEmpty) {
+            if (isNewPost) {
+                // 【要件】新規モードで中身が空のまま投稿 → 下書きを破棄して閉じる
+                clearDraftAndDismiss()
+            }
+            // 編集モードで中身を空にした場合、UIでボタンが押せないはずなので、基本的にこのルートは通らない。
+            // 万が一通っても、何もせず終了する。
+            return
+        }
 
         viewModelScope.launch {
-            val finalImageUrl: String?
-
-            if (currentState.selectedImageUri != null) {
-                // もし画像が選択されていれば
+            val finalImageUrl: String? = if (currentState.selectedImageUri != null) {
                 val uri = currentState.selectedImageUri
-                if (uri.scheme == "content") {
-                    // それがギャラリーから選んだ新しい画像なら、内部ストレージに保存する
-                    finalImageUrl = saveImageToInternalStorage(uri)
-                } else {
-                    // すでに保存済みの画像なら、そのパスをそのまま使う
-                    finalImageUrl = uri.toString()
-                }
+                if (uri.scheme == "content") saveImageToInternalStorage(uri) else uri.toString()
             } else {
-                // 画像が選択されていなければ、最終的なURLはnull（=削除）
-                finalImageUrl = null
+                null
             }
+
             val postToSave = currentState.editingPost?.copy(
                 text = currentText,
                 createdAt = currentState.dateTime,
-                imageUrl = finalImageUrl // ◀◀◀ 常に最終的なURLで上書きする
+                imageUrl = finalImageUrl
             ) ?: Post(
                 id = UUID.randomUUID().toString(),
                 accountId = "LOGLEAF_INTERNAL_POST",
                 text = currentText,
                 createdAt = currentState.dateTime,
                 source = SnsType.LOGLEAF,
-                imageUrl = finalImageUrl, // ◀◀◀ 新規投稿でも最終的なURLを使用
+                imageUrl = finalImageUrl,
                 isHidden = false
             )
 
             postDao.insert(postToSave)
-            dismissPostEntrySheet()
+            // 投稿が成功したら、下書きをきれいさっぱり消して閉じる
+            clearDraftAndDismiss()
         }
     }
 
@@ -356,6 +351,19 @@ class MainViewModel(
                 null
             }
         }
+    }
+
+    private fun clearDraftAndDismiss() {
+        val now = ZonedDateTime.now()
+        _postEntryState.value = PostEntryState(
+            isVisible = false,
+            text = TextFieldValue(""),
+            editingPost = null,
+            dateTime = now,
+            originalDateTime = now,
+            selectedImageUri = null,
+            requestFocus = false
+        )
     }
 
     fun revertDateTime() {

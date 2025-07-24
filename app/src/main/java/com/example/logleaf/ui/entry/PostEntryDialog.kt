@@ -57,6 +57,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,6 +71,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextRange
@@ -91,6 +93,8 @@ import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
 import com.example.logleaf.R
 import com.yourpackage.logleaf.ui.components.UserFontText
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
@@ -150,6 +154,9 @@ fun PostEntryDialog(
         }
     )
 
+    val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
+
     val keyboardController = LocalSoftwareKeyboardController.current
     val bodyFocusRequester = remember { FocusRequester() }
     var isCalendarVisible by remember { mutableStateOf(false) }
@@ -199,6 +206,7 @@ fun PostEntryDialog(
         label = "PostBoxOffsetAnimation"
     )
 
+
     // --- ▼▼▼ ここからが正しいレイアウト構造です ▼▼▼ ---
     Box(modifier = Modifier.fillMaxSize()) {
         // 1. 背景の黒ベール (タップでダイアログを閉じる機能を持つ)
@@ -209,10 +217,23 @@ fun PostEntryDialog(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = {
-                        if (isCalendarVisible) isCalendarVisible = false
+                        // 1. まずカレンダーが表示中かチェック
+                        if (isCalendarVisible) {
+                            isCalendarVisible = false
+                            return@clickable // 処理をここで終了
+                        }
+
+                        // 2. 次に時刻編集中かチェック
                         if (isTimeEditing) {
-                            confirmAndFinishEditing() // 確定処理を呼ぶ
-                        } else if (!isCalendarVisible) {
+                            confirmAndFinishEditing()
+                            return@clickable // 処理をここで終了
+                        }
+
+                        // 3. 上記のどちらでもなければ、メインのキャンセル処理を実行
+                        scope.launch {
+                            focusManager.clearFocus()
+                            keyboardController?.hide()
+                            delay(50)
                             onDismissRequest()
                         }
                     }
@@ -443,7 +464,15 @@ fun PostEntryDialog(
                         }
                         Spacer(modifier = Modifier.weight(1f))
                         Button(
-                            onClick = onPostSubmit,
+                            onClick = {
+                                scope.launch {
+                                    // こちらも同様に、まずUIを落ち着かせる
+                                    focusManager.clearFocus()
+                                    keyboardController?.hide()
+                                    delay(50)
+                                    onPostSubmit()
+                                }
+                            },
                             enabled = postText.text.isNotBlank(),
                             shape = RoundedCornerShape(8.dp),
                             colors = ButtonDefaults.buttonColors(
