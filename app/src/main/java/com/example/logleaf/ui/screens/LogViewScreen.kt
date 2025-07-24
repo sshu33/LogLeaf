@@ -1,6 +1,9 @@
 package com.example.logleaf.ui.screens
 
 import android.net.Uri
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -9,12 +12,17 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -31,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -44,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.logleaf.Post
 import com.yourpackage.logleaf.ui.components.UserFontText
+import kotlinx.coroutines.delay
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -91,12 +101,14 @@ fun LogViewScreen(
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)
+            contentPadding = PaddingValues(top = 220.dp, bottom = 16.dp)
         ) {
+
             items(posts, key = { it.id }) { post ->
                 // LogViewPostCardを呼び出します（次のステップで修正）
                 LogViewPostCard(
                     post = post,
+                    isTargetPost = (post.id == targetPostId),
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
                 )
             }
@@ -126,12 +138,26 @@ fun IndexTab(dateString: String, onClick: () -> Unit, modifier: Modifier = Modif
     val fullText = date.format(DateTimeFormatter.ofPattern("MMMM d", Locale.ENGLISH))
     val density = LocalDensity.current
 
+    val outlineWidth = 3.dp
+    val outerCornerRadius = 16.dp
+    // 内側の角丸は、外側からアウトラインの幅を引いた値にします
+    val innerCornerRadius = outerCornerRadius - outlineWidth
+
+    val outerShape = RoundedCornerShape(topStart = outerCornerRadius, bottomStart = outerCornerRadius)
+    val innerShape = RoundedCornerShape(topStart = innerCornerRadius, bottomStart = innerCornerRadius)
+
     // SubcomposeLayoutを使い、レイアウトを2段階で構築します
+
     SubcomposeLayout(
         modifier = modifier
-            .clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
-            .background(MaterialTheme.colorScheme.primary)
-            .clickable(onClick = onClick)
+            // 1. まず、外枠となる「白」で全体を塗りつぶします
+            .background(Color.White, outerShape)
+            // 2. 次に、アウトラインの太さ分だけ内側に余白を作ります
+            .padding(top = outlineWidth, start = outlineWidth, bottom = outlineWidth)
+            // 3. 最後に、内側の領域を、角丸を調整したShapeで塗りつぶします
+            .background(MaterialTheme.colorScheme.primary, innerShape) // ◀◀◀ ここにinnerShapeを指定
+            .clip(outerShape) // 念のため全体をクリップ
+            .clickable(onClick = onClick),
     ) { constraints ->
         // ステップ1: まず、テキストを描画せずにサイズだけを「前もって測定」します
         val textMeasurable = subcompose("text") {
@@ -180,30 +206,73 @@ fun IndexTab(dateString: String, onClick: () -> Unit, modifier: Modifier = Modif
 }
 
 @Composable
-fun LogViewPostCard(post: Post, modifier: Modifier = Modifier) {
+fun LogViewPostCard(
+    post: Post,
+    isTargetPost: Boolean, // ◀◀◀ この引数はそのまま使います
+    modifier: Modifier = Modifier
+) {
     val localDateTime = post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
     val timeString = localDateTime.format(DateTimeFormatter.ofPattern("HH:mm"))
+
+    val scale = remember { Animatable(1f) }
+
+    // 2. isTargetPostがtrueの時に、一度だけアニメーションを実行
+    LaunchedEffect(isTargetPost) {
+        if (isTargetPost) {
+            delay(200L)
+            // ほんの少しだけ縮んで…
+            scale.animateTo(
+                targetValue = 0.97f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy, // 跳ね返りをなくす
+                    stiffness = Spring.StiffnessVeryLow  // ◀◀◀ 「普通」の硬さに変更
+                )
+            )
+            scale.animateTo(
+                targetValue = 1f,
+                animationSpec = spring(
+                    stiffness = Spring.StiffnessLow   // ◀◀◀ 「柔らかい」硬さに変更
+                )
+            )
+        }
+    }
 
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null, // エフェクトは不要
-                onClick = {} // 何もしない
-            ),
-        shape = RoundedCornerShape(16.dp),
+            .clickable(onClick = {})
+            .scale(scale.value),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp), // 影を統一
         colors = CardDefaults.cardColors(
             containerColor = Color.White,
             contentColor = MaterialTheme.colorScheme.onSurface
         )
     ) {
-        Row(modifier = Modifier.fillMaxWidth()) {
+        // ▼▼▼ このRowが全体のコンテナになります ▼▼▼
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp) // ◀◀◀ 親にpaddingを適用
+                .height(IntrinsicSize.Min),
+            verticalAlignment = Alignment.CenterVertically // ◀◀◀ 上下中央揃えにすると綺麗です
+        ) {
+            // 1. カラーバー
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxHeight() // ◀◀◀ 親（padding適用済み）の高さに追従
+                    .background(post.source.brandColor)
+            )
+
+            // 2. スペーサー（バーとコンテンツの間の余白）
+            Spacer(modifier = Modifier.width(16.dp))
+
+            // 3. 元のコンテンツ（時刻・テキスト・画像）
             Column(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                // こちらのColumnからはpaddingを削除
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // ★ material3 の Typography と ColorScheme を使う
                 UserFontText(
                     text = timeString,
                     style = MaterialTheme.typography.bodySmall,
@@ -214,16 +283,14 @@ fun LogViewPostCard(post: Post, modifier: Modifier = Modifier) {
                     style = MaterialTheme.typography.bodyLarge
                 )
                 if (post.imageUrl != null) {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        item {
-                            AsyncImage(
-                                model = Uri.parse(post.imageUrl),
-                                contentDescription = "投稿画像",
-                                modifier = Modifier.size(80.dp).clip(RoundedCornerShape(8.dp)),
-                                contentScale = ContentScale.Crop
-                            )
-                        }
-                    }
+                    AsyncImage(
+                        model = Uri.parse(post.imageUrl),
+                        contentDescription = "投稿画像",
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Crop
+                    )
                 }
             }
         }
