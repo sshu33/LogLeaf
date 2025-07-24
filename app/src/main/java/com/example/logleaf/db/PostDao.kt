@@ -41,6 +41,16 @@ interface PostDao {
 """)
     fun getAllPosts(visibleAccountIds: List<String>, includeHidden: Int): Flow<List<Post>>
 
+    // in PostDao.kt
+    @Query("""
+    SELECT * FROM posts
+    WHERE date(createdAt) = :dateString
+    AND accountId IN (:visibleAccountIds)
+    AND (isHidden = 0 OR :includeHidden = 1)
+    ORDER BY createdAt ASC
+""")
+    fun getPostsForDate(dateString: String, visibleAccountIds: List<String>, includeHidden: Int): Flow<List<Post>>
+
     fun searchPostsWithAnd(keywords: List<String>, visibleAccountIds: List<String>, includeHidden: Int): Flow<List<Post>> {
         if (keywords.isEmpty()) {
             return getAllPosts(visibleAccountIds, includeHidden)

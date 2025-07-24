@@ -64,15 +64,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.logleaf.Post
+import com.example.logleaf.SessionManager
 import com.example.logleaf.UiState
+import com.example.logleaf.db.AppDatabase
 import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
 import com.yourpackage.logleaf.ui.components.UserFontText
@@ -100,6 +105,9 @@ fun CalendarScreen(
     onSetPostHidden: (String, Boolean) -> Unit,
     onDeletePost: (String) -> Unit
 ) {
+
+    var postForDetail by remember { mutableStateOf<Post?>(null) }
+    val showDetailDialog = postForDetail != null
 
     val initialDate = remember(initialDateString) {
         if (initialDateString != null) {
@@ -182,6 +190,7 @@ fun CalendarScreen(
                             CalendarPostCardItem(
                                 post = post,
                                 isFocused = (post.id == focusedPostIdForRipple),
+                                onClick = { postForDetail = post }, // ◀◀◀ 状態を更新する
                                 onStartEditing = { onStartEditingPost(post) },
                                 onSetHidden = { isHidden -> onSetPostHidden(post.id, isHidden) },
                                 onDelete = { onDeletePost(post.id) }
@@ -189,6 +198,26 @@ fun CalendarScreen(
                         }
                     }
                 }
+            }
+        }
+
+        if (showDetailDialog) {
+            val context = LocalContext.current
+            val db = remember { AppDatabase.getDatabase(context) }
+            val postDao = remember { db.postDao() }
+            val sessionManager = remember { SessionManager(context.applicationContext) }
+
+            Dialog(
+                onDismissRequest = { postForDetail = null },
+                properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+            ) {
+                LogViewScreen(
+                    dateString = postForDetail!!.createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate().toString(),
+                    targetPostId = postForDetail!!.id,
+                    postDao = postDao,
+                    sessionManager = sessionManager,
+                    onDismiss = { postForDetail = null }
+                )
             }
         }
 
@@ -470,7 +499,8 @@ fun CalendarPostCardItem(
     isFocused: Boolean,
     onStartEditing: () -> Unit,
     onSetHidden: (Boolean) -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onClick: () -> Unit // ◀◀◀ 1. この引数を末尾に追加
 ) {
 
     val clipboardManager: ClipboardManager = LocalClipboardManager.current
@@ -500,7 +530,7 @@ fun CalendarPostCardItem(
                 .combinedClickable(
                     interactionSource = interactionSource,
                     indication = rememberRipple(),
-                    onClick = {}, // 短いクリックの動作はなし
+                    onClick = onClick,
                     onLongClick = { isMenuExpanded = true } // 長押しでメニューを開く
                 ),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),

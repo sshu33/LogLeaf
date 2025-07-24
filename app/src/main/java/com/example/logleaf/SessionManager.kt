@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import android.util.Log  // これが重要！
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 class SessionManager(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("LogLeaf_Prefs", Context.MODE_PRIVATE)
@@ -179,5 +181,17 @@ class SessionManager(context: Context) {
             prefs.edit().remove(KEY_ACCOUNTS_JSON).apply()
             emptyList()
         }
+    }
+
+    fun getVisibleAccountIds(): Flow<List<String>> {
+        return accountsFlow.map { accounts ->
+            accounts
+                .filter { it.isVisible }
+                .map { it.userId }
+        }
+    }
+
+    fun getShowHiddenPosts(): Flow<Boolean> {
+        return MutableStateFlow(false)
     }
 }
