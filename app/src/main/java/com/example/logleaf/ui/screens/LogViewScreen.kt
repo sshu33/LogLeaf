@@ -1,23 +1,18 @@
 package com.example.logleaf.ui.screens
 
 import android.net.Uri
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,7 +28,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,17 +40,14 @@ import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.logleaf.Post
 import com.yourpackage.logleaf.ui.components.UserFontText
-import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlin.math.roundToInt
 
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -67,13 +58,9 @@ fun LogViewScreen(
     onDismiss: () -> Unit
 ) {
     val listState = rememberLazyListState()
-    val coroutineScope = rememberCoroutineScope()
-    val offsetY = remember { Animatable(0f) }
 
-    // スクロール可能かどうかを判定するフラグ
-    val isScrollEnabled = offsetY.value == 0f
-
-    LaunchedEffect(posts) {
+    // 最初に表示すべき投稿までスクロールする処理
+    LaunchedEffect(posts, targetPostId) {
         if (posts.isNotEmpty()) {
             val index = posts.indexOfFirst { it.id == targetPostId }
             if (index != -1) {
@@ -82,105 +69,53 @@ fun LogViewScreen(
         }
     }
 
-    // 画面の高さを取得するためにBoxWithConstraintsを使用
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val screenHeight = constraints.maxHeight.toFloat()
-        val dismissThreshold = screenHeight / 3 // 画面の1/3以上スワイプしたら閉じる
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(Unit) {
-                    detectVerticalDragGestures(
-                        onDragEnd = {
-                            coroutineScope.launch {
-                                // 閾値を超えていたら、下までアニメーションさせて閉じる
-                                if (offsetY.value > dismissThreshold) {
-                                    offsetY.animateTo(
-                                        targetValue = screenHeight,
-                                        animationSpec = tween(durationMillis = 300)
-                                    )
-                                    onDismiss()
-                                } else {
-                                    // 閾値未満なら、元の位置にバネのように戻る
-                                    offsetY.animateTo(
-                                        targetValue = 0f,
-                                        animationSpec = spring()
-                                    )
-                                }
-                            }
-                        },
-                        onDragCancel = {
-                            coroutineScope.launch {
-                                // キャンセル時も元の位置に戻る
-                                offsetY.animateTo(0f, animationSpec = spring())
-                            }
-                        },
-                        onVerticalDrag = { change, dragAmount ->
-                            val isScrolledToTop = listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
-                            val newOffsetY = (offsetY.value + dragAmount).coerceAtLeast(0f)
-
-                            // 条件に応じてドラッグイベントを消費
-                            when {
-                                // ダイアログが既にずれている場合 (上下どちらにも追従)
-                                offsetY.value > 0f -> {
-                                    change.consume()
-                                    coroutineScope.launch { offsetY.snapTo(newOffsetY) }
-                                }
-                                // リストが一番上で、下にスワイプした場合
-                                isScrolledToTop && dragAmount > 0 -> {
-                                    change.consume()
-                                    coroutineScope.launch { offsetY.snapTo(newOffsetY) }
-                                }
-                            }
-                        }
-                    )
-                }
-        ) {
-            // (1) 背景のベール（タップで閉じる機能）
-            Surface(
-                color = Color.White.copy(alpha = 0.3f),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onDismiss
-                    )
-            ) {}
-
-            // (2) コンテンツ全体（このBoxがスワイプで動く）
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .offset { IntOffset(x = 0, y = offsetY.value.roundToInt()) }
-            ) {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp),
-                    // ★★★ ダイアログがずれている間はリストのスクロールを無効化 ★★★
-                    userScrollEnabled = isScrollEnabled
-                ) {
-                    items(posts, key = { it.id }) { post ->
-                        LogViewPostCard(
-                            post = post,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-                        )
-                    }
-                }
-
-                if (posts.isNotEmpty()) {
-                    val dateString = posts.first().createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate().toString()
-                    IndexTab(
-                        dateString = dateString,
-                        onClick = onDismiss, // タブのクリックでも閉じる
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(top = 24.dp, end = 8.dp)
-                    )
-                }
+    // ★★★ 問題を解決する、シンプルで正しいレイアウト構造 ★★★
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            // (1) このBoxが画面全体のタップを監視します。
+            // ただし、子要素がイベントを消費した場合は、呼ばれません。
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { onDismiss() }
+                )
             }
+    ) {
+        // 背景の半透明ベール（視覚的なものなので、クリックは受け取りません）
+        Surface(
+            color = Color.White.copy(alpha = 0.3f),
+            modifier = Modifier.fillMaxSize()
+        ) {}
+
+        // (2) 投稿リスト
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)
+        ) {
+            items(posts, key = { it.id }) { post ->
+                // LogViewPostCardを呼び出します（次のステップで修正）
+                LogViewPostCard(
+                    post = post,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                )
+            }
+        }
+
+        // (3) インデックスタブ
+        // 全ての要素の最前面に重なる。
+        if (posts.isNotEmpty()) {
+            // postsリストから安全に最初の投稿の日付を取得
+            val firstPostDate = remember(posts) {
+                posts.first().createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate()
+            }
+            IndexTab(
+                dateString = firstPostDate.toString(),
+                onClick = onDismiss, // タブのクリックでも閉じる
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 24.dp, end = 8.dp)
+            )
         }
     }
 }
@@ -250,7 +185,13 @@ fun LogViewPostCard(post: Post, modifier: Modifier = Modifier) {
     val timeString = localDateTime.format(DateTimeFormatter.ofPattern("HH:mm"))
 
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null, // エフェクトは不要
+                onClick = {} // 何もしない
+            ),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = Color.White,
