@@ -8,6 +8,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,7 +25,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,11 +35,16 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -50,10 +55,13 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import com.example.logleaf.Post
 import com.yourpackage.logleaf.ui.components.UserFontText
 import kotlinx.coroutines.delay
+
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -67,6 +75,8 @@ fun LogViewScreen(
     targetPostId: String,
     onDismiss: () -> Unit
 ) {
+    val (enlargedImageUri, setEnlargedImageUri) = remember { mutableStateOf<Uri?>(null) }
+
     val listState = rememberLazyListState()
 
     // 最初に表示すべき投稿までスクロールする処理
@@ -83,12 +93,13 @@ fun LogViewScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            // (1) このBoxが画面全体のタップを監視します。
-            // ただし、子要素がイベントを消費した場合は、呼ばれません。
             .pointerInput(Unit) {
-                detectTapGestures(
-                    onTap = { onDismiss() }
-                )
+                // もし画像が拡大表示中なら、背景タップで何もしない
+                if (enlargedImageUri == null) { // ◀◀◀ 条件分岐を追加
+                    detectTapGestures(
+                        onTap = { onDismiss() }
+                    )
+                }
             }
     ) {
         // 背景の半透明ベール（視覚的なものなので、クリックは受け取りません）
@@ -105,10 +116,11 @@ fun LogViewScreen(
         ) {
 
             items(posts, key = { it.id }) { post ->
-                // LogViewPostCardを呼び出します（次のステップで修正）
                 LogViewPostCard(
                     post = post,
                     isTargetPost = (post.id == targetPostId),
+                    // ▼▼▼【変更点 2/3】値の更新に専用の関数を使う ▼▼▼
+                    onImageClick = { uri -> setEnlargedImageUri(uri) },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
                 )
             }
@@ -129,6 +141,13 @@ fun LogViewScreen(
                     .padding(top = 24.dp, end = 8.dp)
             )
         }
+    }
+    enlargedImageUri?.let { uri ->
+        ZoomableImageDialog(
+            imageUri = uri,
+            // ▼▼▼【変更点 3/3】ここも同様に専用関数を使う ▼▼▼
+            onDismiss = { setEnlargedImageUri(null) }
+        )
     }
 }
 
@@ -208,7 +227,8 @@ fun IndexTab(dateString: String, onClick: () -> Unit, modifier: Modifier = Modif
 @Composable
 fun LogViewPostCard(
     post: Post,
-    isTargetPost: Boolean, // ◀◀◀ この引数はそのまま使います
+    isTargetPost: Boolean,
+    onImageClick: (Uri) -> Unit, // ◀◀◀ この引数を追加
     modifier: Modifier = Modifier
 ) {
     val localDateTime = post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
@@ -225,13 +245,13 @@ fun LogViewPostCard(
                 targetValue = 0.97f,
                 animationSpec = spring(
                     dampingRatio = Spring.DampingRatioNoBouncy, // 跳ね返りをなくす
-                    stiffness = Spring.StiffnessVeryLow  // ◀◀◀ 「普通」の硬さに変更
+                    stiffness = Spring.StiffnessMediumLow  // ◀◀◀ 硬さ変更
                 )
             )
             scale.animateTo(
                 targetValue = 1f,
                 animationSpec = spring(
-                    stiffness = Spring.StiffnessLow   // ◀◀◀ 「柔らかい」硬さに変更
+                    stiffness = Spring.StiffnessMediumLow   // ◀◀◀ 硬さ変更
                 )
             )
         }
@@ -283,16 +303,81 @@ fun LogViewPostCard(
                     style = MaterialTheme.typography.bodyLarge
                 )
                 if (post.imageUrl != null) {
+                    val imageUri = remember { Uri.parse(post.imageUrl) } // Uriのパースを一度だけ行う
                     AsyncImage(
-                        model = Uri.parse(post.imageUrl),
+                        model = imageUri, // ◀◀◀ 変更
                         contentDescription = "投稿画像",
                         modifier = Modifier
                             .size(80.dp)
-                            .clip(RoundedCornerShape(8.dp)),
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onImageClick(imageUri) }, // ◀◀◀ クリックイベントを追加
                         contentScale = ContentScale.Crop
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun ZoomableImageDialog(
+    imageUri: Uri,
+    onDismiss: () -> Unit
+) {
+    // 1. 状態管理用の変数を定義
+    var scale by remember { mutableFloatStateOf(1f) } // 拡大率
+    var offset by remember { mutableStateOf(Offset.Zero) } // 画像の位置
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false, // 横幅を画面いっぱいに
+            decorFitsSystemWindows = false
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.8f)) // 半透明の黒背景
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null, // クリック時の波紋エフェクトを無効化
+                    onClick = onDismiss // 背景クリックでダイアログを閉じる
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            // 2. ジェスチャーを検出するためのModifier
+            val gestureModifier = Modifier.pointerInput(Unit) {
+                detectTransformGestures { _, pan, zoom, _ ->
+                    // 拡大率を更新（1倍から5倍の範囲に制限）
+                    scale = (scale * zoom).coerceIn(1f, 5f)
+
+                    // 拡大率が1より大きい場合のみ、画像を移動できるようにする
+                    if (scale > 1f) {
+                        offset += pan
+                    } else {
+                        // 拡大率が1に戻ったら、位置もリセット
+                        offset = Offset.Zero
+                    }
+                }
+            }
+
+            // 3. 実際に画像を表示
+            AsyncImage(
+                model = imageUri,
+                contentDescription = "拡大画像",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    // 状態変数を使って、画像の見た目を動的に変更
+                    .graphicsLayer(
+                        scaleX = scale,
+                        scaleY = scale,
+                        translationX = offset.x,
+                        translationY = offset.y
+                    )
+                    // ジェスチャー検出を適用
+                    .then(gestureModifier)
+            )
         }
     }
 }

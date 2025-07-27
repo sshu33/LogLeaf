@@ -102,6 +102,9 @@ fun CalendarScreen(
 ) {
 
     var postForDetail by remember { mutableStateOf<Post?>(null) }
+
+    val (enlargedImageUri, setEnlargedImageUri) = remember { mutableStateOf<Uri?>(null) }
+
     val showDetailDialog = postForDetail != null
 
     val initialDate = remember(initialDateString) {
@@ -185,7 +188,9 @@ fun CalendarScreen(
                             CalendarPostCardItem(
                                 post = post,
                                 isFocused = (post.id == focusedPostIdForRipple),
-                                onClick = { postForDetail = post }, // ◀◀◀ 状態を更新する
+                                onClick = { postForDetail = post },
+                                // ▼▼▼【変更点 2/3】値の更新に専用の関数を使う ▼▼▼
+                                onImageClick = { uri -> setEnlargedImageUri(uri) },
                                 onStartEditing = { onStartEditingPost(post) },
                                 onSetHidden = { isHidden -> onSetPostHidden(post.id, isHidden) },
                                 onDelete = { onDeletePost(post.id) }
@@ -209,6 +214,15 @@ fun CalendarScreen(
                 )
             }
         }
+
+        enlargedImageUri?.let { uri ->
+            ZoomableImageDialog(
+                imageUri = uri,
+                // ▼▼▼【変更点 3/3】ここも同様に専用関数を使う ▼▼▼
+                onDismiss = { setEnlargedImageUri(null) }
+            )
+        }
+
 
         FloatingActionButton(
             onClick = onShowPostEntry,
@@ -489,9 +503,9 @@ fun CalendarPostCardItem(
     onStartEditing: () -> Unit,
     onSetHidden: (Boolean) -> Unit,
     onDelete: () -> Unit,
-    onClick: () -> Unit // ◀◀◀ 1. この引数を末尾に追加
+    onClick: () -> Unit,
+    onImageClick: (Uri) -> Unit // ◀◀◀ 1. この引数を追加
 ) {
-
     val clipboardManager: ClipboardManager = LocalClipboardManager.current
     val localDateTime = post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
     val timeString = localDateTime.format(DateTimeFormatter.ofPattern("HH:mm"))
@@ -569,13 +583,15 @@ fun CalendarPostCardItem(
 
                     // --- 右側：画像 ---
                     if (post.imageUrl != null) {
-                        Spacer(modifier = Modifier.width(8.dp)) // テキストと画像の間に余白
+                        val imageUri = remember { Uri.parse(post.imageUrl) } // ◀◀◀ 2. Uriを先に作っておく
+                        Spacer(modifier = Modifier.width(8.dp))
                         AsyncImage(
-                            model = Uri.parse(post.imageUrl),
+                            model = imageUri, // ◀◀◀ 3. 上で作ったUriを渡す
                             contentDescription = "投稿画像",
                             modifier = Modifier
-                                .size(72.dp) // ◀◀◀ 高さ約3行分の大きさに固定
-                                .clip(RoundedCornerShape(8.dp)),
+                                .size(72.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onImageClick(imageUri) }, // ◀◀◀ 4. クリック可能にする
                             contentScale = ContentScale.Crop
                         )
                     }
