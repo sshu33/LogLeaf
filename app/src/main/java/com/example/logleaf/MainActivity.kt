@@ -317,19 +317,16 @@ fun MainScreen(
             onDismissRequest = { mainViewModel.onCancel() },
             properties = DialogProperties(
                 usePlatformDefaultWidth = false,
-                decorFitsSystemWindows = false, // これも引き続き重要
+                decorFitsSystemWindows = false,
                 dismissOnBackPress = false,
                 dismissOnClickOutside = false
             )
         ) {
-            // ★★★ ここからがOSへの直接命令です ★★★
+
             val window = (LocalView.current.parent as? DialogWindowProvider)?.window
             window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
-            // ★★★ ここまで ★★★
 
             PostEntryDialog(
-
-
                 postText = uiState.postText,
                 onTextChange = { mainViewModel.onPostTextChange(it) },
                 onPostSubmit = { unconfirmedTime, tagNames ->
@@ -348,6 +345,11 @@ fun MainScreen(
                     Log.d("TagDebug", "UI Event: Remove tag -> ${tag.tagName}") // ◀◀ 追加
                     mainViewModel.onRemoveTag(tag)
                 },
+
+                favoriteTags = uiState.favoriteTags,
+                frequentlyUsedTags = uiState.frequentlyUsedTags,
+                onToggleFavorite = mainViewModel::toggleTagFavoriteStatus,
+
                 selectedImageUri = uiState.selectedImageUri,
                 onLaunchPhotoPicker = {
                     photoPickerLauncher.launch(

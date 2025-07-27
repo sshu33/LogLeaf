@@ -60,6 +60,14 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // "tags"テーブルに、"isFavorite"という名前のカラムを追加します。
+                // 型はINTEGER（0=false, 1=true）、空は許さず（NOT NULL）、デフォルト値は0（お気に入りではない）とします。
+                database.execSQL("ALTER TABLE tags ADD COLUMN isFavorite INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -68,7 +76,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "logleaf_database"
                 )
                     // ▼▼▼ ここに MIGRATION_4_5 を追加 ▼▼▼
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build()
                 INSTANCE = instance
                 instance

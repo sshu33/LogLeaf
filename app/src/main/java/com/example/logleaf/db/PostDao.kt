@@ -141,4 +141,35 @@ interface PostDao {
         // 3. 新しいタグの関連付けを全て追加
         tags.forEach { insertPostTagCrossRef(it) }
     }
+
+    /**
+     * タグの isFavorite フラグの状態を更新します。
+     * @param tagId 更新対象のタグのID
+     * @param isFavorite 設定したいお気に入りの状態 (true/false)
+     */
+    @Query("UPDATE tags SET isFavorite = :isFavorite WHERE tagId = :tagId")
+    suspend fun setTagFavoriteStatus(tagId: Long, isFavorite: Boolean)
+
+    /**
+     * お気に入りに設定された（isFavorite = true）タグを全て取得します。
+     * 結果はタグ名のアルファベット順でソートされます。
+     * @return お気に入りタグのリストをFlowで返します。
+     */
+    @Query("SELECT * FROM tags WHERE isFavorite = 1 ORDER BY tagName ASC")
+    fun getFavoriteTags(): Flow<List<Tag>>
+
+    /**
+     * よく使われているタグ（お気に入りを除く）を取得します。
+     * 投稿に紐づけられている回数が多い順に、最大10件まで取得します。
+     * @return よく使うタグのリストをFlowで返します。
+     */
+    @Query("""
+        SELECT T.* FROM tags AS T
+        INNER JOIN post_tag_cross_ref AS PTC ON T.tagId = PTC.tagId
+        WHERE T.isFavorite = 0
+        GROUP BY T.tagId
+        ORDER BY COUNT(T.tagId) DESC
+        LIMIT 10
+    """)
+    fun getFrequentlyUsedTags(): Flow<List<Tag>>
 }

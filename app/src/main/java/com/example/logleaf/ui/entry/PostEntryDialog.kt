@@ -9,8 +9,10 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -95,6 +97,7 @@ import coil.compose.AsyncImage
 import com.example.logleaf.R
 import com.example.logleaf.ui.entry.Tag
 import com.yourpackage.logleaf.ui.components.UserFontText
+import androidx.compose.foundation.lazy.items
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -104,6 +107,10 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.TabRowDefaults.Divider
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.ui.input.pointer.pointerInput
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -116,9 +123,12 @@ fun PostEntryDialog(
     dateTime: ZonedDateTime,
     onDateTimeChange: (ZonedDateTime) -> Unit,
     onRevertDateTime: () -> Unit,
-    currentTags: List<Tag>, // ◀◀ 追加
-    onAddTag: (String) -> Unit, // ◀◀ 追加
-    onRemoveTag: (Tag) -> Unit, // ◀◀ 追加
+    currentTags: List<Tag>,
+    onAddTag: (String) -> Unit,
+    onRemoveTag: (Tag) -> Unit,
+    favoriteTags: List<Tag>,
+    frequentlyUsedTags: List<Tag>,
+    onToggleFavorite: (Tag) -> Unit,
     selectedImageUri: Uri?,
     onLaunchPhotoPicker: () -> Unit,
     onImageSelected: (Uri?) -> Unit,
@@ -128,6 +138,10 @@ fun PostEntryDialog(
 ) {
 
     var isTagEditorVisible by remember { mutableStateOf(false) }
+    var tagInput by remember { mutableStateOf("") }
+    var isSuggestionVisible by remember { mutableStateOf(false) }
+    var tagInputAnchorPosition by remember { mutableStateOf(IntOffset.Zero) }
+    var tagInputAnchorWidth by remember { mutableStateOf(0) }
     val context = LocalContext.current
     var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
 
@@ -215,6 +229,20 @@ fun PostEntryDialog(
 
 
     // --- ▼▼▼ ここからが正しいレイアウト構造です ▼▼▼ ---
+
+    if (isSuggestionVisible) {
+        // 全画面を覆う、タップを吸収するためのBox
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { isSuggestionVisible = false }
+                )
+        )
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         // 1. 背景の黒ベール (タップでダイアログを閉じる機能を持つ)
         Box(
@@ -340,43 +368,110 @@ fun PostEntryDialog(
                     AnimatedVisibility(visible = isTagEditorVisible) {
 
                         // ▼▼▼ ここからタグエディタUIを追加 ▼▼▼
-                        var tagInput by remember { mutableStateOf("") }
+
+                        // --- ▼▼▼ ポップアップ用の状態とアンカー情報を追加 ▼▼▼ ---
+
+                        // --- ▲▲▲ ここまで追加 ▲▲▲ ---
 
                         Column(modifier = Modifier.padding(top = 8.dp)) {
                             // --- タグ入力欄 ---
-                            BasicTextField(
-                                value = tagInput,
-                                onValueChange = { tagInput = it },
-                                modifier = Modifier.fillMaxWidth(),
-                                textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.Gray),
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                                keyboardActions = KeyboardActions(
-                                    onDone = {
-                                        if (tagInput.isNotBlank()) {
-                                            onAddTag(tagInput)
-                                            tagInput = "" // 入力欄をクリア
+                            Box {
+                                // --- タグ入力欄 ---
+                                BasicTextField(
+                                    value = tagInput,
+                                    onValueChange = { tagInput = it },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        // ▼▼▼ onGloballyPositionedを追加して位置を測定 ▼▼▼
+                                        .onGloballyPositioned { coordinates ->
+                                            val positionInRoot = coordinates.positionInRoot()
+                                            tagInputAnchorPosition = IntOffset(
+                                                positionInRoot.x.roundToInt(),
+                                                positionInRoot.y.roundToInt()
+                                            )
+                                            tagInputAnchorWidth = coordinates.size.width
+                                        },
+                                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.Gray),
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                                    keyboardActions = KeyboardActions(
+                                        onDone = {
+                                            if (tagInput.isNotBlank()) {
+                                                onAddTag(tagInput)
+                                                tagInput = "" // 入力欄をクリア
+                                            }
+                                        }
+                                    ),
+                                    decorationBox = { innerTextField ->
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                painter = painterResource(id = R.drawable.ic_tag),
+                                                contentDescription = "タグアイコン",
+                                                tint = Color.Gray,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Box(modifier = Modifier.weight(1f)) {
+                                                if (tagInput.isEmpty()) {
+                                                    Text("タグを追加...(Enterで確定)", color = Color.LightGray)
+                                                }
+                                                innerTextField()
+                                            }
+                                            // --- ▼▼▼ ポップアップを開くアイコンを追加 ▼▼▼ ---
+                                            Spacer(Modifier.width(8.dp))
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .clickable(
+                                                        interactionSource = remember { MutableInteractionSource() },
+                                                        indication = null, // タップ時の波紋エフェクトを消す
+                                                        onClick = { isSuggestionVisible = !isSuggestionVisible }
+                                                    ),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.ArrowDropDown,
+                                                    contentDescription = "よく使うタグを表示",
+                                                    tint = Color.Gray
+                                                )
+                                            }
+                                            // --- ▲▲▲ ここまで追加 ▲▲▲ ---
                                         }
                                     }
-                                ),
-                                decorationBox = { innerTextField ->
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            painter = painterResource(id = R.drawable.ic_tag),
-                                            contentDescription = "タグアイコン",
-                                            tint = Color.Gray,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(Modifier.width(8.dp))
-                                        Box(modifier = Modifier.weight(1f)) {
-                                            if (tagInput.isEmpty()) {
-                                                Text("タグを追加...", color = Color.LightGray)
-                                            }
-                                            innerTextField()
+                                )
+
+                                if (isSuggestionVisible) {
+                                    val popupPositionProvider = object : PopupPositionProvider {
+                                        override fun calculatePosition(
+                                            anchorBounds: IntRect, windowSize: IntSize,
+                                            layoutDirection: LayoutDirection, popupContentSize: IntSize
+                                        ): IntOffset {
+                                            val targetY = tagInputAnchorPosition.y - popupContentSize.height
+                                            val targetX = (windowSize.width - popupContentSize.width) / 2
+                                            return IntOffset(targetX, targetY)
                                         }
+                                    }
+
+                                    Popup(
+                                        popupPositionProvider = popupPositionProvider,
+                                        onDismissRequest = { isSuggestionVisible = false },
+                                        properties = PopupProperties(
+                                            focusable = false,
+                                            dismissOnClickOutside = true
+                                        )
+                                    ) {
+                                        TagSuggestionPopupContent(
+                                            favoriteTags = favoriteTags,
+                                            frequentlyUsedTags = frequentlyUsedTags,
+                                            onAddTag = { tagName ->
+                                                isSuggestionVisible = false
+                                                onAddTag(tagName)
+                                            },
+                                            onToggleFavorite = onToggleFavorite
+                                        )
                                     }
                                 }
-                            )
+                            }
 
                             Spacer(Modifier.height(8.dp))
 
@@ -530,6 +625,16 @@ fun PostEntryDialog(
                         Spacer(modifier = Modifier.weight(1f))
                         Button(
                             onClick = {
+                                val tagsToSubmit = currentTags.map { it.tagName }.toMutableList()
+                                if (tagInput.isNotBlank()) {
+                                    // 1. 入力中のタグをリストの末尾に追加
+                                    tagsToSubmit.add(tagInput.trim())
+                                    // 2. onAddTagを呼び出してUI上の表示も更新する
+                                    onAddTag(tagInput)
+                                    // 3. 入力欄をクリア
+                                    tagInput = ""
+                                }
+
                                 scope.launch {
                                     focusManager.clearFocus()
                                     keyboardController?.hide()
@@ -537,9 +642,9 @@ fun PostEntryDialog(
 
                                     val tagNames = currentTags.map { it.tagName }
                                     if (isTimeEditing) {
-                                        onPostSubmit(timeText.text, tagNames) // ◀◀ タグのリストを渡す
+                                        onPostSubmit(timeText.text, tagsToSubmit)
                                     } else {
-                                        onPostSubmit(null, tagNames) // ◀◀ タグのリストを渡す
+                                        onPostSubmit(null, tagsToSubmit)
                                     }
                                 }
                             },
@@ -912,6 +1017,124 @@ private fun TagChip(
                     indication = null,
                     onClick = onRemove
                 )
+        )
+    }
+}
+
+/**
+ * タグサジェストのポップアップの中身全体を描画する。
+ */
+@Composable
+private fun TagSuggestionPopupContent(
+    favoriteTags: List<Tag>,
+    frequentlyUsedTags: List<Tag>,
+    onAddTag: (String) -> Unit,
+    onToggleFavorite: (Tag) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(0.9f),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f))
+    ) {
+        // LazyColumnを使用して、リストが長くなってもスクロールできるようにする
+        LazyColumn(
+            modifier = Modifier
+                .heightIn(max = 240.dp)
+                .wrapContentHeight()
+                .padding(vertical = 8.dp)
+        ) {
+            // --- お気に入りセクション ---
+            if (favoriteTags.isNotEmpty()) {
+                item {
+                    UserFontText(
+                        "Favorites",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                }
+                items(favoriteTags) { tag ->
+                    SuggestionTagItem(
+                        tag = tag,
+                        isFavorite = true, // お気に入りセクションなので常にtrue
+                        onAddClick = { onAddTag(tag.tagName) },
+                        onFavoriteClick = { onToggleFavorite(tag) }
+                    )
+                }
+            }
+
+            // --- よく使うタグセクション ---
+            if (frequentlyUsedTags.isNotEmpty()) {
+                item {
+                    UserFontText(
+                        "Frequently Used",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                }
+                items(frequentlyUsedTags) { tag ->
+                    SuggestionTagItem(
+                        tag = tag,
+                        isFavorite = false, // よく使うセクションなので常にfalse
+                        onAddClick = { onAddTag(tag.tagName) },
+                        onFavoriteClick = { onToggleFavorite(tag) }
+                    )
+                }
+            }
+
+            // --- どちらのリストも空の場合の表示 ---
+            if (favoriteTags.isEmpty() && frequentlyUsedTags.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("候補はありません", color = Color.Gray)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * ポップアップ内の各タグ行を描画する。
+ */
+@Composable
+private fun SuggestionTagItem(
+    tag: Tag,
+    isFavorite: Boolean,
+    onAddClick: () -> Unit,
+    onFavoriteClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onAddClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // タグ名
+        Text(
+            text = tag.tagName,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f)
+        )
+        // お気に入りアイコン
+        Icon(
+            // ここにあなたが見つけてきた可愛いアイコンを指定してください！
+            // 例: imageVector = Icons.Filled.Star
+            painter = painterResource(id = if (isFavorite) R.drawable.ic_star_filled else R.drawable.ic_star_outline), // 仮のアイコンです
+            contentDescription = "お気に入りを切り替え",
+            tint = if (isFavorite) MaterialTheme.colorScheme.primary else Color.LightGray,
+            modifier = Modifier
+                .size(20.dp)
+                .clickable(onClick = onFavoriteClick)
         )
     }
 }

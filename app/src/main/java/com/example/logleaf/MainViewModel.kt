@@ -56,7 +56,9 @@ data class UiState(
     val editingTags: List<Tag> = emptyList(),
     val editingDateTime: ZonedDateTime = ZonedDateTime.now(),
     val selectedImageUri: Uri? = null,
-    val requestFocus: Boolean = false // ◀◀◀ これを追加
+    val requestFocus: Boolean = false,
+    val favoriteTags: List<Tag> = emptyList(),
+    val frequentlyUsedTags: List<Tag> = emptyList()
 )
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModel(
@@ -103,18 +105,35 @@ class MainViewModel(
                 posts.sortedByDescending { it.post.createdAt } // ◀◀ .post を追加
             }
 
+    private val favoriteTagsFlow: Flow<List<Tag>> = postDao.getFavoriteTags()
+    private val frequentlyUsedTagsFlow: Flow<List<Tag>> = postDao.getFrequentlyUsedTags()
+
     val uiState: StateFlow<UiState> = combine(
-        allPostsFlow,
-        _postEntryState,
-        _showHiddenPosts,
-        _isRefreshing
-    ) { posts, postEntry, showHidden, isRefreshing ->
+        listOf(
+            allPostsFlow,
+            _postEntryState,
+            _showHiddenPosts,
+            _isRefreshing,
+            favoriteTagsFlow,
+            frequentlyUsedTagsFlow
+        )
+    ) { results ->
+        @Suppress("UNCHECKED_CAST")
+        val posts = results[0] as List<PostWithTags>
+        val postEntry = results[1] as PostEntryState
+        val showHidden = results[2] as Boolean
+        val isRefreshing = results[3] as Boolean
+        @Suppress("UNCHECKED_CAST")
+        val favoriteTags = results[4] as List<Tag>
+        @Suppress("UNCHECKED_CAST")
+        val frequentTags = results[5] as List<Tag>
+
         val dayLogs = groupPostsByDay(posts)
         UiState(
             dayLogs = dayLogs,
             allPosts = posts,
             isLoading = false,
-            isRefreshing = isRefreshing, // ← [変更点3] ここでUIに状態を渡す
+            isRefreshing = isRefreshing,
             isPostEntrySheetVisible = postEntry.isVisible,
             postText = postEntry.text,
             editingPost = postEntry.editingPost?.post,
@@ -122,7 +141,9 @@ class MainViewModel(
             editingDateTime = postEntry.dateTime,
             showHiddenPosts = showHidden,
             selectedImageUri = postEntry.selectedImageUri,
-            requestFocus = postEntry.requestFocus // ◀◀◀ これを追加
+            requestFocus = postEntry.requestFocus,
+            favoriteTags = favoriteTags,         // ◀◀ 追加
+            frequentlyUsedTags = frequentTags    // ◀◀ 追加
         )
     }.stateIn(
         scope = viewModelScope,
@@ -474,6 +495,13 @@ class MainViewModel(
             )
             Log.d("TagDebug", "ViewModel State Updated (Remove): ${newState.currentTags.map { it.tagName }}") // ◀◀ 追加
             newState // ◀◀ 更新した状態を返す
+        }
+    }
+
+    fun toggleTagFavoriteStatus(tag: Tag) {
+        viewModelScope.launch(Dispatchers.IO) {
+            // 現在のisFavoriteの状態を反転させて、DBを更新する
+            postDao.setTagFavoriteStatus(tag.tagId, !tag.isFavorite)
         }
     }
 
