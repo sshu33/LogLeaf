@@ -3,6 +3,7 @@ package com.example.logleaf
 import android.app.Application
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -327,6 +328,8 @@ fun MainScreen(
             // ★★★ ここまで ★★★
 
             PostEntryDialog(
+
+
                 postText = uiState.postText,
                 onTextChange = { mainViewModel.onPostTextChange(it) },
                 onPostSubmit = { unconfirmedTime, tagNames ->
@@ -337,8 +340,14 @@ fun MainScreen(
                 onDateTimeChange = { newDateTime -> mainViewModel.onDateTimeChange(newDateTime) },
                 onRevertDateTime = { mainViewModel.revertDateTime() },
                 currentTags = uiState.editingTags,
-                onAddTag = { tagName -> mainViewModel.onAddTag(tagName) },
-                onRemoveTag = { tag -> mainViewModel.onRemoveTag(tag) },
+                onAddTag = { tagName ->
+                    Log.d("TagDebug", "UI Event: Add tag -> $tagName") // ◀◀ 追加
+                    mainViewModel.onAddTag(tagName)
+                },
+                onRemoveTag = { tag ->
+                    Log.d("TagDebug", "UI Event: Remove tag -> ${tag.tagName}") // ◀◀ 追加
+                    mainViewModel.onRemoveTag(tag)
+                },
                 selectedImageUri = uiState.selectedImageUri,
                 onLaunchPhotoPicker = {
                     photoPickerLauncher.launch(

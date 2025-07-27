@@ -118,7 +118,7 @@ class MainViewModel(
             isPostEntrySheetVisible = postEntry.isVisible,
             postText = postEntry.text,
             editingPost = postEntry.editingPost?.post,
-            editingTags = postEntry.editingPost?.tags ?: emptyList(),
+            editingTags = postEntry.currentTags,
             editingDateTime = postEntry.dateTime,
             showHiddenPosts = showHidden,
             selectedImageUri = postEntry.selectedImageUri,
@@ -313,6 +313,7 @@ class MainViewModel(
     }
 
     fun submitPost(unconfirmedTimeText: String? = null, tagNames: List<String>) {
+        Log.d("TagDebug", "Submit Button Pressed. Tags to save: $tagNames") // ◀◀ 追加
         var currentState = _postEntryState.value
 
         // 1. もし未確定の時刻テキストが渡されていたら、それをパースしてcurrentStateを更新する
@@ -376,9 +377,9 @@ class MainViewModel(
             )
             // 3. タグをDBに保存し、IDのリストを作成（重複ロジックを統合）
             val tagIds = mutableListOf<Long>()
-            tagNames.forEach { tagName ->
+            tagNames.forEach { tagName -> // ◀◀ currentState.currentTags の代わりに tagName を使用
                 var tagId = postDao.insertTag(Tag(tagName = tagName))
-                if (tagId == -1L) { // 既に存在する場合
+                if (tagId == -1L) {
                     tagId = postDao.getTagIdByName(tagName) ?: 0L
                 }
                 if (tagId != 0L) {
@@ -451,9 +452,15 @@ class MainViewModel(
         _postEntryState.update { currentState ->
             // すでに同じ名前のタグがなければ追加
             if (currentState.currentTags.none { it.tagName.equals(trimmed, ignoreCase = true) }) {
-                // 新しいTagオブジェクトを作成（tagIdは一時的に0でOK）
+                // ▼▼▼ ここで newTag を定義します ▼▼▼
                 val newTag = Tag(tagId = 0, tagName = trimmed)
-                currentState.copy(currentTags = currentState.currentTags + newTag)
+
+                val newState = currentState.copy(currentTags = currentState.currentTags + newTag)
+
+                // ログは状態更新後に記録
+                Log.d("TagDebug", "ViewModel State Updated (Add): ${newState.currentTags.map { it.tagName }}")
+
+                newState
             } else {
                 currentState
             }
@@ -462,9 +469,11 @@ class MainViewModel(
 
     fun onRemoveTag(tagToRemove: Tag) {
         _postEntryState.update { currentState ->
-            currentState.copy(
+            val newState = currentState.copy(
                 currentTags = currentState.currentTags.filter { it != tagToRemove }
             )
+            Log.d("TagDebug", "ViewModel State Updated (Remove): ${newState.currentTags.map { it.tagName }}") // ◀◀ 追加
+            newState // ◀◀ 更新した状態を返す
         }
     }
 

@@ -2,6 +2,7 @@ package com.example.logleaf.ui.screens
 
 
 import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -12,6 +13,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -20,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,11 +32,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.TabRowDefaults.Divider
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Grid3x3
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Numbers
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.ripple.rememberRipple
@@ -50,6 +58,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -64,17 +73,25 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.example.logleaf.FontSettingsUiState
+import com.example.logleaf.FontSettingsViewModel
 import com.example.logleaf.Post
 import com.example.logleaf.PostWithTags
 import com.example.logleaf.UiState
+import com.example.logleaf.ui.entry.Tag
 import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
 import com.yourpackage.logleaf.ui.components.UserFontText
@@ -104,6 +121,7 @@ fun CalendarScreen(
 
     var postForDetail by remember { mutableStateOf<PostWithTags?>(null) }
     val showDetailDialog = postForDetail != null
+
 
     val (enlargedImageUri, setEnlargedImageUri) = remember { mutableStateOf<Uri?>(null) }
 
@@ -139,7 +157,8 @@ fun CalendarScreen(
     }
     val postsForSelectedDay = uiState.allPosts
         .filter {
-            it.post.createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate() == selectedDate
+            it.post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
+                .toLocalDate() == selectedDate
         }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -188,11 +207,18 @@ fun CalendarScreen(
                         items(postsForSelectedDay, key = { it.post.id }) { postWithTags ->
                             CalendarPostCardItem(
                                 post = postWithTags.post,
+                                tags = postWithTags.tags, // ◀◀ 1. タグを渡す
+                                maxLines = 6,
                                 isFocused = (postWithTags.post.id == focusedPostIdForRipple),
                                 onClick = { postForDetail = postWithTags },
                                 onImageClick = { uri -> setEnlargedImageUri(uri) },
                                 onStartEditing = { onStartEditingPost(postWithTags) },
-                                onSetHidden = { isHidden -> onSetPostHidden(postWithTags.post.id, isHidden) },
+                                onSetHidden = { isHidden ->
+                                    onSetPostHidden(
+                                        postWithTags.post.id,
+                                        isHidden
+                                    )
+                                },
                                 onDelete = { onDeletePost(postWithTags.post.id) }
                             )
                         }
@@ -204,7 +230,10 @@ fun CalendarScreen(
         if (showDetailDialog) {
             Dialog(
                 onDismissRequest = { postForDetail = null },
-                properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+                properties = DialogProperties(
+                    usePlatformDefaultWidth = false,
+                    decorFitsSystemWindows = false
+                )
             ) {
                 LogViewScreen(
                     posts = postsForSelectedDay.map { it.post },
@@ -493,24 +522,23 @@ fun DayCell(
     }
 }
 
-
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun CalendarPostCardItem(
     post: Post,
+    tags: List<Tag>,
+    maxLines: Int,
     isFocused: Boolean,
     onStartEditing: () -> Unit,
     onSetHidden: (Boolean) -> Unit,
     onDelete: () -> Unit,
     onClick: () -> Unit,
-    onImageClick: (Uri) -> Unit // ◀◀◀ 1. この引数を追加
+    onImageClick: (Uri) -> Unit,
 ) {
     val clipboardManager: ClipboardManager = LocalClipboardManager.current
     val localDateTime = post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
     val timeString = localDateTime.format(DateTimeFormatter.ofPattern("HH:mm"))
     val interactionSource = remember { MutableInteractionSource() }
-
-    // メニューの開閉状態を管理
     var isMenuExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(isFocused) {
@@ -526,14 +554,12 @@ fun CalendarPostCardItem(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                // 非表示投稿は半透明にする
                 .alpha(if (post.isHidden) 0.6f else 1.0f)
-                // 長押しを検知できるように変更
                 .combinedClickable(
                     interactionSource = interactionSource,
                     indication = rememberRipple(),
                     onClick = onClick,
-                    onLongClick = { isMenuExpanded = true } // 長押しでメニューを開く
+                    onLongClick = { isMenuExpanded = true }
                 ),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             shape = RoundedCornerShape(12.dp),
@@ -549,51 +575,81 @@ fun CalendarPostCardItem(
                     .height(IntrinsicSize.Min),
                 verticalAlignment = Alignment.Top
             ) {
-                SettingsTheme {
-                    UserFontText(
-                        text = timeString,
-                        style = MaterialTheme.typography.bodyMedium, // このスタイルが固定される
-                        color = Color.Gray,
-                        modifier = Modifier.width(52.dp)
+                // 時刻
+                UserFontText(
+                    text = timeString,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Gray,
+                    modifier = Modifier.width(52.dp)
+                )
+
+                // カラーバー
+                Box(
+                    modifier = Modifier
+                        .width(4.dp)
+                        .fillMaxHeight()
+                        .background(post.source.brandColor)
+                )
+
+                // ▼▼▼ 本文・タグと画像を分けるための親Column ▼▼▼
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 12.dp)
+                ) {
+                    Text(
+                        text = post.text,
+                        style = MaterialTheme.typography.bodyLarge,
+                        maxLines = maxLines,
+                        overflow = TextOverflow.Ellipsis
                     )
+
+                    if (tags.isNotEmpty()) {
+                        FlowRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            tags.forEach { tag ->
+                                // ▼▼▼ この Row に置き換え ▼▼▼
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(0.dp)
+                                ) {
+                                    // Material Symbols の Tag アイコン
+                                    Icon(
+                                        imageVector = Icons.Default.Numbers,
+                                        contentDescription = "タグアイコン",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    // タグ名を表示するText
+                                    UserFontText(
+                                        text = tag.tagName,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    // --- 左側：カラーバーとテキスト ---
-                    Row(
-                        modifier = Modifier.weight(1f), // ◀◀◀ 横方向の余ったスペースをすべて使う
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .width(4.dp)
-                                .fillMaxHeight()
-                                .background(post.source.brandColor)
-                        )
-                        Text(
-                            text = post.text,
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.padding(start = 12.dp)
-                        )
-                    }
-
-                    // --- 右側：画像 ---
-                    if (post.imageUrl != null) {
-                        val imageUri = remember { Uri.parse(post.imageUrl) } // ◀◀◀ 2. Uriを先に作っておく
-                        Spacer(modifier = Modifier.width(8.dp))
-                        AsyncImage(
-                            model = imageUri, // ◀◀◀ 3. 上で作ったUriを渡す
-                            contentDescription = "投稿画像",
-                            modifier = Modifier
-                                .size(72.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable { onImageClick(imageUri) }, // ◀◀◀ 4. クリック可能にする
-                            contentScale = ContentScale.Crop
-                        )
-                    }
+                // ▼▼▼ 画像をRowの外側、最後の要素として配置 ▼▼▼
+                if (post.imageUrl != null) {
+                    val imageUri = remember { Uri.parse(post.imageUrl) }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    AsyncImage(
+                        model = imageUri,
+                        contentDescription = "投稿画像",
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onImageClick(imageUri) },
+                        contentScale = ContentScale.Crop
+                    )
                 }
             }
         }
@@ -618,7 +674,7 @@ fun CalendarPostCardItem(
                 val itemPadding = PaddingValues(horizontal = 14.dp)
 
                 DropdownMenuItem(
-                    text = { UserFontText(text="コピー") },
+                    text = { UserFontText(text = "コピー") },
                     onClick = {
                         clipboardManager.setText(AnnotatedString(post.text))
                         isMenuExpanded = false
@@ -630,7 +686,7 @@ fun CalendarPostCardItem(
                 // 「編集」メニュー
                 if (post.source == SnsType.LOGLEAF) {
                     DropdownMenuItem(
-                        text = { UserFontText(text="編集") },
+                        text = { UserFontText(text = "編集") },
                         onClick = {
                             onStartEditing()
                             isMenuExpanded = false
@@ -654,7 +710,7 @@ fun CalendarPostCardItem(
                 // 「削除」メニュー
                 if (post.source == SnsType.LOGLEAF) {
                     DropdownMenuItem(
-                        text = { UserFontText(text="削除") },
+                        text = { UserFontText(text = "削除") },
                         onClick = {
                             onDelete()
                             isMenuExpanded = false

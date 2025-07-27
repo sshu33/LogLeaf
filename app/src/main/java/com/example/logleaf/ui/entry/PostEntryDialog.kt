@@ -286,7 +286,7 @@ fun PostEntryDialog(
                         onValueChange = onTextChange,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = 100.dp, max = 350.dp)
+                            .heightIn(min = 80.dp, max = 200.dp)
                             .focusRequester(bodyFocusRequester)
                             .onFocusChanged { focusState ->
                                 if (focusState.isFocused && isTimeEditing) {
@@ -341,16 +341,13 @@ fun PostEntryDialog(
 
                         // ▼▼▼ ここからタグエディタUIを追加 ▼▼▼
                         var tagInput by remember { mutableStateOf("") }
-                        val focusRequester = remember { FocusRequester() }
 
                         Column(modifier = Modifier.padding(top = 8.dp)) {
                             // --- タグ入力欄 ---
                             BasicTextField(
                                 value = tagInput,
                                 onValueChange = { tagInput = it },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .focusRequester(focusRequester),
+                                modifier = Modifier.fillMaxWidth(),
                                 textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.Gray),
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
