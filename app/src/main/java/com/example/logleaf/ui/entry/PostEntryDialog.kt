@@ -108,7 +108,7 @@ import kotlin.math.roundToInt
 fun PostEntryDialog(
     postText: TextFieldValue,
     onTextChange: (TextFieldValue) -> Unit,
-    onPostSubmit: () -> Unit,
+    onPostSubmit: (String?) -> Unit,
     onDismissRequest: () -> Unit,
     dateTime: ZonedDateTime,
     onDateTimeChange: (ZonedDateTime) -> Unit,
@@ -466,11 +466,17 @@ fun PostEntryDialog(
                         Button(
                             onClick = {
                                 scope.launch {
-                                    // こちらも同様に、まずUIを落ち着かせる
                                     focusManager.clearFocus()
                                     keyboardController?.hide()
                                     delay(50)
-                                    onPostSubmit()
+
+                                    if (isTimeEditing) {
+                                        // 時刻編集中なら、未確定の時刻テキストを渡して投稿
+                                        onPostSubmit(timeText.text) // ◀◀◀ timeText.text を渡す
+                                    } else {
+                                        // そうでなければ、通常通り引数なしで投稿
+                                        onPostSubmit(null) // ◀◀◀ null を渡す
+                                    }
                                 }
                             },
                             enabled = postText.text.isNotBlank(),

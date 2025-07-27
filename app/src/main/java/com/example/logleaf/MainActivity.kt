@@ -329,7 +329,9 @@ fun MainScreen(
             PostEntryDialog(
                 postText = uiState.postText,
                 onTextChange = { mainViewModel.onPostTextChange(it) },
-                onPostSubmit = { mainViewModel.submitPost() },
+                onPostSubmit = { unconfirmedTime -> // ◀◀◀ ラムダ式の引数を追加
+                    mainViewModel.submitPost(unconfirmedTime) // ◀◀◀ 引数をそのままViewModelに渡す
+                },
                 onDismissRequest = { mainViewModel.onCancel() },
                 dateTime = uiState.editingDateTime,
                 onDateTimeChange = { newDateTime -> mainViewModel.onDateTimeChange(newDateTime) },

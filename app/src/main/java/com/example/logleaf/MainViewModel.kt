@@ -219,7 +219,7 @@ class MainViewModel(
 
     fun showPostEntrySheet() {
         _postEntryState.update { currentState ->
-            // ▼▼▼ [修正] ifブロックの処理を修正 ▼▼▼
+            // ▼▼▼ [修正箇所] if文のロジックはそのままに、elseブロックを修正します ▼▼▼
             if (currentState.editingPost != null) {
                 // 直前が「編集」なら、まっさらな新規投稿の状態を直接作成して返す
                 val now = ZonedDateTime.now()
@@ -233,11 +233,18 @@ class MainViewModel(
                     requestFocus = true // 新規作成なのでフォーカスを要求
                 )
             } else {
-                // 直前が「新規」なら、下書きを維持して表示するだけ（ここは変更なし）
-                currentState.copy(isVisible = true, requestFocus = true)
+                // 直前が「新規」なら、下書きを維持しつつ、時刻だけを現在時刻にリフレッシュする
+                val now = ZonedDateTime.now() // ★★★ 追加 ★★★
+                currentState.copy(
+                    isVisible = true,
+                    dateTime = now, // ★★★ 追加 ★★★
+                    originalDateTime = now, // ★★★ 追加 ★★★
+                    requestFocus = true
+                )
             }
         }
     }
+
     fun onCancel() {
         val currentState = _postEntryState.value
         if (currentState.editingPost != null) {
@@ -290,8 +297,27 @@ class MainViewModel(
         )
     }
 
-    fun submitPost() {
-        val currentState = _postEntryState.value
+    fun submitPost(unconfirmedTimeText: String? = null) { // ◀◀◀ 未確定の時刻テキストを引数で受け取る
+        var currentState = _postEntryState.value
+
+        // 1. もし未確定の時刻テキストが渡されていたら、それをパースしてcurrentStateを更新する
+        if (unconfirmedTimeText != null) {
+            val confirmedDateTime = currentState.dateTime
+                .withZoneSameInstant(ZoneId.systemDefault())
+                .toLocalDateTime()
+
+            val text = unconfirmedTimeText.padEnd(4, '0')
+            val hour = text.substring(0, 2).toIntOrNull()?.coerceIn(0, 23) ?: confirmedDateTime.hour
+            val minute = text.substring(2, 4).toIntOrNull()?.coerceIn(0, 59) ?: confirmedDateTime.minute
+            val newDateTime = confirmedDateTime.withHour(hour).withMinute(minute)
+
+            // パースした新しい時刻で、まず内部の状態を更新する
+            _postEntryState.update { it.copy(dateTime = newDateTime.atZone(ZoneId.systemDefault())) }
+            // 更新した最新の状態でcurrentStateを再取得する
+            currentState = _postEntryState.value
+        }
+
+        // 2. 以降は、以前のsubmitPostと同じロジックを実行する
         val currentText = currentState.text.text
         val isNewPost = currentState.editingPost == null
         val isContentEmpty = currentText.isBlank() && currentState.selectedImageUri == null
@@ -308,8 +334,13 @@ class MainViewModel(
 
         viewModelScope.launch {
             val finalImageUrl: String? = if (currentState.selectedImageUri != null) {
-                val uri = currentState.selectedImageUri
-                if (uri.scheme == "content") saveImageToInternalStorage(uri) else uri.toString()
+                // selectedImageUriがnullでないことを確認済みなので、!!でUri型に変換する
+                val uri: Uri = currentState.selectedImageUri!!
+                if (uri.scheme == "content") {
+                    saveImageToInternalStorage(uri)
+                } else {
+                    uri.toString()
+                }
             } else {
                 null
             }
@@ -367,9 +398,16 @@ class MainViewModel(
     }
 
     fun revertDateTime() {
-        _postEntryState.update { it.copy(dateTime = it.originalDateTime) }
+        _postEntryState.update { currentState ->
+            if (currentState.editingPost != null) {
+                // 【編集モードの場合】元の投稿時刻に戻す
+                currentState.copy(dateTime = currentState.originalDateTime)
+            } else {
+                // 【新規作成モードの場合】現在の時刻にリセットする
+                currentState.copy(dateTime = ZonedDateTime.now())
+            }
+        }
     }
-
     fun consumeFocusRequest() {
         _postEntryState.update { it.copy(requestFocus = false) }
     }
