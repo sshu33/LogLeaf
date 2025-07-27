@@ -1,45 +1,18 @@
 package com.example.logleaf.ui.screens
 
 import android.net.Uri
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.gestures.*
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,7 +21,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.LocalDensity
@@ -60,12 +33,14 @@ import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import com.example.logleaf.Post
 import com.yourpackage.logleaf.ui.components.UserFontText
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
-
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.abs
 
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -162,8 +137,10 @@ fun IndexTab(dateString: String, onClick: () -> Unit, modifier: Modifier = Modif
     // 内側の角丸は、外側からアウトラインの幅を引いた値にします
     val innerCornerRadius = outerCornerRadius - outlineWidth
 
-    val outerShape = RoundedCornerShape(topStart = outerCornerRadius, bottomStart = outerCornerRadius)
-    val innerShape = RoundedCornerShape(topStart = innerCornerRadius, bottomStart = innerCornerRadius)
+    val outerShape =
+        RoundedCornerShape(topStart = outerCornerRadius, bottomStart = outerCornerRadius)
+    val innerShape =
+        RoundedCornerShape(topStart = innerCornerRadius, bottomStart = innerCornerRadius)
 
     // SubcomposeLayoutを使い、レイアウトを2段階で構築します
 
@@ -324,60 +301,212 @@ fun ZoomableImageDialog(
     imageUri: Uri,
     onDismiss: () -> Unit
 ) {
-    // 1. 状態管理用の変数を定義
-    var scale by remember { mutableFloatStateOf(1f) } // 拡大率
-    var offset by remember { mutableStateOf(Offset.Zero) } // 画像の位置
+    val scope = rememberCoroutineScope()
+
+    // 状態変数
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    var backgroundAlpha by remember { mutableFloatStateOf(1f) }
+    var lastPanVelocity by remember { mutableStateOf(Offset.Zero) }
+
+    val density = LocalDensity.current
 
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false, // 横幅を画面いっぱいに
-            decorFitsSystemWindows = false
-        )
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.8f)) // 半透明の黒背景
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null, // クリック時の波紋エフェクトを無効化
-                    onClick = onDismiss // 背景クリックでダイアログを閉じる
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            // 2. ジェスチャーを検出するためのModifier
-            val gestureModifier = Modifier.pointerInput(Unit) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    // 拡大率を更新（1倍から5倍の範囲に制限）
-                    scale = (scale * zoom).coerceIn(1f, 5f)
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val screenWidthPx = with(density) { maxWidth.toPx() }
+            val screenHeightPx = with(density) { maxHeight.toPx() }
 
-                    // 拡大率が1より大きい場合のみ、画像を移動できるようにする
-                    if (scale > 1f) {
-                        offset += pan
-                    } else {
-                        // 拡大率が1に戻ったら、位置もリセット
-                        offset = Offset.Zero
-                    }
-                }
-            }
-
-            // 3. 実際に画像を表示
-            AsyncImage(
-                model = imageUri,
-                contentDescription = "拡大画像",
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    // 状態変数を使って、画像の見た目を動的に変更
-                    .graphicsLayer(
-                        scaleX = scale,
-                        scaleY = scale,
-                        translationX = offset.x,
-                        translationY = offset.y
-                    )
-                    // ジェスチャー検出を適用
-                    .then(gestureModifier)
-            )
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = backgroundAlpha))
+                    .pointerInput(Unit) {
+                        // ダブルタップ検出
+                        detectTapGestures(
+                            onDoubleTap = {
+                                // 拡大されている時のみ元に戻す
+                                if (scale > 1f) {
+                                    scope.launch {
+                                        val scaleAnimation = async {
+                                            Animatable(scale).animateTo(1f, tween(100))
+                                        }
+                                        val offsetAnimation = async {
+                                            Animatable(offset, Offset.VectorConverter).animateTo(Offset.Zero, tween(100))
+                                        }
+
+                                        scaleAnimation.await()
+                                        scale = 1f
+
+                                        offsetAnimation.await()
+                                        offset = Offset.Zero
+                                    }
+                                }
+                            }
+                        )
+                    }
+                    .pointerInput(Unit) {
+                        // トランスフォームジェスチャー（ピンチ・パン）
+                        detectTransformGestures { _, pan, zoom, _ ->
+                            val isZooming = abs(zoom - 1f) > 0.005f  // より敏感な検出閾値
+                            val oldScale = scale
+
+                            // 速度を記録（下スワイプ用）
+                            if (!isZooming && oldScale <= 1f) {
+                                lastPanVelocity = pan
+                            }
+
+                            // スケール更新（常に実行、ただし1f未満にならないよう制限）
+                            if (isZooming) {
+                                val newScale = (scale * zoom).coerceIn(1f, 5f)
+                                scale = newScale
+
+                                // 縮小時にオフセットも調整（画像が画面からはみ出さないように）
+                                if (newScale < oldScale && newScale <= 1f) {
+                                    offset = Offset.Zero
+                                }
+                            }
+
+                            // パン操作の処理（ピンチ操作中は無視）
+                            if (!isZooming) {
+                                if (scale > 1f) {
+                                    // 拡大中：制限付きパン操作
+                                    val imageWidthScaled = screenWidthPx * scale
+                                    val imageHeightScaled = screenHeightPx * scale
+                                    val maxX = maxOf(0f, (imageWidthScaled - screenWidthPx) / 2)
+                                    val maxY = maxOf(0f, (imageHeightScaled - screenHeightPx) / 2)
+
+                                    val newOffset = offset + pan
+                                    offset = Offset(
+                                        x = newOffset.x.coerceIn(-maxX, maxX),
+                                        y = newOffset.y.coerceIn(-maxY, maxY)
+                                    )
+                                } else if (oldScale <= 1f) {
+                                    // 拡大されていない時：下方向スワイプのみ許可
+                                    if (pan.y > 0) {
+                                        // 下スワイプ
+                                        offset = Offset(0f, maxOf(0f, offset.y + pan.y))
+
+                                        // 背景透明度の調整（同期処理）
+                                        backgroundAlpha = (1f - offset.y / (screenHeightPx / 6f)).coerceIn(0.2f, 1f)
+                                    } else if (pan.y < 0 && offset.y > 0f) {
+                                        // 上スワイプで位置リセット（下にずれている場合のみ）
+                                        val newY = maxOf(0f, offset.y + pan.y)
+                                        offset = Offset(0f, newY)
+
+                                        if (newY == 0f) {
+                                            backgroundAlpha = 1f
+                                        } else {
+                                            backgroundAlpha = (1f - newY / (screenHeightPx / 6f)).coerceIn(0.2f, 1f)
+                                        }
+                                    }
+                                    // 横スワイプは無視（offset.xは常に0のまま）
+                                }
+                            }
+                        }
+                    }
+                    .pointerInput(Unit) {
+                        // 指を離した時の処理
+                        forEachGesture {
+                            awaitPointerEventScope {
+                                // ポインターイベントを待機
+                                do {
+                                    val event = awaitPointerEvent()
+                                } while (event.changes.any { it.pressed })
+
+                                // 指が全て離れた時の後処理
+                                if (scale <= 1f) {
+                                    val dismissThreshold = screenHeightPx / 6f
+                                    val velocityThreshold = 800f // 速度による閉じる判定
+
+                                    // 速度または位置による閉じる判定
+                                    val shouldDismiss = offset.y > dismissThreshold || lastPanVelocity.y > velocityThreshold
+
+                                    if (shouldDismiss) {
+                                        // 慣性を考慮した自然なスライドアウト
+                                        scope.launch {
+                                            val initialVelocity = maxOf(lastPanVelocity.y, 500f) // 最低速度を保証
+                                            val targetY = screenHeightPx + 300f
+
+                                            // 慣性アニメーション
+                                            val animatable = Animatable(offset.y)
+
+                                            // アニメーション実行と値の監視を同時に開始
+                                            val animationJob = launch {
+                                                animatable.animateTo(
+                                                    targetValue = targetY,
+                                                    initialVelocity = initialVelocity,
+                                                    animationSpec = tween(150)
+                                                )
+                                            }
+
+                                            val updateJob = launch {
+                                                while (animationJob.isActive) {
+                                                    offset = Offset(0f, animatable.value)
+                                                    backgroundAlpha = (1f - animatable.value / (screenHeightPx / 6f)).coerceIn(0f, 1f)
+                                                    kotlinx.coroutines.delay(8) // 約120fps
+                                                }
+                                            }
+
+                                            // アニメーション完了を待つ
+                                            animationJob.join()
+                                            updateJob.cancel()
+
+                                            // 画像と背景を同時に消す
+                                            backgroundAlpha = 0f
+                                            onDismiss()
+                                        }
+                                    } else if (offset.y > 0f) {
+                                        // 不十分な場合は元の位置に戻す（拡大されていない時のみ）
+                                        scope.launch {
+                                            val offsetAnimation = async {
+                                                Animatable(offset, Offset.VectorConverter).animateTo(
+                                                    Offset.Zero,
+                                                    spring(
+                                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                        stiffness = Spring.StiffnessMedium
+                                                    )
+                                                )
+                                            }
+                                            val alphaAnimation = async {
+                                                val alphaAnimatable = Animatable(backgroundAlpha)
+                                                alphaAnimatable.animateTo(
+                                                    1f,
+                                                    spring(
+                                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                        stiffness = Spring.StiffnessMedium
+                                                    )
+                                                )
+                                            }
+
+                                            offsetAnimation.await()
+                                            offset = Offset.Zero
+                                            alphaAnimation.await()
+                                            backgroundAlpha = 1f
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                AsyncImage(
+                    model = imageUri,
+                    contentDescription = "拡大画像",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                            translationX = offset.x
+                            translationY = offset.y
+                        }
+                )
+            }
         }
     }
 }
