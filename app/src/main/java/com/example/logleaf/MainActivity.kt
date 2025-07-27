@@ -329,13 +329,16 @@ fun MainScreen(
             PostEntryDialog(
                 postText = uiState.postText,
                 onTextChange = { mainViewModel.onPostTextChange(it) },
-                onPostSubmit = { unconfirmedTime -> // ◀◀◀ ラムダ式の引数を追加
-                    mainViewModel.submitPost(unconfirmedTime) // ◀◀◀ 引数をそのままViewModelに渡す
+                onPostSubmit = { unconfirmedTime, tagNames ->
+                    mainViewModel.submitPost(unconfirmedTime, tagNames)
                 },
                 onDismissRequest = { mainViewModel.onCancel() },
                 dateTime = uiState.editingDateTime,
                 onDateTimeChange = { newDateTime -> mainViewModel.onDateTimeChange(newDateTime) },
                 onRevertDateTime = { mainViewModel.revertDateTime() },
+                currentTags = uiState.editingTags,
+                onAddTag = { tagName -> mainViewModel.onAddTag(tagName) },
+                onRemoveTag = { tag -> mainViewModel.onRemoveTag(tag) },
                 selectedImageUri = uiState.selectedImageUri,
                 onLaunchPhotoPicker = {
                     photoPickerLauncher.launch(

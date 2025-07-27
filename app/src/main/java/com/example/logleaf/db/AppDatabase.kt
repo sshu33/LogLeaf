@@ -8,8 +8,10 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.logleaf.Post
+import com.example.logleaf.ui.entry.PostTagCrossRef
+import com.example.logleaf.ui.entry.Tag
 
-@Database(entities = [Post::class], version = 4, exportSchema = false)
+@Database(entities = [Post::class, Tag::class, PostTagCrossRef::class], version = 5, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
 
@@ -37,6 +39,27 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // "tags"テーブルを新しく作成
+                database.execSQL("""
+                CREATE TABLE IF NOT EXISTS `tags` (
+                    `tagId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `tagName` TEXT NOT NULL
+                )
+            """.trimIndent())
+
+                // "post_tag_cross_ref"テーブルを新しく作成
+                database.execSQL("""
+                CREATE TABLE IF NOT EXISTS `post_tag_cross_ref` (
+                    `postId` TEXT NOT NULL,
+                    `tagId` INTEGER NOT NULL,
+                    PRIMARY KEY(`postId`, `tagId`)
+                )
+            """.trimIndent())
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -44,7 +67,8 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "logleaf_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    // ▼▼▼ ここに MIGRATION_4_5 を追加 ▼▼▼
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                 INSTANCE = instance
                 instance

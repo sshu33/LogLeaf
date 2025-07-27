@@ -73,6 +73,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.logleaf.Post
+import com.example.logleaf.PostWithTags
 import com.example.logleaf.UiState
 import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
@@ -96,16 +97,15 @@ fun CalendarScreen(
     onShowPostEntry: () -> Unit,
     onDismissPostEntry: () -> Unit,
     onToggleShowHidden: () -> Unit,
-    onStartEditingPost: (Post) -> Unit,
+    onStartEditingPost: (PostWithTags) -> Unit, // ◀◀ 引数の型を PostWithTags に
     onSetPostHidden: (String, Boolean) -> Unit,
     onDeletePost: (String) -> Unit
 ) {
 
-    var postForDetail by remember { mutableStateOf<Post?>(null) }
+    var postForDetail by remember { mutableStateOf<PostWithTags?>(null) }
+    val showDetailDialog = postForDetail != null
 
     val (enlargedImageUri, setEnlargedImageUri) = remember { mutableStateOf<Uri?>(null) }
-
-    val showDetailDialog = postForDetail != null
 
     val initialDate = remember(initialDateString) {
         if (initialDateString != null) {
@@ -125,10 +125,12 @@ fun CalendarScreen(
         selectedDate = initialDate
         if (targetPostId != null) {
             val postsForDay = uiState.allPosts.filter {
-                it.createdAt.withZoneSameInstant(ZoneId.systemDefault())
+                // ▼▼▼ 変更点：.post を経由 ▼▼▼
+                it.post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
                     .toLocalDate() == initialDate
             }
-            val index = postsForDay.indexOfFirst { it.id == targetPostId }
+            // ▼▼▼ 変更点：.post を経由 ▼▼▼
+            val index = postsForDay.indexOfFirst { it.post.id == targetPostId }
             if (index != -1) {
                 listState.animateScrollToItem(index)
                 focusedPostIdForRipple = targetPostId
@@ -137,9 +139,8 @@ fun CalendarScreen(
     }
     val postsForSelectedDay = uiState.allPosts
         .filter {
-            it.createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate() == selectedDate
+            it.post.createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate() == selectedDate
         }
-        //.sortedByDescending { it.createdAt } // 新しい順にソートする
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -163,7 +164,7 @@ fun CalendarScreen(
                     onToggleShowHidden = onToggleShowHidden
                 )
                 CalendarGrid(
-                    posts = uiState.allPosts,
+                    posts = uiState.allPosts.map { it.post },
                     selectedDate = selectedDate,
                     onDateSelected = { newDate -> selectedDate = newDate },
                     modifier = Modifier.weight(1f)
@@ -184,16 +185,15 @@ fun CalendarScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp)
                     ) {
-                        items(postsForSelectedDay, key = { it.id }) { post ->
+                        items(postsForSelectedDay, key = { it.post.id }) { postWithTags ->
                             CalendarPostCardItem(
-                                post = post,
-                                isFocused = (post.id == focusedPostIdForRipple),
-                                onClick = { postForDetail = post },
-                                // ▼▼▼【変更点 2/3】値の更新に専用の関数を使う ▼▼▼
+                                post = postWithTags.post,
+                                isFocused = (postWithTags.post.id == focusedPostIdForRipple),
+                                onClick = { postForDetail = postWithTags },
                                 onImageClick = { uri -> setEnlargedImageUri(uri) },
-                                onStartEditing = { onStartEditingPost(post) },
-                                onSetHidden = { isHidden -> onSetPostHidden(post.id, isHidden) },
-                                onDelete = { onDeletePost(post.id) }
+                                onStartEditing = { onStartEditingPost(postWithTags) },
+                                onSetHidden = { isHidden -> onSetPostHidden(postWithTags.post.id, isHidden) },
+                                onDelete = { onDeletePost(postWithTags.post.id) }
                             )
                         }
                     }
@@ -206,10 +206,9 @@ fun CalendarScreen(
                 onDismissRequest = { postForDetail = null },
                 properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
             ) {
-                // LogViewScreenを直接呼び出すだけにします
                 LogViewScreen(
-                    posts = postsForSelectedDay,
-                    targetPostId = postForDetail!!.id,
+                    posts = postsForSelectedDay.map { it.post },
+                    targetPostId = postForDetail!!.post.id,
                     onDismiss = { postForDetail = null }
                 )
             }

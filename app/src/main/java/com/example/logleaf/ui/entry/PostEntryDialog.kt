@@ -82,6 +82,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -92,6 +93,7 @@ import androidx.compose.ui.window.PopupProperties
 import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
 import com.example.logleaf.R
+import com.example.logleaf.ui.entry.Tag
 import com.yourpackage.logleaf.ui.components.UserFontText
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -101,18 +103,22 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import kotlin.math.roundToInt
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun PostEntryDialog(
     postText: TextFieldValue,
     onTextChange: (TextFieldValue) -> Unit,
-    onPostSubmit: (String?) -> Unit,
+    onPostSubmit: (String?, List<String>) -> Unit, // ◀◀ 変更
     onDismissRequest: () -> Unit,
     dateTime: ZonedDateTime,
     onDateTimeChange: (ZonedDateTime) -> Unit,
     onRevertDateTime: () -> Unit,
+    currentTags: List<Tag>, // ◀◀ 追加
+    onAddTag: (String) -> Unit, // ◀◀ 追加
+    onRemoveTag: (Tag) -> Unit, // ◀◀ 追加
     selectedImageUri: Uri?,
     onLaunchPhotoPicker: () -> Unit,
     onImageSelected: (Uri?) -> Unit,
@@ -121,6 +127,7 @@ fun PostEntryDialog(
     onFocusConsumed: () -> Unit
 ) {
 
+    var isTagEditorVisible by remember { mutableStateOf(false) }
     val context = LocalContext.current
     var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
 
@@ -330,6 +337,67 @@ fun PostEntryDialog(
                         }
                     }
 
+                    AnimatedVisibility(visible = isTagEditorVisible) {
+
+                        // ▼▼▼ ここからタグエディタUIを追加 ▼▼▼
+                        var tagInput by remember { mutableStateOf("") }
+                        val focusRequester = remember { FocusRequester() }
+
+                        Column(modifier = Modifier.padding(top = 8.dp)) {
+                            // --- タグ入力欄 ---
+                            BasicTextField(
+                                value = tagInput,
+                                onValueChange = { tagInput = it },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .focusRequester(focusRequester),
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.Gray),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                                keyboardActions = KeyboardActions(
+                                    onDone = {
+                                        if (tagInput.isNotBlank()) {
+                                            onAddTag(tagInput)
+                                            tagInput = "" // 入力欄をクリア
+                                        }
+                                    }
+                                ),
+                                decorationBox = { innerTextField ->
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            painter = painterResource(id = R.drawable.ic_tag),
+                                            contentDescription = "タグアイコン",
+                                            tint = Color.Gray,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Box(modifier = Modifier.weight(1f)) {
+                                            if (tagInput.isEmpty()) {
+                                                Text("タグを追加...", color = Color.LightGray)
+                                            }
+                                            innerTextField()
+                                        }
+                                    }
+                                }
+                            )
+
+                            Spacer(Modifier.height(8.dp))
+
+                            // --- 現在のタグ一覧 ---
+                            if (currentTags.isNotEmpty()) {
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp), // ◀◀ 横方向の間隔
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)   // ◀◀ 縦方向の間隔
+                                ) {
+                                    currentTags.forEach { tag ->
+                                        TagChip(tag = tag, onRemove = { onRemoveTag(tag) })
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // あなたが調整したカスタムUIをここに配置
                     Row(
                         modifier = Modifier
@@ -454,11 +522,11 @@ fun PostEntryDialog(
                                 modifier = Modifier.size(24.dp)
                             )
                         }
-                        IconButton(onClick = { /* TODO */ }) {
+                        IconButton(onClick = { isTagEditorVisible = !isTagEditorVisible }) { // ◀◀ 変更
                             Icon(
                                 painterResource(id = R.drawable.ic_tag),
                                 "タグ",
-                                tint = Color.Gray,
+                                tint = if (isTagEditorVisible || currentTags.isNotEmpty()) MaterialTheme.colorScheme.primary else Color.Gray, // ◀◀ 状態に応じて色が変わるように
                                 modifier = Modifier.size(24.dp)
                             )
                         }
@@ -470,12 +538,11 @@ fun PostEntryDialog(
                                     keyboardController?.hide()
                                     delay(50)
 
+                                    val tagNames = currentTags.map { it.tagName }
                                     if (isTimeEditing) {
-                                        // 時刻編集中なら、未確定の時刻テキストを渡して投稿
-                                        onPostSubmit(timeText.text) // ◀◀◀ timeText.text を渡す
+                                        onPostSubmit(timeText.text, tagNames) // ◀◀ タグのリストを渡す
                                     } else {
-                                        // そうでなければ、通常通り引数なしで投稿
-                                        onPostSubmit(null) // ◀◀◀ null を渡す
+                                        onPostSubmit(null, tagNames) // ◀◀ タグのリストを渡す
                                     }
                                 }
                             },
@@ -814,5 +881,40 @@ private fun MinimalCalendar(
                 Spacer(modifier = Modifier.height(8.dp)) // ここで余白を調整
             }
         }
+    }
+}
+
+@Composable
+private fun TagChip(
+    tag: Tag,
+    onRemove: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .background(
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        UserFontText(
+            text = tag.tagName,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Spacer(Modifier.width(4.dp))
+        Icon(
+            imageVector = Icons.Default.Close,
+            contentDescription = "タグを削除",
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier
+                .size(16.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onRemove
+                )
+        )
     }
 }
