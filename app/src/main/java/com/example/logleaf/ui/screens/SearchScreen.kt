@@ -273,28 +273,49 @@ fun SearchTopBar(
 fun SearchResultItem(
     post: Post,
     searchQuery: String,
-    onClick: () -> Unit // ★ クリック命令を受け取る「口」を追加
+    onClick: () -> Unit
 ) {
     val keywords = remember(searchQuery) {
         searchQuery.split(" ", "　").filter { it.isNotBlank() }
     }
+
     val displayText = remember(post.text, keywords) {
         if (keywords.isEmpty()) {
             post.text
         } else {
-            val firstKeyword = keywords.first()
-            val index = post.text.indexOf(firstKeyword, ignoreCase = true)
-            if (index == -1 || index < 100) {
+            // 全てのキーワードの最初の出現位置を調べる
+            val keywordPositions = keywords.mapNotNull { keyword ->
+                val index = post.text.indexOf(keyword, ignoreCase = true)
+                if (index != -1) index else null
+            }
+
+            if (keywordPositions.isEmpty()) {
                 post.text
             } else {
-                val startIndex = (index - 20).coerceAtLeast(0)
-                "... " + post.text.substring(startIndex)
+                // 一番最初に現れるキーワードの位置を取得
+                val firstKeywordIndex = keywordPositions.minOrNull() ?: 0
+
+                // 検索ワードが後ろの方にある長文の場合のみ調整
+                if (firstKeywordIndex <= 30) {
+                    // 検索ワードが前の方なら、そのまま表示（HighlightedTextが3行で切る）
+                    post.text
+                } else {
+                    // 検索ワードの前に最大30文字だけ表示（絶対に1行以内）
+                    val beforeContextLength = 25
+                    val startIndex = (firstKeywordIndex - beforeContextLength).coerceAtLeast(0)
+
+                    val extractedText = post.text.substring(startIndex)
+
+                    // 前に省略記号を付ける（必要な場合のみ）
+                    val prefix = if (startIndex > 0) "…" else ""
+
+                    "$prefix$extractedText"
+                }
             }
         }
     }
 
     Card(
-        // ★ Card自体をクリック可能にする
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
@@ -306,11 +327,16 @@ fun SearchResultItem(
         Row(
             modifier = Modifier.height(IntrinsicSize.Min)
         ) {
+            // カラーバーを丸角の内側に配置
             Box(
                 modifier = Modifier
-                    .width(5.dp)
+                    .padding(start = 16.dp, top = 10.dp, bottom = 10.dp) // 先にpadding
+                    .width(5.dp) // その後でwidth
                     .fillMaxHeight()
-                    .background(post.source.brandColor)
+                    .background(
+                        color = post.source.brandColor,
+                        shape = RoundedCornerShape(2.dp) // カラーバー自体も少し丸角に
+                    )
             )
             Column(
                 modifier = Modifier.padding(
@@ -322,8 +348,8 @@ fun SearchResultItem(
             ) {
                 Text(
                     text = post.createdAt
-                        .withZoneSameInstant(ZoneId.systemDefault()) // 1. 端末のタイムゾーンに変換
-                        .format(DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm")), // 2. その後でフォーマット
+                        .withZoneSameInstant(ZoneId.systemDefault())
+                        .format(DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm")),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                 )

@@ -589,7 +589,7 @@ fun CalendarPostCardItem(
                         .padding(end = 8.dp),
                     autoSize = TextAutoSize.StepBased(
                         minFontSize = 8.sp,
-                        maxFontSize = MaterialTheme.typography.bodyMedium.fontSize,
+                        maxFontSize = (MaterialTheme.typography.bodyMedium.fontSize.value * 0.9).sp,
                         stepSize = 1.sp
                     ),
                     softWrap = false
