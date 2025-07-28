@@ -189,16 +189,23 @@ fun SearchTopBar(
 
                     // --- 「タグのみで検索」のトグル項目 ---
                     DropdownMenuItem(
-                        text = { UserFontText(text = "タグのみで検索") },
-                        leadingIcon = {
-                            Icon(
-                                painter = painterResource(
-                                    id = if (isTagOnlySearch) R.drawable.ic_toggle_on else R.drawable.ic_toggle_off
-                                ),
-                                contentDescription = "Toggle Tag Search",
-                                modifier = Modifier.size(24.dp),
-                                tint = if (isTagOnlySearch) MaterialTheme.colorScheme.primary else Color.Gray
-                            )
+                        // ▼▼▼ textプロパティの中を、Rowで再構築する ▼▼▼
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                // 1. アイコン
+                                Icon(
+                                    painter = painterResource(
+                                        id = if (isTagOnlySearch) R.drawable.ic_toggle_on else R.drawable.ic_toggle_off
+                                    ),
+                                    contentDescription = "Toggle Tag Search",
+                                    modifier = Modifier.size(24.dp),
+                                    tint = if (isTagOnlySearch) MaterialTheme.colorScheme.primary else Color.Gray
+                                )
+                                // 2.余白を置く
+                                Spacer(modifier = Modifier.width(9.dp)) // ◀◀ この値を調整！
+                                // 3. テキスト
+                                UserFontText(text = "タグで検索")
+                            }
                         },
                         onClick = {
                             onTagOnlySearchChanged(!isTagOnlySearch)

@@ -43,6 +43,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -92,10 +93,29 @@ fun LogViewScreen(
     val (enlargedImageUri, setEnlargedImageUri) = remember { mutableStateOf<Uri?>(null) }
     val listState = rememberLazyListState()
 
-    // 最初に表示すべき投稿までスクロールする処理
+    // ▼▼▼ アニメーションの管理は、すべてここ、親で行います ▼▼▼
+    val scale = remember { Animatable(1f) }
+    LaunchedEffect(targetPostId) {
+        if (targetPostId.isNotEmpty()) { // nullではなく、空文字列でないことも確認
+            delay(200L)
+            scale.animateTo(
+                targetValue = 0.97f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                )
+            )
+            scale.animateTo(
+                targetValue = 1f,
+                animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+            )
+        }
+    }
+
+    // スクロール処理は、アニメーションとは別のLaunchedEffectで行います
     LaunchedEffect(posts, targetPostId) {
-        if (posts.isNotEmpty()) {
-            val index = posts.indexOfFirst { it.post.id == targetPostId } // ◀◀ .post を経由
+        if (posts.isNotEmpty() && targetPostId.isNotEmpty()) {
+            val index = posts.indexOfFirst { it.post.id == targetPostId }
             if (index != -1) {
                 listState.animateScrollToItem(index)
             }
@@ -107,11 +127,8 @@ fun LogViewScreen(
         modifier = Modifier
             .fillMaxSize()
             .pointerInput(Unit) {
-                // もし画像が拡大表示中なら、背景タップで何もしない
-                if (enlargedImageUri == null) { // ◀◀◀ 条件分岐を追加
-                    detectTapGestures(
-                        onTap = { onDismiss() }
-                    )
+                if (enlargedImageUri == null) {
+                    detectTapGestures(onTap = { onDismiss() })
                 }
             }
     ) {
@@ -131,14 +148,11 @@ fun LogViewScreen(
             items(posts, key = { it.post.id }) { postWithTags ->
                 LogViewPostCard(
                     postWithTags = postWithTags,
-                    isTargetPost = (postWithTags.post.id == targetPostId),
+                    // ▼▼▼ 親が計算した、正しいスケール値を、子に渡します ▼▼▼
+                    scale = if (postWithTags.post.id == targetPostId) scale.value else 1f,
                     onImageClick = { uri -> setEnlargedImageUri(uri) },
-                    // ▼▼▼ ここで報告を受け取り、遷移を実行する ▼▼▼
                     onTagClick = { tagName ->
-                        Log.d("TagSearchDebug", "1. [LogView] Tag tapped: $tagName")
-                        // 念の為、#を取り除いてから渡す
-                        val cleanTagName = tagName.removePrefix("#")
-                        val encodedTag = URLEncoder.encode(cleanTagName, StandardCharsets.UTF_8.name())
+                        val encodedTag = URLEncoder.encode(tagName.removePrefix("#"), StandardCharsets.UTF_8.name())
                         navController.navigate("search?tag=$encodedTag")
                     },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
@@ -165,7 +179,6 @@ fun LogViewScreen(
     enlargedImageUri?.let { uri ->
         ZoomableImageDialog(
             imageUri = uri,
-            // ▼▼▼【変更点 3/3】ここも同様に専用関数を使う ▼▼▼
             onDismiss = { setEnlargedImageUri(null) }
         )
     }
@@ -250,7 +263,7 @@ fun IndexTab(dateString: String, onClick: () -> Unit, modifier: Modifier = Modif
 @Composable
 fun LogViewPostCard(
     postWithTags: PostWithTags,
-    isTargetPost: Boolean,
+    scale: Float, // ◀◀ 親からスケール値を受け取る「口」だけがある
     onImageClick: (Uri) -> Unit,
     onTagClick: (String) -> Unit,
     modifier: Modifier = Modifier
@@ -260,36 +273,13 @@ fun LogViewPostCard(
     val localDateTime = post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
     val timeString = localDateTime.format(DateTimeFormatter.ofPattern("HH:mm"))
 
-    val scale = remember { Animatable(1f) }
-
-    // 2. isTargetPostがtrueの時に、一度だけアニメーションを実行
-    LaunchedEffect(isTargetPost) {
-        if (isTargetPost) {
-            delay(200L)
-            // ほんの少しだけ縮んで…
-            scale.animateTo(
-                targetValue = 0.97f,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioNoBouncy, // 跳ね返りをなくす
-                    stiffness = Spring.StiffnessMediumLow  // ◀◀◀ 硬さ変更
-                )
-            )
-            scale.animateTo(
-                targetValue = 1f,
-                animationSpec = spring(
-                    stiffness = Spring.StiffnessMediumLow   // ◀◀◀ 硬さ変更
-                )
-            )
-        }
-    }
-
     Card(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = {})
-            .scale(scale.value),
+            .scale(scale), // ◀◀ 親から渡された、正しいスケール値を、ここに適用します
         shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp), // 影を統一
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         colors = CardDefaults.cardColors(
             containerColor = Color.White,
             contentColor = MaterialTheme.colorScheme.onSurface

@@ -236,7 +236,7 @@ fun CalendarScreen(
                 )
             ) {
                 LogViewScreen(
-                    posts = uiState.allPosts,
+                    posts = postsForSelectedDay,
                     targetPostId = postForDetail!!.post.id,
                     onDismiss = { postForDetail = null },
                     navController = navController
