@@ -2,7 +2,6 @@ package com.example.logleaf.ui.screens
 
 
 import android.net.Uri
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,7 +22,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -32,15 +30,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.TabRowDefaults.Divider
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Grid3x3
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Numbers
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.ripple.rememberRipple
@@ -58,7 +54,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -73,27 +68,22 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
-import com.example.logleaf.FontSettingsUiState
-import com.example.logleaf.FontSettingsViewModel
 import com.example.logleaf.Post
 import com.example.logleaf.PostWithTags
 import com.example.logleaf.UiState
 import com.example.logleaf.ui.entry.Tag
 import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
+import com.yourpackage.logleaf.ui.components.AutoSizeUserFontText
 import com.yourpackage.logleaf.ui.components.UserFontText
 import kotlinx.coroutines.delay
 import java.time.LocalDate
@@ -197,6 +187,19 @@ fun CalendarScreen(
                     // (読み込み中の表示)
                 } else if (postsForSelectedDay.isEmpty()) {
                     // (投稿がない場合の表示)
+                    // ▼▼▼ あなたのコードには、おそらく、このような中央表示のBoxがあるはずです ▼▼▼
+                    // もしなくても、このBoxで囲むだけで、背景色の問題は解決します。
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        // ここに、あなたが実装している「投稿がありません」のUIが入ります。
+                        // もし、まだ実装していなければ、以下のTextを入れてください。
+                        UserFontText(
+                            text = "投稿がありません",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
@@ -577,11 +580,19 @@ fun CalendarPostCardItem(
                 verticalAlignment = Alignment.Top
             ) {
                 // 時刻
-                UserFontText(
+                AutoSizeUserFontText(
                     text = timeString,
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.Gray,
-                    modifier = Modifier.width(52.dp)
+                    modifier = Modifier
+                        .width(52.dp)
+                        .padding(end = 8.dp),
+                    autoSize = TextAutoSize.StepBased(
+                        minFontSize = 8.sp,
+                        maxFontSize = MaterialTheme.typography.bodyMedium.fontSize,
+                        stepSize = 1.sp
+                    ),
+                    softWrap = false
                 )
 
                 // カラーバー

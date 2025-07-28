@@ -1,5 +1,6 @@
-package com.yourpackage.logleaf.ui.components // あなたのパッケージ名に合わせてください
+package com.yourpackage.logleaf.ui.components
 
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -11,8 +12,10 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.ui.unit.TextUnit
 import com.example.logleaf.ui.theme.LocalUserFontFamily
+
 
 /**
  * ユーザー設定のフォントファミリーを自動的に適用する、Textの代替コンポーネント。
@@ -61,4 +64,72 @@ fun UserFontText(
         onTextLayout = onTextLayout,
         style = finalStyle
     )
+}
+
+
+
+@Composable
+fun AutoSizeUserFontText(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified,
+    fontSize: TextUnit = TextUnit.Unspecified,
+    fontStyle: FontStyle? = null,
+    fontWeight: FontWeight? = null,
+    textAlign: TextAlign? = null,
+    lineHeight: TextUnit = TextUnit.Unspecified,
+    overflow: TextOverflow = TextOverflow.Clip,
+    softWrap: Boolean = true,
+    maxLines: Int = Int.MAX_VALUE,
+    minLines: Int = 1,
+    onTextLayout: (TextLayoutResult) -> Unit = {},
+    style: TextStyle = LocalTextStyle.current,
+    autoSize: TextAutoSize? = null // 新しいパラメータ
+) {
+    // CompositionLocalから、現在ユーザーが設定しているFontFamilyを取得します
+    val userFontFamily = LocalUserFontFamily.current
+
+    // 引数で渡されたスタイル(style)をベースに、フォントファミリーだけを上書き（マージ）します
+    val finalStyle = style.copy(fontFamily = userFontFamily)
+
+    // BasicTextを使用（autoSizeパラメータが使用可能）
+    if (autoSize != null) {
+        // autoSize使用時
+        BasicText(
+            text = text,
+            modifier = modifier,
+            style = finalStyle.copy(
+                color = if (color != Color.Unspecified) color else finalStyle.color,
+                fontSize = if (fontSize != TextUnit.Unspecified) fontSize else finalStyle.fontSize,
+                fontStyle = fontStyle ?: finalStyle.fontStyle,
+                fontWeight = fontWeight ?: finalStyle.fontWeight,
+                textAlign = textAlign ?: finalStyle.textAlign,
+                lineHeight = if (lineHeight != TextUnit.Unspecified) lineHeight else finalStyle.lineHeight
+            ),
+            overflow = overflow,
+            softWrap = softWrap,
+            maxLines = maxLines,
+            minLines = minLines,
+            onTextLayout = onTextLayout,
+            autoSize = autoSize
+        )
+    } else {
+        // 通常のText使用時（既存と同じ）
+        Text(
+            text = text,
+            modifier = modifier,
+            color = color,
+            fontSize = fontSize,
+            fontStyle = fontStyle,
+            fontWeight = fontWeight,
+            textAlign = textAlign,
+            lineHeight = lineHeight,
+            overflow = overflow,
+            softWrap = softWrap,
+            maxLines = maxLines,
+            minLines = minLines,
+            onTextLayout = onTextLayout,
+            style = finalStyle
+        )
+    }
 }

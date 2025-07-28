@@ -83,6 +83,8 @@ dependencies {
     implementation("androidx.compose.foundation:foundation-layout:1.5.0")
     implementation("androidx.compose.material:material:1.6.8")
 
+
     coreLibraryDesugaring(libs.android.desugar.jdk.libs)
     implementation("io.coil-kt:coil-compose:2.6.0")
+    implementation("androidx.compose.foundation:foundation:1.8.0")
 }
