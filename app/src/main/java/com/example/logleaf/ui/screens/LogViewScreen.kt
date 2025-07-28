@@ -1,6 +1,7 @@
 package com.example.logleaf.ui.screens
 
 import android.net.Uri
+import android.util.Log
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.VectorConverter
@@ -134,8 +135,10 @@ fun LogViewScreen(
                     onImageClick = { uri -> setEnlargedImageUri(uri) },
                     // ▼▼▼ ここで報告を受け取り、遷移を実行する ▼▼▼
                     onTagClick = { tagName ->
-                        // URLエンコードして、安全なルート文字列を作成
-                        val encodedTag = URLEncoder.encode(tagName, StandardCharsets.UTF_8.name())
+                        Log.d("TagSearchDebug", "1. [LogView] Tag tapped: $tagName")
+                        // 念の為、#を取り除いてから渡す
+                        val cleanTagName = tagName.removePrefix("#")
+                        val encodedTag = URLEncoder.encode(cleanTagName, StandardCharsets.UTF_8.name())
                         navController.navigate("search?tag=$encodedTag")
                     },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)

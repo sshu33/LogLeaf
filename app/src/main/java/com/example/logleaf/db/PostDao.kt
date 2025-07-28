@@ -54,39 +54,50 @@ interface PostDao {
 """)
     fun getPostsForDate(dateString: String, visibleAccountIds: List<String>, includeHidden: Int): Flow<List<Post>>
 
+    // ▼▼▼ この関数を、丸ごと置き換えてください ▼▼▼
     fun searchPostsWithAnd(keywords: List<String>, visibleAccountIds: List<String>, includeHidden: Int): Flow<List<Post>> {
         if (keywords.isEmpty()) {
             return getAllPosts(visibleAccountIds, includeHidden)
         }
 
-        // ViewModel側でLOGLEAF用のIDも渡すようにしたので、ここでもIDリストを準備
         val finalVisibleIds = visibleAccountIds + "LOGLEAF_INTERNAL_POST"
-
         val queryBuilder = StringBuilder()
         val args = mutableListOf<Any>()
 
-        // 条件句: WHERE accountId IN (...)
-        queryBuilder.append("SELECT * FROM posts WHERE accountId IN (")
+        // SELECT句：重複を除外して投稿を取得
+        queryBuilder.append("SELECT DISTINCT P.* FROM posts AS P ")
+        // JOIN句：投稿とタグを結合
+        queryBuilder.append("LEFT JOIN post_tag_cross_ref AS PTC ON P.id = PTC.postId ")
+        queryBuilder.append("LEFT JOIN tags AS T ON PTC.tagId = T.tagId ")
+
+        // WHERE句：アカウントIDのフィルタ
+        queryBuilder.append("WHERE P.accountId IN (")
         queryBuilder.append(finalVisibleIds.joinToString(",") { "?" })
         queryBuilder.append(") ")
         args.addAll(finalVisibleIds)
 
-        // 条件句: AND (キーワード条件)
+        // WHERE句：キーワード条件（本文 OR タグ名）
         queryBuilder.append("AND (")
-        queryBuilder.append(keywords.joinToString(separator = " AND ") { "text LIKE ?" })
+        // 各キーワードについて、本文 OR タグ名の条件を作成
+        queryBuilder.append(keywords.joinToString(separator = " AND ") {
+            "(P.text LIKE ? OR T.tagName LIKE ?)"
+        })
         queryBuilder.append(") ")
-        args.addAll(keywords.map { "%$it%" })
-
-        // 条件句: AND (非表示条件)
-        if (includeHidden == 0) {
-            queryBuilder.append("AND isHidden = 0 ")
+        // 引数をキーワードの数 x 2個追加
+        keywords.forEach { keyword ->
+            args.add("%$keyword%") // P.text LIKE ? の部分
+            args.add("%$keyword%") // T.tagName LIKE ? の部分
         }
 
-        queryBuilder.append("ORDER BY createdAt DESC")
+        // WHERE句：非表示条件
+        if (includeHidden == 0) {
+            queryBuilder.append("AND P.isHidden = 0 ")
+        }
+
+        queryBuilder.append("ORDER BY P.createdAt DESC")
 
         return searchPostsWithAndRaw(SimpleSQLiteQuery(queryBuilder.toString(), args.toTypedArray()))
     }
-
 
     @RawQuery(observedEntities = [Post::class])
     fun searchPostsWithAndRaw(query: SimpleSQLiteQuery): Flow<List<Post>>
@@ -172,4 +183,20 @@ interface PostDao {
         LIMIT 10
     """)
     fun getFrequentlyUsedTags(): Flow<List<Tag>>
+
+    /**
+     * 指定されたタグ名を持つ投稿を検索します。
+     * 内部的に、まずタグ名からタグIDを検索し、そのタグIDが付けられた投稿をすべて取得します。
+     */
+    @Transaction
+    @Query("""
+        SELECT P.* FROM posts AS P
+        INNER JOIN post_tag_cross_ref AS PTC ON P.id = PTC.postId
+        INNER JOIN tags AS T ON PTC.tagId = T.tagId
+        WHERE T.tagName = :tagName
+        AND (P.accountId IN (:visibleAccountIds) OR P.accountId = 'LOGLEAF_INTERNAL_POST')
+        AND P.isHidden = 0
+        ORDER BY P.createdAt DESC
+    """)
+    fun searchPostsByTag(tagName: String, visibleAccountIds: List<String>): Flow<List<Post>>
 }

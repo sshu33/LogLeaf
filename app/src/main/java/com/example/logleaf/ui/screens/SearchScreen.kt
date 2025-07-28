@@ -36,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,9 +60,11 @@ fun SearchScreen(
     viewModel: SearchViewModel,
     onPostClick: (Post) -> Unit
 ) {
+
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedSns by viewModel.selectedSns.collectAsState()
     val searchResultPosts by viewModel.searchResultPosts.collectAsState()
+    val isTagOnlySearch by viewModel.isTagOnlySearch.collectAsState()
 
     Column(
         modifier = Modifier
@@ -77,6 +80,8 @@ fun SearchScreen(
                 onQueryChanged = viewModel::onQueryChanged,
                 selectedSns = selectedSns,
                 onSnsFilterChanged = viewModel::onSnsFilterChanged,
+                isTagOnlySearch = isTagOnlySearch,
+                onTagOnlySearchChanged = viewModel::onTagOnlySearchChanged,
                 onReset = viewModel::onReset
             )
         }
@@ -118,6 +123,8 @@ fun SearchTopBar(
     onQueryChanged: (String) -> Unit,
     selectedSns: SnsType?,
     onSnsFilterChanged: (SnsType?) -> Unit,
+    isTagOnlySearch: Boolean,
+    onTagOnlySearchChanged: (Boolean) -> Unit,
     onReset: () -> Unit
 ) {
     var snsFilterMenuExpanded by remember { mutableStateOf(false) }
@@ -179,6 +186,25 @@ fun SearchTopBar(
                     onDismissRequest = { snsFilterMenuExpanded = false },
                     modifier = Modifier.background(Color.White)
                 ) {
+
+                    // --- 「タグのみで検索」のトグル項目 ---
+                    DropdownMenuItem(
+                        text = { UserFontText(text = "タグのみで検索") },
+                        leadingIcon = {
+                            Icon(
+                                painter = painterResource(
+                                    id = if (isTagOnlySearch) R.drawable.ic_toggle_on else R.drawable.ic_toggle_off
+                                ),
+                                contentDescription = "Toggle Tag Search",
+                                modifier = Modifier.size(24.dp),
+                                tint = if (isTagOnlySearch) MaterialTheme.colorScheme.primary else Color.Gray
+                            )
+                        },
+                        onClick = {
+                            onTagOnlySearchChanged(!isTagOnlySearch)
+                        }
+                    )
+
                     // 「全て」のメニュー項目 (contentPaddingは削除)
                     DropdownMenuItem(
                         text = { UserFontText(text = "All") },

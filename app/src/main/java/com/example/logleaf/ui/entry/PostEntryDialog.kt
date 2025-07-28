@@ -424,10 +424,10 @@ fun PostEntryDialog(
                                                     // ▼▼▼ この painter の部分が書き換えの核心です ▼▼▼
                                                     painter = if (isSuggestionVisible) {
                                                         // ポップアップが表示中なら、上向きアイコンを表示
-                                                        painterResource(id = R.drawable.ic_arrowup2)
+                                                        painterResource(id = R.drawable.ic_arrowup)
                                                     } else {
                                                         // ポップアップが非表示なら、下向きアイコンを表示
-                                                        painterResource(id = R.drawable.ic_arrowdown2)
+                                                        painterResource(id = R.drawable.ic_arrowdown)
                                                     },
                                                     contentDescription = "よく使うタグを表示",
                                                     tint = Color.Gray,

@@ -1,5 +1,6 @@
 package com.example.logleaf.ui.screens // パッケージ名はあなたのものに合わせました
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -19,18 +20,23 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 
 class SearchViewModel(
     private val postDao: PostDao,
-    private val sessionManager: SessionManager // ★ 変更点 2/5: SessionManagerをコンストラクタで受け取る
+    private val sessionManager: SessionManager
 ) : ViewModel() {
 
+    // --- UIの状態 ---
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
 
     private val _selectedSns = MutableStateFlow<SnsType?>(null)
     val selectedSns = _selectedSns.asStateFlow()
+
+    private val _isTagOnlySearch = MutableStateFlow(false)
+    val isTagOnlySearch = _isTagOnlySearch.asStateFlow()
 
     private val searchKeywords = searchQuery.map { query ->
         query.split(" ", "　").filter { it.isNotBlank() }
@@ -38,11 +44,20 @@ class SearchViewModel(
 
     @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
     val searchResultPosts: StateFlow<List<Post>> =
-        combine(searchKeywords, selectedSns, sessionManager.accountsFlow) { keywords, sns, accounts ->
-            Triple(keywords, sns, accounts)
+        combine(
+            _searchQuery, // ◀ debounceを一旦外して、生のデータを監視します
+            _selectedSns,
+            sessionManager.accountsFlow,
+            _isTagOnlySearch
+        ) { query, sns, accounts, isTagOnly ->
+            // ▼▼▼ queryからkeywordsをここで生成する ▼▼▼
+            val keywords = query.split(" ", "　").filter { it.isNotBlank() }
+            Quadruple(keywords, sns, accounts, isTagOnly)
         }
             .debounce(300L)
-            .flatMapLatest { (keywords, sns, accounts) ->
+            .onEach { (keywords, _, _, isTagOnly) ->
+            }
+            .flatMapLatest { (keywords, sns, accounts, isTagOnly) ->
                 if (keywords.isEmpty()) {
                     flowOf(emptyList())
                 } else {
@@ -50,23 +65,29 @@ class SearchViewModel(
                     if (visibleAccountIds.isEmpty()) {
                         flowOf(emptyList())
                     } else {
-                        postDao.searchPostsWithAnd(
-                            keywords = keywords,
-                            visibleAccountIds = visibleAccountIds,
-                            includeHidden = 0 // 非表示の投稿は含めない
-                        )
+                        if (isTagOnly) {
+                            val tagName = keywords.first().removePrefix("#")
+                            val allAccountIds = accounts.map { it.userId }
+                            postDao.searchPostsByTag(tagName, allAccountIds)
+                        } else {
+                            val visibleAccountIds = accounts.filter { it.isVisible }.map { it.userId } + "LOGLEAF_INTERNAL_POST"
+                            postDao.searchPostsWithAnd(
+                                keywords = keywords,
+                                visibleAccountIds = visibleAccountIds,
+                                includeHidden = 0
+                            )
+                        }
                     }
                 }
             }
             .map { posts ->
-                val sns = selectedSns.value
-                if (sns != null) {
-                    posts.filter { it.source == sns }
+                val snsValue = selectedSns.value // ◀◀ 変数名を修正
+                if (snsValue != null) {
+                    posts.filter { it.source == snsValue }
                 } else {
                     posts
                 }
             }
-            // ▼▼▼ [変更点2] FlowをStateFlowに変換する、魔法の呪文を追加！ ▼▼▼
             .stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(5000),
@@ -82,10 +103,23 @@ class SearchViewModel(
         _selectedSns.value = snsType
     }
 
+    fun searchByTag(tagName: String) {
+        _isTagOnlySearch.value = true
+        _searchQuery.value = tagName
+        Log.d("TagSearchDebug", "3. [ViewModel] Switched to Tag-Only mode. Query: $tagName")
+    }
+
+    fun onTagOnlySearchChanged(isTagOnly: Boolean) {
+        _isTagOnlySearch.value = isTagOnly
+    }
+
     fun onReset() {
         _searchQuery.value = ""
         _selectedSns.value = null
+        _isTagOnlySearch.value = false // ◀◀ リセット時にも状態を戻す
     }
+
+    data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
     companion object {
         fun provideFactory(

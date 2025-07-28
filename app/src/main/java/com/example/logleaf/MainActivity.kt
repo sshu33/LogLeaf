@@ -301,15 +301,19 @@ fun MainScreen(
             composable(
                 route = "search?tag={tag}",
                 arguments = listOf(
-                    navArgument("tag") { type = NavType.StringType; nullable = true } // ◀◀ 引数の定義を追加
+                    navArgument("tag") { type = NavType.StringType; nullable = true }
                 )
             ) { backStackEntry ->
                 val tagToSearch = backStackEntry.arguments?.getString("tag")
+
+                // この LaunchedEffect が、ViewModel に「タグで検索しろ」と確実に伝えます
                 LaunchedEffect(tagToSearch) {
                     if (tagToSearch != null) {
-                        searchViewModel.onQueryChanged(tagToSearch)
+                        Log.d("TagSearchDebug", "2. [NavHost] Received tag: $tagToSearch") // ◀◀ この行を追加
+                        searchViewModel.searchByTag(tagToSearch)
                     }
                 }
+
                 SearchScreen(
                     viewModel = searchViewModel,
                     onPostClick = { post ->
