@@ -104,9 +104,11 @@ fun CalendarScreen(
     onShowPostEntry: () -> Unit,
     onDismissPostEntry: () -> Unit,
     onToggleShowHidden: () -> Unit,
-    onStartEditingPost: (PostWithTags) -> Unit, // ◀◀ 引数の型を PostWithTags に
+    onStartEditingPost: (PostWithTags) -> Unit,
     onSetPostHidden: (String, Boolean) -> Unit,
-    onDeletePost: (String) -> Unit
+    onDeletePost: (String) -> Unit,
+    scrollToTopEvent: Boolean,
+    onConsumeScrollToTopEvent: () -> Unit
 ) {
 
     var postForDetail by remember { mutableStateOf<PostWithTags?>(null) }
@@ -129,6 +131,18 @@ fun CalendarScreen(
     var selectedDate by remember { mutableStateOf(initialDate) }
     val listState = rememberLazyListState()
     var focusedPostIdForRipple by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(scrollToTopEvent) {
+        if (scrollToTopEvent) {
+            // 今日の日付に切り替え（新規投稿は今日の日付で作られるため）
+            selectedDate = LocalDate.now()
+            // スムーズにトップまでスクロール
+            listState.animateScrollToItem(0)
+            // イベントを消費
+            onConsumeScrollToTopEvent()
+        }
+    }
+
     LaunchedEffect(initialDate, targetPostId) {
         selectedDate = initialDate
         if (targetPostId != null) {
@@ -187,8 +201,6 @@ fun CalendarScreen(
                     // (読み込み中の表示)
                 } else if (postsForSelectedDay.isEmpty()) {
                     // (投稿がない場合の表示)
-                    // ▼▼▼ あなたのコードには、おそらく、このような中央表示のBoxがあるはずです ▼▼▼
-                    // もしなくても、このBoxで囲むだけで、背景色の問題は解決します。
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
@@ -211,7 +223,7 @@ fun CalendarScreen(
                             CalendarPostCardItem(
                                 post = postWithTags.post,
                                 tags = postWithTags.tags, // ◀◀ 1. タグを渡す
-                                maxLines = 6,
+                                maxLines = 5,
                                 isFocused = (postWithTags.post.id == focusedPostIdForRipple),
                                 onClick = { postForDetail = postWithTags },
                                 onImageClick = { uri -> setEnlargedImageUri(uri) },

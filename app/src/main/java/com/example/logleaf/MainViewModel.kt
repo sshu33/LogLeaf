@@ -85,7 +85,9 @@ class MainViewModel(
     // 非表示投稿を表示するかの状態
     private val _showHiddenPosts = MutableStateFlow(false)
 
-    // ▼▼▼ [変更点2] リアクティブなデータフローを構築 ▼▼▼
+    private val _scrollToTopEvent = MutableStateFlow<Boolean>(false)
+    val scrollToTopEvent = _scrollToTopEvent.asStateFlow()
+
     // データベースから取得した、常に最新の投稿リスト
     private val allPostsFlow: Flow<List<PostWithTags>> =
         combine(sessionManager.accountsFlow, _showHiddenPosts) { accounts, showHidden ->
@@ -414,8 +416,17 @@ class MainViewModel(
             // 5. 下書きをクリアしてダイアログを閉じる
             withContext(Dispatchers.Main) {
                 clearDraftAndDismiss()
+
+                // ★★★ 追加：新規投稿の場合のみスクロールイベントを発火 ★★★
+                if (isNewPost) {
+                    _scrollToTopEvent.value = true
+                }
             }
         }
+    }
+
+    fun consumeScrollToTopEvent() {
+        _scrollToTopEvent.value = false
     }
 
     private suspend fun saveImageToInternalStorage(uri: Uri): String? {

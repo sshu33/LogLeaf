@@ -211,7 +211,9 @@ fun MainScreen(
                     onToggleShowHidden = { mainViewModel.toggleShowHiddenPosts() },
                     onStartEditingPost = { post -> mainViewModel.startEditingPost(post) },
                     onSetPostHidden = { postId, isHidden -> mainViewModel.setPostHidden(postId, isHidden) },
-                    onDeletePost = { postId -> mainViewModel.deletePost(postId) }
+                    onDeletePost = { postId -> mainViewModel.deletePost(postId) },
+                    scrollToTopEvent = mainViewModel.scrollToTopEvent.collectAsState().value,
+                    onConsumeScrollToTopEvent = { mainViewModel.consumeScrollToTopEvent() }
                 )
             }
 
