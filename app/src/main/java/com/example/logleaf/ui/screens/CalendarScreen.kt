@@ -254,7 +254,11 @@ fun CalendarScreen(
                     posts = postsForSelectedDay,
                     targetPostId = postForDetail!!.post.id,
                     onDismiss = { postForDetail = null },
-                    navController = navController
+                    navController = navController,
+                    // ★★★ この3行を追加 ★★★
+                    onStartEditingPost = onStartEditingPost,
+                    onSetPostHidden = onSetPostHidden,
+                    onDeletePost = onDeletePost
                 )
             }
         }

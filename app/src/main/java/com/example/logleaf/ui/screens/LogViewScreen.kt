@@ -1,5 +1,6 @@
 package com.example.logleaf.ui.screens
 
+import android.content.ClipboardManager
 import android.net.Uri
 import android.util.Log
 import androidx.compose.animation.core.Animatable
@@ -10,9 +11,11 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.forEachGesture
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -23,19 +26,26 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -50,6 +60,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
@@ -59,7 +70,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
@@ -69,6 +82,8 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.logleaf.PostWithTags
 import com.example.logleaf.ui.entry.Tag
+import com.example.logleaf.ui.theme.SettingsTheme
+import com.example.logleaf.ui.theme.SnsType
 import com.yourpackage.logleaf.ui.components.UserFontText
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -88,15 +103,19 @@ fun LogViewScreen(
     posts: List<PostWithTags>,
     targetPostId: String,
     onDismiss: () -> Unit,
-    navController: NavController
+    navController: NavController,
+    // ★★★ 追加：投稿操作用のコールバック ★★★
+    onStartEditingPost: (PostWithTags) -> Unit,
+    onSetPostHidden: (String, Boolean) -> Unit,
+    onDeletePost: (String) -> Unit
 ) {
     val (enlargedImageUri, setEnlargedImageUri) = remember { mutableStateOf<Uri?>(null) }
     val listState = rememberLazyListState()
 
-    // ▼▼▼ アニメーションの管理は、すべてここ、親で行います ▼▼▼
+    // アニメーションの管理
     val scale = remember { Animatable(1f) }
     LaunchedEffect(targetPostId) {
-        if (targetPostId.isNotEmpty()) { // nullではなく、空文字列でないことも確認
+        if (targetPostId.isNotEmpty()) {
             delay(200L)
             scale.animateTo(
                 targetValue = 0.97f,
@@ -112,7 +131,7 @@ fun LogViewScreen(
         }
     }
 
-    // スクロール処理は、アニメーションとは別のLaunchedEffectで行います
+    // スクロール処理
     LaunchedEffect(posts, targetPostId) {
         if (posts.isNotEmpty() && targetPostId.isNotEmpty()) {
             val index = posts.indexOfFirst { it.post.id == targetPostId }
@@ -122,7 +141,6 @@ fun LogViewScreen(
         }
     }
 
-    // ★★★ 問題を解決する、シンプルで正しいレイアウト構造 ★★★
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -132,50 +150,67 @@ fun LogViewScreen(
                 }
             }
     ) {
-        // 背景の半透明ベール（視覚的なものなので、クリックは受け取りません）
+        // 背景の半透明ベール
         Surface(
             color = Color.White.copy(alpha = 0.3f),
             modifier = Modifier.fillMaxSize()
         ) {}
 
-        // (2) 投稿リスト
+        // 投稿リスト
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = 220.dp, bottom = 16.dp)
+            contentPadding = PaddingValues(
+                top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 220.dp, // ★★★ ステータスバー + インデックスタブ分
+                bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 16.dp // ★★★ ナビゲーションバー + 余白
+            )
         ) {
-
             items(posts, key = { it.post.id }) { postWithTags ->
                 LogViewPostCard(
                     postWithTags = postWithTags,
-                    // ▼▼▼ 親が計算した、正しいスケール値を、子に渡します ▼▼▼
                     scale = if (postWithTags.post.id == targetPostId) scale.value else 1f,
                     onImageClick = { uri -> setEnlargedImageUri(uri) },
                     onTagClick = { tagName ->
                         val encodedTag = URLEncoder.encode(tagName.removePrefix("#"), StandardCharsets.UTF_8.name())
                         navController.navigate("search?tag=$encodedTag")
                     },
+                    // ★★★ 追加：投稿操作のコールバック ★★★
+                    onStartEditing = {
+                        // 編集の場合：ログビューを閉じてからカレンダー画面で編集開始
+                        onDismiss()
+                        onStartEditingPost(postWithTags)
+                    },
+                    onSetHidden = { isHidden ->
+                        // 非表示切り替え：ログビュー上でそのまま実行
+                        onSetPostHidden(postWithTags.post.id, isHidden)
+                    },
+                    onDelete = {
+                        // 削除：ログビュー上でそのまま実行
+                        onDeletePost(postWithTags.post.id)
+                    },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
                 )
             }
         }
 
-        // (3) インデックスタブ
-        // 全ての要素の最前面に重なる。
+        // インデックスタブ
         if (posts.isNotEmpty()) {
-            // postsリストから安全に最初の投稿の日付を取得
             val firstPostDate = remember(posts) {
                 posts.first().post.createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate()
             }
             IndexTab(
                 dateString = firstPostDate.toString(),
-                onClick = onDismiss, // タブのクリックでも閉じる
+                onClick = onDismiss,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(top = 24.dp, end = 8.dp)
+                    .padding(
+                        top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 16.dp, // ★★★ ステータスバー分を追加
+                        end = 8.dp
+                    )
             )
         }
     }
+
     enlargedImageUri?.let { uri ->
         ZoomableImageDialog(
             imageUri = uri,
@@ -259,13 +294,16 @@ fun IndexTab(dateString: String, onClick: () -> Unit, modifier: Modifier = Modif
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LogViewPostCard(
     postWithTags: PostWithTags,
-    scale: Float, // ◀◀ 親からスケール値を受け取る「口」だけがある
+    scale: Float,
     onImageClick: (Uri) -> Unit,
     onTagClick: (String) -> Unit,
+    // ★★★ 追加：長押しメニュー用のコールバック ★★★
+    onStartEditing: () -> Unit,
+    onSetHidden: (Boolean) -> Unit,
+    onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
 
@@ -273,83 +311,159 @@ fun LogViewPostCard(
     val localDateTime = post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
     val timeString = localDateTime.format(DateTimeFormatter.ofPattern("HH:mm"))
 
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = {})
-            .scale(scale), // ◀◀ 親から渡された、正しいスケール値を、ここに適用します
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White,
-            contentColor = MaterialTheme.colorScheme.onSurface
-        )
-    ) {
-        // ▼▼▼ このRowが全体のコンテナになります ▼▼▼
-        Row(
-            modifier = Modifier
+    // ★★★ 追加：メニュー状態とクリップボード ★★★
+    var isMenuExpanded by remember { mutableStateOf(false) }
+    val clipboardManager = LocalClipboardManager.current
+    val interactionSource = remember { MutableInteractionSource() }
+
+    Box { // ★★★ 追加：DropdownMenuを表示するためのBox ★★★
+        Card(
+            modifier = modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp) // ◀◀◀ 親にpaddingを適用
-                .height(IntrinsicSize.Min),
-            verticalAlignment = Alignment.CenterVertically // ◀◀◀ 上下中央揃えにすると綺麗です
-        ) {
-            // 1. カラーバー
-            Box(
-                modifier = Modifier
-                    .width(4.dp)
-                    .fillMaxHeight() // ◀◀◀ 親（padding適用済み）の高さに追従
-                    .background(post.source.brandColor)
+                .alpha(if (post.isHidden) 0.6f else 1.0f) // ★★★ 追加：非表示投稿の半透明表示
+                .combinedClickable( // ★★★ 変更：clickableからcombinedClickableに
+                    interactionSource = interactionSource,
+                    indication = rememberRipple(),
+                    onClick = { /* 通常のクリックは何もしない */ },
+                    onLongClick = { isMenuExpanded = true } // ★★★ 追加：長押しでメニュー表示
+                )
+                .scale(scale),
+            shape = RoundedCornerShape(12.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color.White,
+                contentColor = MaterialTheme.colorScheme.onSurface
             )
-
-            // 2. スペーサー（バーとコンテンツの間の余白）
-            Spacer(modifier = Modifier.width(16.dp))
-
-            // 3. 元のコンテンツ（時刻・テキスト・画像）
-            Column(
-                // こちらのColumnからはpaddingを削除
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .height(IntrinsicSize.Min),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                // 1. カラーバー
+                Box(
+                    modifier = Modifier
+                        .width(4.dp)
+                        .fillMaxHeight()
+                        .background(post.source.brandColor)
+                )
+
+                // 2. スペーサー
+                Spacer(modifier = Modifier.width(16.dp))
+
+                // 3. コンテンツ
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // 左側に時刻を表示
-                    UserFontText(
-                        text = timeString,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                    )
-                    // 中央の余白
-                    Spacer(modifier = Modifier.weight(1f))
-                    // 右側にタグをFlowRowで表示
-                    if (postWithTags.tags.isNotEmpty()) {
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            postWithTags.tags.forEach { tag ->
-                                LogViewTagChip(
-                                    tag = tag,
-                                    onClick = { onTagClick(tag.tagName) }
-                                )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 左側に時刻を表示
+                        UserFontText(
+                            text = timeString,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                        // 中央の余白
+                        Spacer(modifier = Modifier.weight(1f))
+                        // 右側にタグをFlowRowで表示
+                        if (postWithTags.tags.isNotEmpty()) {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                postWithTags.tags.forEach { tag ->
+                                    LogViewTagChip(
+                                        tag = tag,
+                                        onClick = { onTagClick(tag.tagName) }
+                                    )
+                                }
                             }
                         }
                     }
+                    UserFontText(
+                        text = post.text,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    if (post.imageUrl != null) {
+                        val imageUri = remember { Uri.parse(post.imageUrl) }
+                        AsyncImage(
+                            model = imageUri,
+                            contentDescription = "投稿画像",
+                            modifier = Modifier
+                                .size(80.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onImageClick(imageUri) },
+                            contentScale = ContentScale.Crop
+                        )
+                    }
                 }
-                UserFontText(
-                    text = post.text,
-                    style = MaterialTheme.typography.bodyLarge
+            }
+        }
+
+        // ★★★ 追加：DropdownMenu ★★★
+        SettingsTheme {
+            DropdownMenu(
+                expanded = isMenuExpanded,
+                onDismissRequest = { isMenuExpanded = false },
+                modifier = Modifier
+                    .width(80.dp)
+                    .background(
+                        color = Color.White,
+                        shape = RoundedCornerShape(4.dp)
+                    )
+            ) {
+                val itemModifier = Modifier.height(35.dp)
+                val itemPadding = PaddingValues(horizontal = 14.dp)
+
+                // コピー
+                DropdownMenuItem(
+                    text = { UserFontText(text = "コピー") },
+                    onClick = {
+                        clipboardManager.setText(AnnotatedString(post.text))
+                        isMenuExpanded = false
+                    },
+                    modifier = itemModifier,
+                    contentPadding = itemPadding
                 )
-                if (post.imageUrl != null) {
-                    val imageUri = remember { Uri.parse(post.imageUrl) } // Uriのパースを一度だけ行う
-                    AsyncImage(
-                        model = imageUri, // ◀◀◀ 変更
-                        contentDescription = "投稿画像",
-                        modifier = Modifier
-                            .size(80.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { onImageClick(imageUri) }, // ◀◀◀ クリックイベントを追加
-                        contentScale = ContentScale.Crop
+
+                // 編集（LogLeaf投稿のみ）
+                if (post.source == SnsType.LOGLEAF) {
+                    DropdownMenuItem(
+                        text = { UserFontText(text = "編集") },
+                        onClick = {
+                            onStartEditing()
+                            isMenuExpanded = false
+                        },
+                        modifier = itemModifier,
+                        contentPadding = itemPadding
+                    )
+                }
+
+                // 非表示/再表示
+                DropdownMenuItem(
+                    text = { UserFontText(text = if (post.isHidden) "再表示" else "非表示") },
+                    onClick = {
+                        onSetHidden(!post.isHidden)
+                        isMenuExpanded = false
+                    },
+                    modifier = itemModifier,
+                    contentPadding = itemPadding
+                )
+
+                // 削除（LogLeaf投稿のみ）
+                if (post.source == SnsType.LOGLEAF) {
+                    DropdownMenuItem(
+                        text = { UserFontText(text = "削除") },
+                        onClick = {
+                            onDelete()
+                            isMenuExpanded = false
+                        },
+                        modifier = itemModifier,
+                        contentPadding = itemPadding
                     )
                 }
             }

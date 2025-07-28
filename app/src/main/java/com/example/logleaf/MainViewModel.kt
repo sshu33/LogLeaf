@@ -211,13 +211,15 @@ class MainViewModel(
 
     fun refreshPosts() {
         viewModelScope.launch {
-            if (_isRefreshing.value) return@launch // すでに更新中なら何もしない
+            if (_isRefreshing.value) return@launch
 
-            _isRefreshing.value = true // 更新開始を通知
+            _isRefreshing.value = true
             try {
-                fetchPosts(sessionManager.accountsFlow.first()).join() // 終わるまで待つ
+                fetchPosts(sessionManager.accountsFlow.first()).join()
+                // ★★★ 追加：リフレッシュ完了後にスクロールイベント発火 ★★★
+                _scrollToTopEvent.value = true
             } finally {
-                _isRefreshing.value = false // 必ず更新終了を通知
+                _isRefreshing.value = false
             }
         }
     }
