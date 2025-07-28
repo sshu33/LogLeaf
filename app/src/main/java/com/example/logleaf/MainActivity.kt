@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -297,7 +298,18 @@ fun MainScreen(
                 )
             }
 
-            composable("search") {
+            composable(
+                route = "search?tag={tag}",
+                arguments = listOf(
+                    navArgument("tag") { type = NavType.StringType; nullable = true } // ◀◀ 引数の定義を追加
+                )
+            ) { backStackEntry ->
+                val tagToSearch = backStackEntry.arguments?.getString("tag")
+                LaunchedEffect(tagToSearch) {
+                    if (tagToSearch != null) {
+                        searchViewModel.onQueryChanged(tagToSearch)
+                    }
+                }
                 SearchScreen(
                     viewModel = searchViewModel,
                     onPostClick = { post ->

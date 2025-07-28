@@ -1,18 +1,51 @@
 package com.example.logleaf.ui.screens
 
 import android.net.Uri
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.*
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.forEachGesture
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -21,7 +54,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.*
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.LocalDensity
@@ -30,6 +63,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.logleaf.PostWithTags
 import com.example.logleaf.ui.entry.Tag
@@ -37,6 +71,8 @@ import com.yourpackage.logleaf.ui.components.UserFontText
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -49,10 +85,10 @@ import kotlin.math.abs
 fun LogViewScreen(
     posts: List<PostWithTags>,
     targetPostId: String,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    navController: NavController
 ) {
     val (enlargedImageUri, setEnlargedImageUri) = remember { mutableStateOf<Uri?>(null) }
-
     val listState = rememberLazyListState()
 
     // 最初に表示すべき投稿までスクロールする処理
@@ -95,8 +131,13 @@ fun LogViewScreen(
                 LogViewPostCard(
                     postWithTags = postWithTags,
                     isTargetPost = (postWithTags.post.id == targetPostId),
-                    // ▼▼▼【変更点 2/3】値の更新に専用の関数を使う ▼▼▼
                     onImageClick = { uri -> setEnlargedImageUri(uri) },
+                    // ▼▼▼ ここで報告を受け取り、遷移を実行する ▼▼▼
+                    onTagClick = { tagName ->
+                        // URLエンコードして、安全なルート文字列を作成
+                        val encodedTag = URLEncoder.encode(tagName, StandardCharsets.UTF_8.name())
+                        navController.navigate("search?tag=$encodedTag")
+                    },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
                 )
             }
@@ -207,7 +248,8 @@ fun IndexTab(dateString: String, onClick: () -> Unit, modifier: Modifier = Modif
 fun LogViewPostCard(
     postWithTags: PostWithTags,
     isTargetPost: Boolean,
-    onImageClick: (Uri) -> Unit, // ◀◀◀ この引数を追加
+    onImageClick: (Uri) -> Unit,
+    onTagClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
 
@@ -293,7 +335,10 @@ fun LogViewPostCard(
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             postWithTags.tags.forEach { tag ->
-                                LogViewTagChip(tag = tag) // ◀◀ 新しいタグチップを呼び出す
+                                LogViewTagChip(
+                                    tag = tag,
+                                    onClick = { onTagClick(tag.tagName) }
+                                )
                             }
                         }
                     }
@@ -535,11 +580,15 @@ fun ZoomableImageDialog(
 }
 
 @Composable
-private fun LogViewTagChip(tag: Tag) {
+private fun LogViewTagChip(
+    tag: Tag,
+    onClick: () -> Unit // ◀◀ クリック命令を受け取る「口」を追加
+) {
     Box(
         modifier = Modifier
+            .clickable(onClick = onClick) // ◀◀ このBoxをクリック可能にする
             .background(
-                color = Color.LightGray.copy(alpha = 0.3f), // ◀◀ 落ち着いたグレー
+                color = Color.LightGray.copy(alpha = 0.3f),
                 shape = RoundedCornerShape(6.dp)
             )
             .padding(horizontal = 6.dp, vertical = 3.dp)
