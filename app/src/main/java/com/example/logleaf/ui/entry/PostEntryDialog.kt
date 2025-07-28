@@ -12,11 +12,12 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -32,6 +33,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -84,7 +87,6 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -97,7 +99,6 @@ import coil.compose.AsyncImage
 import com.example.logleaf.R
 import com.example.logleaf.ui.entry.Tag
 import com.yourpackage.logleaf.ui.components.UserFontText
-import androidx.compose.foundation.lazy.items
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -106,11 +107,6 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.TabRowDefaults.Divider
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.ui.input.pointer.pointerInput
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -230,18 +226,6 @@ fun PostEntryDialog(
 
     // --- ▼▼▼ ここからが正しいレイアウト構造です ▼▼▼ ---
 
-    if (isSuggestionVisible) {
-        // 全画面を覆う、タップを吸収するためのBox
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = { isSuggestionVisible = false }
-                )
-        )
-    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         // 1. 背景の黒ベール (タップでダイアログを閉じる機能を持つ)
@@ -367,22 +351,17 @@ fun PostEntryDialog(
 
                     AnimatedVisibility(visible = isTagEditorVisible) {
 
-                        // ▼▼▼ ここからタグエディタUIを追加 ▼▼▼
 
                         // --- ▼▼▼ ポップアップ用の状態とアンカー情報を追加 ▼▼▼ ---
-
-                        // --- ▲▲▲ ここまで追加 ▲▲▲ ---
 
                         Column(modifier = Modifier.padding(top = 8.dp)) {
                             // --- タグ入力欄 ---
                             Box {
-                                // --- タグ入力欄 ---
                                 BasicTextField(
                                     value = tagInput,
                                     onValueChange = { tagInput = it },
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        // ▼▼▼ onGloballyPositionedを追加して位置を測定 ▼▼▼
                                         .onGloballyPositioned { coordinates ->
                                             val positionInRoot = coordinates.positionInRoot()
                                             tagInputAnchorPosition = IntOffset(
@@ -390,6 +369,17 @@ fun PostEntryDialog(
                                                 positionInRoot.y.roundToInt()
                                             )
                                             tagInputAnchorWidth = coordinates.size.width
+                                        }
+                                        // ▼▼▼ この onFocusChanged を復活させる ▼▼▼
+                                        .onFocusChanged { focusState ->
+                                            // isFocusedがfalseになった（フォーカスが外れた）時
+                                            if (!focusState.isFocused) {
+                                                // 入力中のテキストがあれば、それをタグとして確定する
+                                                if (tagInput.isNotBlank()) {
+                                                    onAddTag(tagInput)
+                                                    tagInput = "" // 入力欄をクリア
+                                                }
+                                            }
                                         },
                                     textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.Gray),
                                     singleLine = true,
@@ -417,6 +407,7 @@ fun PostEntryDialog(
                                                 }
                                                 innerTextField()
                                             }
+
                                             // --- ▼▼▼ ポップアップを開くアイコンを追加 ▼▼▼ ---
                                             Spacer(Modifier.width(8.dp))
                                             Box(
@@ -424,18 +415,25 @@ fun PostEntryDialog(
                                                     .size(24.dp)
                                                     .clickable(
                                                         interactionSource = remember { MutableInteractionSource() },
-                                                        indication = null, // タップ時の波紋エフェクトを消す
+                                                        indication = null,
                                                         onClick = { isSuggestionVisible = !isSuggestionVisible }
                                                     ),
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 Icon(
-                                                    imageVector = Icons.Default.ArrowDropDown,
+                                                    // ▼▼▼ この painter の部分が書き換えの核心です ▼▼▼
+                                                    painter = if (isSuggestionVisible) {
+                                                        // ポップアップが表示中なら、上向きアイコンを表示
+                                                        painterResource(id = R.drawable.ic_arrowup2)
+                                                    } else {
+                                                        // ポップアップが非表示なら、下向きアイコンを表示
+                                                        painterResource(id = R.drawable.ic_arrowdown2)
+                                                    },
                                                     contentDescription = "よく使うタグを表示",
-                                                    tint = Color.Gray
+                                                    tint = Color.Gray,
+                                                    modifier = Modifier.offset(y = 2.dp)
                                                 )
                                             }
-                                            // --- ▲▲▲ ここまで追加 ▲▲▲ ---
                                         }
                                     }
                                 )
@@ -454,10 +452,11 @@ fun PostEntryDialog(
 
                                     Popup(
                                         popupPositionProvider = popupPositionProvider,
-                                        onDismissRequest = { isSuggestionVisible = false },
+                                        onDismissRequest = { }, // 空にする
                                         properties = PopupProperties(
-                                            focusable = false,
-                                            dismissOnClickOutside = true
+                                            focusable = false, // キーボード維持
+                                            dismissOnClickOutside = false, // 手動制御するためfalse
+                                            dismissOnBackPress = true
                                         )
                                     ) {
                                         TagSuggestionPopupContent(
@@ -471,6 +470,7 @@ fun PostEntryDialog(
                                         )
                                     }
                                 }
+
                             }
 
                             Spacer(Modifier.height(8.dp))
@@ -489,6 +489,7 @@ fun PostEntryDialog(
                             }
                         }
                     }
+
 
                     // あなたが調整したカスタムUIをここに配置
                     Row(
@@ -575,6 +576,8 @@ fun PostEntryDialog(
                                 tint = Color.Gray
                             )
                         }
+
+                        Spacer(modifier = Modifier.width(2.dp))
                     }
 
                     Row(
@@ -722,6 +725,20 @@ fun PostEntryDialog(
                 }
             }
         }
+    }
+
+
+    if (isSuggestionVisible) {
+        // ★★★ 全画面の透明Boxを復活させる（ただしメインダイアログより前に配置） ★★★
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { isSuggestionVisible = false }
+                )
+        )
     }
 }
 
@@ -1032,7 +1049,13 @@ private fun TagSuggestionPopupContent(
     onToggleFavorite: (Tag) -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(0.9f),
+        modifier = Modifier
+            .fillMaxWidth(0.9f)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = { /* 何もしない - クリックイベントを吸収 */ }
+            ),
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),

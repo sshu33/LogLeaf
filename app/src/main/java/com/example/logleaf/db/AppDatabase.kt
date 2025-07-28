@@ -11,7 +11,7 @@ import com.example.logleaf.Post
 import com.example.logleaf.ui.entry.PostTagCrossRef
 import com.example.logleaf.ui.entry.Tag
 
-@Database(entities = [Post::class, Tag::class, PostTagCrossRef::class], version = 5, exportSchema = false)
+@Database(entities = [Post::class, Tag::class, PostTagCrossRef::class], version = 6, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
 
