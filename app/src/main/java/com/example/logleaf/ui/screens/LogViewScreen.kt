@@ -31,7 +31,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
-import com.example.logleaf.Post
+import com.example.logleaf.PostWithTags
+import com.example.logleaf.ui.entry.Tag
 import com.yourpackage.logleaf.ui.components.UserFontText
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -46,7 +47,7 @@ import kotlin.math.abs
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun LogViewScreen(
-    posts: List<Post>,
+    posts: List<PostWithTags>,
     targetPostId: String,
     onDismiss: () -> Unit
 ) {
@@ -57,7 +58,7 @@ fun LogViewScreen(
     // 最初に表示すべき投稿までスクロールする処理
     LaunchedEffect(posts, targetPostId) {
         if (posts.isNotEmpty()) {
-            val index = posts.indexOfFirst { it.id == targetPostId }
+            val index = posts.indexOfFirst { it.post.id == targetPostId } // ◀◀ .post を経由
             if (index != -1) {
                 listState.animateScrollToItem(index)
             }
@@ -90,10 +91,10 @@ fun LogViewScreen(
             contentPadding = PaddingValues(top = 220.dp, bottom = 16.dp)
         ) {
 
-            items(posts, key = { it.id }) { post ->
+            items(posts, key = { it.post.id }) { postWithTags ->
                 LogViewPostCard(
-                    post = post,
-                    isTargetPost = (post.id == targetPostId),
+                    postWithTags = postWithTags,
+                    isTargetPost = (postWithTags.post.id == targetPostId),
                     // ▼▼▼【変更点 2/3】値の更新に専用の関数を使う ▼▼▼
                     onImageClick = { uri -> setEnlargedImageUri(uri) },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
@@ -106,7 +107,7 @@ fun LogViewScreen(
         if (posts.isNotEmpty()) {
             // postsリストから安全に最初の投稿の日付を取得
             val firstPostDate = remember(posts) {
-                posts.first().createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate()
+                posts.first().post.createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate()
             }
             IndexTab(
                 dateString = firstPostDate.toString(),
@@ -201,13 +202,16 @@ fun IndexTab(dateString: String, onClick: () -> Unit, modifier: Modifier = Modif
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LogViewPostCard(
-    post: Post,
+    postWithTags: PostWithTags,
     isTargetPost: Boolean,
     onImageClick: (Uri) -> Unit, // ◀◀◀ この引数を追加
     modifier: Modifier = Modifier
 ) {
+
+    val post = postWithTags.post
     val localDateTime = post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
     val timeString = localDateTime.format(DateTimeFormatter.ofPattern("HH:mm"))
 
@@ -270,11 +274,30 @@ fun LogViewPostCard(
                 // こちらのColumnからはpaddingを削除
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                UserFontText(
-                    text = timeString,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 左側に時刻を表示
+                    UserFontText(
+                        text = timeString,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                    // 中央の余白
+                    Spacer(modifier = Modifier.weight(1f))
+                    // 右側にタグをFlowRowで表示
+                    if (postWithTags.tags.isNotEmpty()) {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            postWithTags.tags.forEach { tag ->
+                                LogViewTagChip(tag = tag) // ◀◀ 新しいタグチップを呼び出す
+                            }
+                        }
+                    }
+                }
                 UserFontText(
                     text = post.text,
                     style = MaterialTheme.typography.bodyLarge
@@ -508,5 +531,23 @@ fun ZoomableImageDialog(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun LogViewTagChip(tag: Tag) {
+    Box(
+        modifier = Modifier
+            .background(
+                color = Color.LightGray.copy(alpha = 0.3f), // ◀◀ 落ち着いたグレー
+                shape = RoundedCornerShape(6.dp)
+            )
+            .padding(horizontal = 6.dp, vertical = 3.dp)
+    ) {
+        Text(
+            text = "#${tag.tagName}",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.Gray // ◀◀ 文字色もグレーに
+        )
     }
 }

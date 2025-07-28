@@ -236,7 +236,7 @@ fun CalendarScreen(
                 )
             ) {
                 LogViewScreen(
-                    posts = postsForSelectedDay.map { it.post },
+                    posts = uiState.allPosts,
                     targetPostId = postForDetail!!.post.id,
                     onDismiss = { postForDetail = null }
                 )
