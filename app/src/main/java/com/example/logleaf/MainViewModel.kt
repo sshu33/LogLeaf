@@ -10,6 +10,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.logleaf.db.PostDao
+import com.example.logleaf.ui.entry.PostImage
 import com.example.logleaf.ui.entry.PostTagCrossRef
 import com.example.logleaf.ui.entry.Tag
 import com.example.logleaf.ui.theme.SnsType
@@ -46,7 +47,7 @@ data class DayLog(
 
 data class UiState(
     val dayLogs: List<DayLog> = emptyList(),
-    val allPosts: List<PostWithTags> = emptyList(),
+    val allPosts: List<PostWithTagsAndImages> = emptyList(),
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
     val isPostEntrySheetVisible: Boolean = false,
@@ -55,11 +56,12 @@ data class UiState(
     val editingPost: Post? = null,
     val editingTags: List<Tag> = emptyList(),
     val editingDateTime: ZonedDateTime = ZonedDateTime.now(),
-    val selectedImageUri: Uri? = null,
+    val selectedImageUris: List<Uri> = emptyList(),
     val requestFocus: Boolean = false,
     val favoriteTags: List<Tag> = emptyList(),
     val frequentlyUsedTags: List<Tag> = emptyList()
 )
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModel(
     application: Application,
@@ -78,7 +80,7 @@ class MainViewModel(
             editingPost = null,
             dateTime = ZonedDateTime.now(),
             originalDateTime = ZonedDateTime.now(),
-            selectedImageUri = null,
+            selectedImageUris = emptyList(),
             currentTags = emptyList()
         )
     )
@@ -89,24 +91,22 @@ class MainViewModel(
     val scrollToTopEvent = _scrollToTopEvent.asStateFlow()
 
     // データベースから取得した、常に最新の投稿リスト
-    private val allPostsFlow: Flow<List<PostWithTags>> =
+    private val allPostsFlow: Flow<List<PostWithTagsAndImages>> =
         combine(sessionManager.accountsFlow, _showHiddenPosts) { accounts, showHidden ->
             val visibleAccountIds = accounts.filter { it.isVisible }.map { it.userId } + "LOGLEAF_INTERNAL_POST"
             val includeHidden = if (showHidden) 1 else 0
             Pair(visibleAccountIds, includeHidden)
-        }    .flatMapLatest { (accountIds, includeHiddenFlag) ->
-            postDao.getPostsWithTags().map { postsWithTags -> // ◀◀ getPostsWithTags() を使用
+        }.flatMapLatest { (accountIds, includeHiddenFlag) ->
+            postDao.getPostsWithTagsAndImages().map { postsWithTagsAndImages ->
                 // フィルタリング処理を追加
-                postsWithTags.filter { pwt ->
-                    (pwt.post.accountId in accountIds) &&
-                            (!pwt.post.isHidden || includeHiddenFlag == 1)
+                postsWithTagsAndImages.filter { pwtai ->
+                    (pwtai.post.accountId in accountIds) &&
+                            (!pwtai.post.isHidden || includeHiddenFlag == 1)
                 }
             }
+        }.map { posts ->
+            posts.sortedByDescending { it.post.createdAt }
         }
-            .map { posts ->
-                posts.sortedByDescending { it.post.createdAt } // ◀◀ .post を追加
-            }
-
     private val favoriteTagsFlow: Flow<List<Tag>> = postDao.getFavoriteTags()
     private val frequentlyUsedTagsFlow: Flow<List<Tag>> = postDao.getFrequentlyUsedTags()
 
@@ -149,7 +149,7 @@ class MainViewModel(
         )
     ) { results ->
         @Suppress("UNCHECKED_CAST")
-        val posts = results[0] as List<PostWithTags>
+        val posts = results[0] as List<PostWithTagsAndImages>
         val postEntry = results[1] as PostEntryState
         val showHidden = results[2] as Boolean
         val isRefreshing = results[3] as Boolean
@@ -170,10 +170,10 @@ class MainViewModel(
             editingTags = postEntry.currentTags,
             editingDateTime = postEntry.dateTime,
             showHiddenPosts = showHidden,
-            selectedImageUri = postEntry.selectedImageUri,
+            selectedImageUris = postEntry.selectedImageUris,
             requestFocus = postEntry.requestFocus,
-            favoriteTags = favoriteTags,         // ◀◀ 追加
-            frequentlyUsedTags = frequentTags    // ◀◀ 追加
+            favoriteTags = favoriteTags,
+            frequentlyUsedTags = frequentTags
         )
     }.stateIn(
         scope = viewModelScope,
@@ -276,11 +276,11 @@ class MainViewModel(
     data class PostEntryState(
         val isVisible: Boolean,
         val text: TextFieldValue,
-        val editingPost: PostWithTags?, // ◀◀ Post を PostWithTags? に変更
+        val editingPost: PostWithTagsAndImages?, // ← PostWithTagsAndImagesに変更
         val dateTime: ZonedDateTime,
         val originalDateTime: ZonedDateTime,
-        val selectedImageUri: Uri?,
-        val currentTags: List<Tag>, // ◀◀ この行を追加
+        val selectedImageUris: List<Uri> = emptyList(),
+        val currentTags: List<Tag>,
         val requestFocus: Boolean = false
     )
 
@@ -296,7 +296,7 @@ class MainViewModel(
                     editingPost = null,
                     dateTime = now,
                     originalDateTime = now,
-                    selectedImageUri = null,
+                    selectedImageUris = emptyList(),
                     requestFocus = true,
                     currentTags = emptyList()
                 )
@@ -332,25 +332,51 @@ class MainViewModel(
         _postEntryState.update { it.copy(dateTime = newDateTime) }
     }
 
-    fun startEditingPost(postWithTags: PostWithTags) { // ◀◀ 引数を変更
-        val post = postWithTags.post
+    fun startEditingPost(postWithTagsAndImages: PostWithTagsAndImages) {
+        val post = postWithTagsAndImages.post
         _postEntryState.value = PostEntryState(
             isVisible = true,
             text = TextFieldValue(post.text),
-            editingPost = postWithTags, // ◀◀ postWithTags をセット
+            editingPost = postWithTagsAndImages, // これも対応済み
             dateTime = post.createdAt,
             originalDateTime = post.createdAt,
-            selectedImageUri = post.imageUrl?.let { Uri.parse(it) },
-            currentTags = postWithTags.tags, // ◀◀ タグをセット
+            selectedImageUris = postWithTagsAndImages.images.map { Uri.parse(it.imageUrl) }, // 複数画像対応！
+            currentTags = postWithTagsAndImages.tags,
             requestFocus = true
         )
     }
 
     fun onImageSelected(uri: Uri?) {
-        _postEntryState.update { it.copy(
-            selectedImageUri = uri,
-            requestFocus = uri != null // ◀◀◀ uriが選択されたらtrueにする
-        ) }
+        _postEntryState.update { currentState ->
+            val newUris = if (uri != null) {
+                currentState.selectedImageUris + uri // リストに追加
+            } else {
+                emptyList() // nullの場合は全クリア（後で個別削除機能も追加予定）
+            }
+            currentState.copy(
+                selectedImageUris = newUris,
+                requestFocus = uri != null
+            )
+        }
+    }
+
+    fun onMultipleImagesSelected(uris: List<Uri>) {
+        _postEntryState.update { currentState ->
+            currentState.copy(
+                selectedImageUris = currentState.selectedImageUris + uris, // 既存の画像に追加
+                requestFocus = uris.isNotEmpty()
+            )
+        }
+    }
+
+    fun onImageRemoved(index: Int) {
+        _postEntryState.update { currentState ->
+            val newUris = currentState.selectedImageUris.toMutableList()
+            if (index in 0 until newUris.size) {
+                newUris.removeAt(index)
+            }
+            currentState.copy(selectedImageUris = newUris)
+        }
     }
 
     fun createImageUri(): Uri {
@@ -392,7 +418,7 @@ class MainViewModel(
         // 2. 以降は、以前のsubmitPostと同じロジックを実行する
         val currentText = currentState.text.text
         val isNewPost = currentState.editingPost == null
-        val isContentEmpty = currentText.isBlank() && currentState.selectedImageUri == null
+        val isContentEmpty = currentText.isBlank() && currentState.selectedImageUris.isEmpty()
 
         if (isContentEmpty) {
             if (isNewPost) {
@@ -405,30 +431,30 @@ class MainViewModel(
         }
 
         viewModelScope.launch(Dispatchers.IO) {
-            // 1. 画像URLを決定（この部分は変更なし）
-            val finalImageUrl: String? = if (currentState.selectedImageUri != null) {
-                val uri: Uri = currentState.selectedImageUri!!
-                if (uri.scheme == "content") {
+            val savedImageUrls = mutableListOf<String>()
+            currentState.selectedImageUris.forEachIndexed { index, uri ->
+                val savedUrl = if (uri.scheme == "content") {
                     saveImageToInternalStorage(uri)
                 } else {
                     uri.toString()
                 }
-            } else {
-                null
+                if (savedUrl != null) {
+                    savedImageUrls.add(savedUrl)
+                }
             }
 
             // 2. 保存するPostオブジェクトを準備（この部分は変更なし）
             val postToSave = currentState.editingPost?.post?.copy(
                 text = currentText,
                 createdAt = currentState.dateTime,
-                imageUrl = finalImageUrl
+                imageUrl = savedImageUrls.firstOrNull()  // とりあえず1枚目を従来の場所に保存
             ) ?: Post(
                 id = UUID.randomUUID().toString(),
                 accountId = "LOGLEAF_INTERNAL_POST",
                 text = currentText,
                 createdAt = currentState.dateTime,
                 source = SnsType.LOGLEAF,
-                imageUrl = finalImageUrl,
+                imageUrl = savedImageUrls.firstOrNull(),
                 isHidden = false
             )
             // 3. タグをDBに保存し、IDのリストを作成（重複ロジックを統合）
@@ -444,7 +470,18 @@ class MainViewModel(
             }
 
             val crossRefs = tagIds.map { tagId -> PostTagCrossRef(postToSave.id, tagId) }
-            postDao.updatePostWithTags(postToSave, crossRefs)
+
+            // 複数画像のPostImageオブジェクトを作成
+            val postImages = savedImageUrls.mapIndexed { index, imageUrl ->
+                PostImage(
+                    postId = postToSave.id,
+                    imageUrl = imageUrl,
+                    orderIndex = index
+                )
+            }
+
+            // 投稿、タグ、画像を一緒に保存
+            postDao.updatePostWithTagsAndImages(postToSave, crossRefs, postImages)
 
             // 5. 下書きをクリアしてダイアログを閉じる
             withContext(Dispatchers.Main) {
@@ -489,7 +526,7 @@ class MainViewModel(
             editingPost = null,
             dateTime = now,
             originalDateTime = now,
-            selectedImageUri = null,
+            selectedImageUris = emptyList(),
             requestFocus = false,
             currentTags = emptyList()
         )
@@ -549,11 +586,11 @@ class MainViewModel(
         }
     }
 
-    private fun groupPostsByDay(posts: List<PostWithTags>): List<DayLog> {
+    private fun groupPostsByDay(posts: List<PostWithTagsAndImages>): List<DayLog> {
         if (posts.isEmpty()) {
             return emptyList()
         }
-        val groupedByDate: Map<LocalDate, List<PostWithTags>> = posts.groupBy {
+        val groupedByDate: Map<LocalDate, List<PostWithTagsAndImages>> = posts.groupBy {
             it.post.createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate() // ◀◀ it.post を経由
         }
         return groupedByDate.map { (date, postList) ->

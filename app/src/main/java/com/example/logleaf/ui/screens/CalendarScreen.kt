@@ -79,6 +79,7 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.logleaf.Post
 import com.example.logleaf.PostWithTags
+import com.example.logleaf.PostWithTagsAndImages
 import com.example.logleaf.UiState
 import com.example.logleaf.ui.entry.Tag
 import com.example.logleaf.ui.theme.SettingsTheme
@@ -104,14 +105,14 @@ fun CalendarScreen(
     onShowPostEntry: () -> Unit,
     onDismissPostEntry: () -> Unit,
     onToggleShowHidden: () -> Unit,
-    onStartEditingPost: (PostWithTags) -> Unit,
+    onStartEditingPost: (PostWithTagsAndImages) -> Unit,
     onSetPostHidden: (String, Boolean) -> Unit,
     onDeletePost: (String) -> Unit,
     scrollToTopEvent: Boolean,
     onConsumeScrollToTopEvent: () -> Unit
 ) {
 
-    var postForDetail by remember { mutableStateOf<PostWithTags?>(null) }
+    var postForDetail by remember { mutableStateOf<PostWithTagsAndImages?>(null) }
     val showDetailDialog = postForDetail != null
 
 
@@ -219,22 +220,22 @@ fun CalendarScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp)
                     ) {
-                        items(postsForSelectedDay, key = { it.post.id }) { postWithTags ->
+                        items(postsForSelectedDay, key = { it.post.id }) { postWithTagsAndImages ->
                             CalendarPostCardItem(
-                                post = postWithTags.post,
-                                tags = postWithTags.tags, // ◀◀ 1. タグを渡す
+                                post = postWithTagsAndImages.post,
+                                tags = postWithTagsAndImages.tags,
                                 maxLines = 5,
-                                isFocused = (postWithTags.post.id == focusedPostIdForRipple),
-                                onClick = { postForDetail = postWithTags },
+                                isFocused = (postWithTagsAndImages.post.id == focusedPostIdForRipple),
+                                onClick = { postForDetail = postWithTagsAndImages },
                                 onImageClick = { uri -> setEnlargedImageUri(uri) },
-                                onStartEditing = { onStartEditingPost(postWithTags) },
+                                onStartEditing = { onStartEditingPost(postWithTagsAndImages) },
                                 onSetHidden = { isHidden ->
                                     onSetPostHidden(
-                                        postWithTags.post.id,
+                                        postWithTagsAndImages.post.id,
                                         isHidden
                                     )
                                 },
-                                onDelete = { onDeletePost(postWithTags.post.id) }
+                                onDelete = { onDeletePost(postWithTagsAndImages.post.id) }
                             )
                         }
                     }

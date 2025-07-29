@@ -6,6 +6,8 @@ import androidx.sqlite.db.SimpleSQLiteQuery
 import com.example.logleaf.HashtagExtractor
 import com.example.logleaf.Post
 import com.example.logleaf.PostWithTags
+import com.example.logleaf.PostWithTagsAndImages
+import com.example.logleaf.ui.entry.PostImage
 import com.example.logleaf.ui.entry.PostTagCrossRef
 import com.example.logleaf.ui.entry.Tag
 import com.example.logleaf.ui.theme.SnsType
@@ -335,4 +337,45 @@ interface PostDao {
 
         return Pair(allPosts.size, totalTagsExtracted)
     }
+
+    /**
+     * 投稿画像を保存する
+     */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPostImages(images: List<PostImage>)
+
+    /**
+     * 投稿の画像を全て削除する（編集時のリセット用）
+     */
+    @Query("DELETE FROM post_images WHERE postId = :postId")
+    suspend fun deletePostImages(postId: String)
+
+    /**
+     * 投稿とタグと画像を全て取得する
+     */
+    @Transaction
+    @Query("SELECT * FROM posts")
+    fun getPostsWithTagsAndImages(): Flow<List<PostWithTagsAndImages>>
+
+    /**
+     * 投稿を更新し、タグと画像も一緒に保存する
+     */
+    @Transaction
+    suspend fun updatePostWithTagsAndImages(
+        post: Post,
+        tagCrossRefs: List<PostTagCrossRef>,
+        images: List<PostImage>
+    ) {
+        // 1. 投稿を保存
+        insert(post)
+        // 2. 古いタグと画像を削除
+        deletePostTagCrossRefs(post.id)
+        deletePostImages(post.id)
+        // 3. 新しいタグと画像を保存
+        tagCrossRefs.forEach { insertPostTagCrossRef(it) }
+        if (images.isNotEmpty()) {
+            insertPostImages(images)
+        }
+    }
 }
+

@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -34,6 +36,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -125,9 +128,10 @@ fun PostEntryDialog(
     favoriteTags: List<Tag>,
     frequentlyUsedTags: List<Tag>,
     onToggleFavorite: (Tag) -> Unit,
-    selectedImageUri: Uri?,
+    selectedImageUris: List<Uri>,
     onLaunchPhotoPicker: () -> Unit,
     onImageSelected: (Uri?) -> Unit,
+    onImageRemoved: (Int) -> Unit,
     onCreateCameraImageUri: () -> Uri,
     requestFocus: Boolean,
     onFocusConsumed: () -> Unit
@@ -316,35 +320,44 @@ fun PostEntryDialog(
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default)
                     )
 
-                    AnimatedVisibility(visible = selectedImageUri != null) {
-                        // 画像をタップで削除できるように、Boxで囲む
-                        Box(
+                    AnimatedVisibility(visible = selectedImageUris.isNotEmpty()) {
+                        LazyRow(
                             modifier = Modifier
-                                .padding(top = 8.dp)
-                                .size(80.dp) // ◀◀◀ サムネイルのサイズを小さく固定
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable { onImageSelected(null) } // ◀◀◀ タップで削除
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            AsyncImage(
-                                model = selectedImageUri,
-                                contentDescription = "選択された画像",
-                                modifier = Modifier.fillMaxSize(), // Boxのサイズに合わせる
-                                contentScale = ContentScale.Crop
-                            )
-                            // 「削除」の目印として、半透明の×アイコンを右上に表示
-                            Box(
-                                modifier = Modifier
-                                    .matchParentSize()
-                                    .background(Color.Black.copy(alpha = 0.3f))
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "画像を削除",
-                                    tint = Color.White,
+                            itemsIndexed(selectedImageUris) { index, uri ->
+                                Box(
                                     modifier = Modifier
-                                        .size(24.dp)
-                                        .align(Alignment.Center)
-                                )
+                                        .size(80.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            onImageRemoved(index) // 個別削除
+                                        }
+                                ) {
+                                    AsyncImage(
+                                        model = uri,
+                                        contentDescription = "選択された画像 ${index + 1}",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                    // 削除アイコン
+                                    Box(
+                                        modifier = Modifier
+                                            .matchParentSize()
+                                            .background(Color.Black.copy(alpha = 0.3f))
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "画像を削除",
+                                            tint = Color.White,
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .align(Alignment.Center)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

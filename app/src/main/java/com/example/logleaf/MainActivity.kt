@@ -152,10 +152,10 @@ fun MainScreen(
     val showSettingsBadge by mainViewModel.showSettingsBadge.collectAsState()
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia(),
-        onResult = { uri ->
-            // 画像が選択されたら、ViewModelにそのURIを渡す
-            mainViewModel.onImageSelected(uri)
+        contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 5), // 最大5枚まで選択可能
+        onResult = { uris ->
+            // 複数画像が選択されたら、ViewModelに渡す
+            mainViewModel.onMultipleImagesSelected(uris)
         }
     )
 
@@ -210,7 +210,7 @@ fun MainScreen(
                     onShowPostEntry = { mainViewModel.showPostEntrySheet() },
                     onDismissPostEntry = { mainViewModel.onCancel() },
                     onToggleShowHidden = { mainViewModel.toggleShowHiddenPosts() },
-                    onStartEditingPost = { post -> mainViewModel.startEditingPost(post) },
+                    onStartEditingPost = { postWithTagsAndImages -> mainViewModel.startEditingPost(postWithTagsAndImages) },
                     onSetPostHidden = { postId, isHidden -> mainViewModel.setPostHidden(postId, isHidden) },
                     onDeletePost = { postId -> mainViewModel.deletePost(postId) },
                     scrollToTopEvent = mainViewModel.scrollToTopEvent.collectAsState().value,
@@ -369,14 +369,15 @@ fun MainScreen(
                 frequentlyUsedTags = uiState.frequentlyUsedTags,
                 onToggleFavorite = mainViewModel::toggleTagFavoriteStatus,
 
-                selectedImageUri = uiState.selectedImageUri,
+                selectedImageUris = uiState.selectedImageUris,
                 onLaunchPhotoPicker = {
                     photoPickerLauncher.launch(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                     )
                 },
                 onImageSelected = { uri -> mainViewModel.onImageSelected(uri) },
-                onCreateCameraImageUri = { mainViewModel.createImageUri() }, // ◀◀◀ これを追加
+                onImageRemoved = { index -> mainViewModel.onImageRemoved(index) },
+                onCreateCameraImageUri = { mainViewModel.createImageUri() },
                 requestFocus = uiState.requestFocus,
                 onFocusConsumed = { mainViewModel.consumeFocusRequest() }
             )

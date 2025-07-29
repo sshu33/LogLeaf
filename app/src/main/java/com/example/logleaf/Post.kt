@@ -7,6 +7,7 @@ import androidx.room.Entity
 import androidx.room.Junction
 import androidx.room.PrimaryKey
 import androidx.room.Relation
+import com.example.logleaf.ui.entry.PostImage
 import com.example.logleaf.ui.entry.PostTagCrossRef
 import com.example.logleaf.ui.entry.Tag
 import com.example.logleaf.ui.theme.SnsType
@@ -42,4 +43,32 @@ data class PostWithTags(
         )
     )
     val tags: List<Tag>
+)
+
+data class PostWithImages(
+    @Embedded val post: Post,
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "postId"
+    )
+    val images: List<PostImage>
+)
+
+data class PostWithTagsAndImages(
+    @Embedded val post: Post,
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "tagId",
+        associateBy = Junction(
+            value = PostTagCrossRef::class,
+            parentColumn = "postId",
+            entityColumn = "tagId"
+        )
+    )
+    val tags: List<Tag>,
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "postId"
+    )
+    val images: List<PostImage>
 )

@@ -12,6 +12,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.forEachGesture
@@ -77,11 +78,13 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.logleaf.PostWithTags
+import com.example.logleaf.PostWithTagsAndImages
 import com.example.logleaf.ui.components.SmartTagDisplay
 import com.example.logleaf.ui.entry.Tag
 import com.example.logleaf.ui.theme.SettingsTheme
@@ -102,12 +105,11 @@ import kotlin.math.abs
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun LogViewScreen(
-    posts: List<PostWithTags>,
+    posts: List<PostWithTagsAndImages>,
     targetPostId: String,
     onDismiss: () -> Unit,
     navController: NavController,
-    // ★★★ 追加：投稿操作用のコールバック ★★★
-    onStartEditingPost: (PostWithTags) -> Unit,
+    onStartEditingPost: (PostWithTagsAndImages) -> Unit,
     onSetPostHidden: (String, Boolean) -> Unit,
     onDeletePost: (String) -> Unit
 ) {
@@ -167,10 +169,10 @@ fun LogViewScreen(
                 bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 16.dp // ★★★ ナビゲーションバー + 余白
             )
         ) {
-            items(posts, key = { it.post.id }) { postWithTags ->
+            items(posts, key = { it.post.id }) { postWithTagsAndImages ->
                 LogViewPostCard(
-                    postWithTags = postWithTags,
-                    scale = if (postWithTags.post.id == targetPostId) scale.value else 1f,
+                    postWithTagsAndImages = postWithTagsAndImages,
+                    scale = if (postWithTagsAndImages.post.id == targetPostId) scale.value else 1f,
                     onImageClick = { uri -> setEnlargedImageUri(uri) },
                     onTagClick = { tagName ->
                         val encodedTag = URLEncoder.encode(tagName.removePrefix("#"), StandardCharsets.UTF_8.name())
@@ -180,16 +182,15 @@ fun LogViewScreen(
                     onStartEditing = {
                         // 編集の場合：ログビューを閉じてからカレンダー画面で編集開始
                         onDismiss()
-                        onStartEditingPost(postWithTags)
+                        onStartEditingPost(postWithTagsAndImages)
                     },
                     onSetHidden = { isHidden ->
                         // 非表示切り替え：ログビュー上でそのまま実行
-                        onSetPostHidden(postWithTags.post.id, isHidden)
+                        onSetPostHidden(postWithTagsAndImages.post.id, isHidden)
                     },
                     onDelete = {
                         // 削除：ログビュー上でそのまま実行
-                        onDeletePost(postWithTags.post.id)
-                    },
+                        postWithTagsAndImages                    },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
                 )
             }
@@ -298,7 +299,7 @@ fun IndexTab(dateString: String, onClick: () -> Unit, modifier: Modifier = Modif
 
 @Composable
 fun LogViewPostCard(
-    postWithTags: PostWithTags,
+    postWithTagsAndImages: PostWithTagsAndImages,
     scale: Float,
     onImageClick: (Uri) -> Unit,
     onTagClick: (String) -> Unit,
@@ -309,7 +310,7 @@ fun LogViewPostCard(
     modifier: Modifier = Modifier
 ) {
 
-    val post = postWithTags.post
+    val post = postWithTagsAndImages.post
     val localDateTime = post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
     val timeString = localDateTime.format(DateTimeFormatter.ofPattern("HH:mm"))
 
@@ -372,7 +373,7 @@ fun LogViewPostCard(
                         // 中央の余白
                         Spacer(modifier = Modifier.weight(1f))
                         // 右側にタグをFlowRowで表示
-                        if (postWithTags.tags.isNotEmpty()) {
+                        if (postWithTagsAndImages.tags.isNotEmpty()) {
                             val screenWidth = LocalConfiguration.current.screenWidthDp.dp
                             val cardPadding = 32.dp // カード左右余白（16dp × 2）
                             val cardWidth = screenWidth - cardPadding
@@ -385,7 +386,7 @@ fun LogViewPostCard(
                             val tagAreaWidth = contentWidth * 2f / 3f
 
                             SmartTagDisplay(
-                                tags = postWithTags.tags,
+                                tags = postWithTagsAndImages.tags,
                                 onTagClick = onTagClick,
                                 availableWidth = tagAreaWidth
                             )
@@ -395,17 +396,47 @@ fun LogViewPostCard(
                         text = post.text,
                         style = MaterialTheme.typography.bodyLarge
                     )
-                    if (post.imageUrl != null) {
-                        val imageUri = remember { Uri.parse(post.imageUrl) }
-                        AsyncImage(
-                            model = imageUri,
-                            contentDescription = "投稿画像",
+                    if (postWithTagsAndImages.images.isNotEmpty()) {
+                        var currentImageIndex by remember { mutableStateOf(0) }
+                        val currentImage = postWithTagsAndImages.images[currentImageIndex]
+
+                        Box(
                             modifier = Modifier
                                 .size(80.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .clickable { onImageClick(imageUri) },
-                            contentScale = ContentScale.Crop
-                        )
+                                .pointerInput(Unit) {
+                                    detectHorizontalDragGestures { _, dragAmount ->
+                                        if (dragAmount > 50f && currentImageIndex > 0) {
+                                            // 右スワイプ：前の画像
+                                            currentImageIndex--
+                                        } else if (dragAmount < -50f && currentImageIndex < postWithTagsAndImages.images.size - 1) {
+                                            // 左スワイプ：次の画像
+                                            currentImageIndex++
+                                        }
+                                    }
+                                }
+                                .clickable { onImageClick(Uri.parse(currentImage.imageUrl)) }
+                        ) {
+                            AsyncImage(
+                                model = currentImage.imageUrl,
+                                contentDescription = "投稿画像 ${currentImageIndex + 1}/${postWithTagsAndImages.images.size}",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+
+                            // 複数画像の場合、インジケーター表示
+                            if (postWithTagsAndImages.images.size > 1) {
+                                Text(
+                                    text = "${currentImageIndex + 1}/${postWithTagsAndImages.images.size}",
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                                        .padding(4.dp),
+                                    color = Color.White,
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
                     }
                 }
             }
