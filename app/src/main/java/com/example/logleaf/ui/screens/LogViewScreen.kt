@@ -81,6 +81,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.logleaf.PostWithTags
+import com.example.logleaf.ui.components.SmartTagDisplay
 import com.example.logleaf.ui.entry.Tag
 import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
@@ -371,17 +372,11 @@ fun LogViewPostCard(
                         Spacer(modifier = Modifier.weight(1f))
                         // 右側にタグをFlowRowで表示
                         if (postWithTags.tags.isNotEmpty()) {
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                postWithTags.tags.forEach { tag ->
-                                    LogViewTagChip(
-                                        tag = tag,
-                                        onClick = { onTagClick(tag.tagName) }
-                                    )
-                                }
-                            }
+                            SmartTagDisplay(
+                                tags = postWithTags.tags,
+                                onTagClick = onTagClick,
+                                maxWidth = 200.dp // 調整可能
+                            )
                         }
                     }
                     UserFontText(

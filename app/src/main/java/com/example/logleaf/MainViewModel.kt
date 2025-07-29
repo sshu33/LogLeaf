@@ -201,8 +201,23 @@ class MainViewModel(
                 }
                 val allNewPosts = postLists.awaitAll().flatten()
                 if (allNewPosts.isNotEmpty()) {
-                    postDao.insertAll(allNewPosts)
+                    postDao.insertAllWithHashtagExtraction(allNewPosts)
                 }
+
+                if (allNewPosts.isNotEmpty()) {
+                    Log.d("HashtagDebug", "=== ハッシュタグ抽出開始 ===")
+                    Log.d("HashtagDebug", "取得した投稿数: ${allNewPosts.size}")
+
+                    // 投稿の詳細もログ出力
+                    allNewPosts.forEachIndexed { index, post ->
+                        Log.d("HashtagDebug", "投稿$index: ID=${post.id}, テキスト=${post.text.take(30)}...")
+                    }
+
+                    val result = postDao.insertAllWithHashtagExtraction(allNewPosts)
+                    Log.d("HashtagDebug", "処理結果: ${result.first}件の投稿から${result.second}個のタグを抽出")
+                    Log.d("HashtagDebug", "=== ハッシュタグ抽出完了 ===")
+                }
+
             } catch (e: Exception) {
                 println("Error fetching posts: ${e.message}")
             }

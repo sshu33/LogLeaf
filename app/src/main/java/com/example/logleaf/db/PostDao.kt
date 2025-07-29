@@ -1,7 +1,9 @@
 package com.example.logleaf.db
 
+import android.util.Log
 import androidx.room.*
 import androidx.sqlite.db.SimpleSQLiteQuery
+import com.example.logleaf.HashtagExtractor
 import com.example.logleaf.Post
 import com.example.logleaf.PostWithTags
 import com.example.logleaf.ui.entry.PostTagCrossRef
@@ -199,4 +201,111 @@ interface PostDao {
         ORDER BY P.createdAt DESC
     """)
     fun searchPostsByTag(tagName: String, visibleAccountIds: List<String>): Flow<List<Post>>
+
+    /**
+     * 投稿にハッシュタグを自動抽出して関連付けます
+     *
+     * @param post 対象の投稿
+     * @return 抽出されたタグの数
+     */
+    suspend fun extractAndSaveHashtags(post: Post): Int {
+
+        val hashtags = HashtagExtractor.extractHashtags(post.text)
+        if (hashtags.isEmpty()) return 0
+
+        Log.d("HashtagDebug", "投稿 ${post.id} の抽出開始: ${hashtags}")
+
+        // 1. 抽出したハッシュタグをタグテーブルに保存
+        val tagIds = mutableListOf<Long>()
+        hashtags.forEach { tagName ->
+            var tagId = insertTag(Tag(tagName = tagName))
+            if (tagId == -1L) {
+                // 既存のタグの場合、IDを取得
+                tagId = getTagIdByName(tagName) ?: 0L
+            }
+            if (tagId != 0L) {
+                tagIds.add(tagId)
+            }
+        }
+
+        // 2. 投稿とタグの関連付けを保存（重複は自動で無視される）
+        tagIds.forEach { tagId ->
+            insertPostTagCrossRef(PostTagCrossRef(post.id, tagId))
+        }
+
+        return hashtags.size
+    }
+
+    /**
+     * 投稿を保存し、同時にハッシュタグを自動抽出します
+     * 新規投稿・SNS投稿取得時に使用
+     *
+     * @param post 保存する投稿
+     * @return 抽出されたタグの数
+     */
+    suspend fun insertWithHashtagExtraction(post: Post): Int {
+        // 1. 投稿を保存
+        insert(post)
+
+        // 2. ハッシュタグを自動抽出・保存
+        return extractAndSaveHashtags(post)
+    }
+
+    /**
+     * 投稿IDから投稿を取得（存在チェック用）
+     */
+    @Query("SELECT * FROM posts WHERE id = :postId LIMIT 1")
+    suspend fun getPostById(postId: String): Post?
+
+    /**
+     * 複数の投稿を保存し、新規投稿のみハッシュタグを自動抽出します
+     * 修正版：既存投稿の重複抽出を防ぐ
+     */
+    suspend fun insertAllWithHashtagExtraction(posts: List<Post>): Pair<Int, Int> {
+        var newPostCount = 0
+        var totalTagsExtracted = 0
+
+        posts.forEach { post ->
+            // 既存投稿かチェック
+            val existingPost = getPostById(post.id)
+            val isNewPost = existingPost == null
+
+            // 投稿を保存（新規・更新どちらでも）
+            insert(post)
+
+            // 新規投稿のみハッシュタグ抽出
+            if (isNewPost) {
+                newPostCount++
+                val tagsCount = extractAndSaveHashtags(post)
+                totalTagsExtracted += tagsCount
+                Log.d("HashtagDebug", "新規投稿 ${post.id} から${tagsCount}個のタグを抽出")
+            } else {
+                Log.d("HashtagDebug", "既存投稿 ${post.id} はスキップ")
+            }
+        }
+
+        Log.d("HashtagDebug", "結果: ${posts.size}件中${newPostCount}件が新規、合計${totalTagsExtracted}個のタグを抽出")
+        return Pair(newPostCount, totalTagsExtracted)
+    }
+
+    /**
+     * 全ての既存投稿にハッシュタグ抽出を一括適用します
+     * 初回導入時・メンテナンス時に使用
+     *
+     * @return 処理した投稿数とタグ数のPair
+     */
+    @Query("SELECT * FROM posts")
+    suspend fun getAllPostsForMaintenance(): List<Post>
+
+    suspend fun applyHashtagExtractionToAllPosts(): Pair<Int, Int> {
+        val allPosts = getAllPostsForMaintenance()
+        var totalTagsExtracted = 0
+
+        allPosts.forEach { post ->
+            val tagsCount = extractAndSaveHashtags(post)
+            totalTagsExtracted += tagsCount
+        }
+
+        return Pair(allPosts.size, totalTagsExtracted)
+    }
 }

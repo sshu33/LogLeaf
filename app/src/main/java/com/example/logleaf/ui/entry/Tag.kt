@@ -8,5 +8,5 @@ data class Tag(
     @PrimaryKey(autoGenerate = true)
     val tagId: Long = 0,
     val tagName: String,
-    val isFavorite: Boolean = false // ◀◀ この行を追加
+    val isFavorite: Boolean = false
 )
