@@ -70,5 +70,8 @@ data class PostWithTagsAndImages(
         parentColumn = "id",
         entityColumn = "postId"
     )
+    private val _images: List<PostImage>
+) {
     val images: List<PostImage>
-)
+        get() = _images.sortedBy { it.orderIndex }
+}

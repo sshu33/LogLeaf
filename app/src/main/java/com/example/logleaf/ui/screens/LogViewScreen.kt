@@ -16,6 +16,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.forEachGesture
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,6 +42,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.Card
@@ -397,43 +399,19 @@ fun LogViewPostCard(
                         style = MaterialTheme.typography.bodyLarge
                     )
                     if (postWithTagsAndImages.images.isNotEmpty()) {
-                        var currentImageIndex by remember { mutableStateOf(0) }
-                        val currentImage = postWithTagsAndImages.images[currentImageIndex]
-
-                        Box(
-                            modifier = Modifier
-                                .size(80.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .pointerInput(Unit) {
-                                    detectHorizontalDragGestures { _, dragAmount ->
-                                        if (dragAmount > 50f && currentImageIndex > 0) {
-                                            // 右スワイプ：前の画像
-                                            currentImageIndex--
-                                        } else if (dragAmount < -50f && currentImageIndex < postWithTagsAndImages.images.size - 1) {
-                                            // 左スワイプ：次の画像
-                                            currentImageIndex++
-                                        }
-                                    }
-                                }
-                                .clickable { onImageClick(Uri.parse(currentImage.imageUrl)) }
+                        Row(
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            AsyncImage(
-                                model = currentImage.imageUrl,
-                                contentDescription = "投稿画像 ${currentImageIndex + 1}/${postWithTagsAndImages.images.size}",
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-
-                            // 複数画像の場合、インジケーター表示
-                            if (postWithTagsAndImages.images.size > 1) {
-                                Text(
-                                    text = "${currentImageIndex + 1}/${postWithTagsAndImages.images.size}",
+                            postWithTagsAndImages.images.forEach { image ->
+                                AsyncImage(
+                                    model = image.imageUrl,
+                                    contentDescription = "投稿画像",
                                     modifier = Modifier
-                                        .align(Alignment.BottomEnd)
-                                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
-                                        .padding(4.dp),
-                                    color = Color.White,
-                                    fontSize = 10.sp
+                                        .size(80.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { onImageClick(Uri.parse(image.imageUrl)) },
+                                    contentScale = ContentScale.Crop
                                 )
                             }
                         }
