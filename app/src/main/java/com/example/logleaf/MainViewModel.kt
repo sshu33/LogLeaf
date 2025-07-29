@@ -110,6 +110,34 @@ class MainViewModel(
     private val favoriteTagsFlow: Flow<List<Tag>> = postDao.getFavoriteTags()
     private val frequentlyUsedTagsFlow: Flow<List<Tag>> = postDao.getFrequentlyUsedTags()
 
+    private suspend fun checkForDeletedPosts(accounts: List<Account>, fetchedPosts: List<Post>) {
+        accounts.forEach { account ->
+            try {
+                // LogLeaf内の該当アカウントのアクティブな投稿IDを取得
+                val localActivePostIds = postDao.getActivePostIdsForAccount(account.userId)
+
+                if (localActivePostIds.isEmpty()) return@forEach
+
+                // SNS側から取得した投稿のIDリスト
+                val fetchedPostIds = fetchedPosts
+                    .filter { it.accountId == account.userId }
+                    .map { it.id }
+
+                // LogLeaf内にあるがSNS側にない投稿 = 削除された投稿
+                val deletedPostIds = localActivePostIds - fetchedPostIds.toSet()
+
+                if (deletedPostIds.isNotEmpty()) {
+                    // 削除された投稿を削除済みとしてマーク
+                    postDao.markPostsAsDeletedFromSns(account.userId, fetchedPostIds)
+                    Log.d("DeletedPostCheck", "Account ${account.userId}: ${deletedPostIds.size}件の投稿が削除済みとしてマークされました")
+                }
+
+            } catch (e: Exception) {
+                Log.e("DeletedPostCheck", "削除済み投稿チェック中にエラー: ${e.message}")
+            }
+        }
+    }
+
     val uiState: StateFlow<UiState> = combine(
         listOf(
             allPostsFlow,
@@ -203,6 +231,8 @@ class MainViewModel(
                 if (allNewPosts.isNotEmpty()) {
                     postDao.insertAllWithHashtagExtraction(allNewPosts)
                 }
+
+                checkForDeletedPosts(accountsToFetch, allNewPosts)
 
             } catch (e: Exception) {
                 println("Error fetching posts: ${e.message}")

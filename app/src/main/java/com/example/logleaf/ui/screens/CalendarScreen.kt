@@ -712,7 +712,7 @@ fun CalendarPostCardItem(
                 )
 
                 // 「編集」メニュー
-                if (post.source == SnsType.LOGLEAF) {
+                if (post.source == SnsType.LOGLEAF || post.isDeletedFromSns) {
                     DropdownMenuItem(
                         text = { UserFontText(text = "編集") },
                         onClick = {
@@ -736,7 +736,7 @@ fun CalendarPostCardItem(
                 )
 
                 // 「削除」メニュー
-                if (post.source == SnsType.LOGLEAF) {
+                if (post.source == SnsType.LOGLEAF || post.isDeletedFromSns) {
                     DropdownMenuItem(
                         text = { UserFontText(text = "削除") },
                         onClick = {

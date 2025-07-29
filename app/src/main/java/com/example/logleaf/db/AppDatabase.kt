@@ -11,7 +11,7 @@ import com.example.logleaf.Post
 import com.example.logleaf.ui.entry.PostTagCrossRef
 import com.example.logleaf.ui.entry.Tag
 
-@Database(entities = [Post::class, Tag::class, PostTagCrossRef::class], version = 6, exportSchema = false)
+@Database(entities = [Post::class, Tag::class, PostTagCrossRef::class], version = 7, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
 
@@ -68,6 +68,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // postsテーブルに isDeletedFromSns カラムを追加
+                database.execSQL("ALTER TABLE posts ADD COLUMN isDeletedFromSns INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -75,8 +82,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "logleaf_database"
                 )
-                    // ▼▼▼ ここに MIGRATION_4_5 を追加 ▼▼▼
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .build()
                 INSTANCE = instance
                 instance

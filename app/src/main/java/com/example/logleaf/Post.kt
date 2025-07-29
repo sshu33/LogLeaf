@@ -22,7 +22,9 @@ data class Post(
     val source: SnsType,
     val imageUrl: String?,
     @ColumnInfo(name = "isHidden", defaultValue = "0")
-    val isHidden: Boolean = false
+    val isHidden: Boolean = false,
+    @ColumnInfo(name = "isDeletedFromSns", defaultValue = "0")
+    val isDeletedFromSns: Boolean = false
 ) {
     @delegate:androidx.room.Ignore
     val color: Color by lazy { source.brandColor }

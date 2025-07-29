@@ -33,6 +33,26 @@ interface PostDao {
     suspend fun setPostHiddenStatus(postId: String, isHidden: Boolean)
 
     /**
+     * 投稿のSNS削除状態を更新する。
+     */
+    @Query("UPDATE posts SET isDeletedFromSns = :isDeleted WHERE id = :postId")
+    suspend fun setPostDeletedFromSnsStatus(postId: String, isDeleted: Boolean)
+
+    /**
+     * SNS投稿のIDリストを受け取り、LogLeaf内の対応する投稿を「削除済み」としてマークする。
+     * リフレッシュ時に、SNS側に存在しない投稿を特定するために使用。
+     */
+    @Query("UPDATE posts SET isDeletedFromSns = 1 WHERE accountId = :accountId AND id NOT IN (:existingPostIds)")
+    suspend fun markPostsAsDeletedFromSns(accountId: String, existingPostIds: List<String>)
+
+    /**
+     * 指定されたアカウントのSNS投稿のうち、削除済みでないもののIDリストを取得。
+     * SNS側との差分チェックに使用。
+     */
+    @Query("SELECT id FROM posts WHERE accountId = :accountId AND isDeletedFromSns = 0")
+    suspend fun getActivePostIdsForAccount(accountId: String): List<String>
+
+    /**
      * IDを指定して1件の投稿を削除する。
      */
     @Query("DELETE FROM posts WHERE id = :postId")
@@ -56,7 +76,6 @@ interface PostDao {
 """)
     fun getPostsForDate(dateString: String, visibleAccountIds: List<String>, includeHidden: Int): Flow<List<Post>>
 
-    // ▼▼▼ この関数を、丸ごと置き換えてください ▼▼▼
     fun searchPostsWithAnd(keywords: List<String>, visibleAccountIds: List<String>, includeHidden: Int): Flow<List<Post>> {
         if (keywords.isEmpty()) {
             return getAllPosts(visibleAccountIds, includeHidden)
