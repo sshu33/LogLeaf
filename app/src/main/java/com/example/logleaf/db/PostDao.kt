@@ -213,8 +213,6 @@ interface PostDao {
         val hashtags = HashtagExtractor.extractHashtags(post.text)
         if (hashtags.isEmpty()) return 0
 
-        Log.d("HashtagDebug", "投稿 ${post.id} の抽出開始: ${hashtags}")
-
         // 1. 抽出したハッシュタグをタグテーブルに保存
         val tagIds = mutableListOf<Long>()
         hashtags.forEach { tagName ->

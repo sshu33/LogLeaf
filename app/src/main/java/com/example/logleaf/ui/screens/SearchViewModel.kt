@@ -106,7 +106,7 @@ class SearchViewModel(
     fun searchByTag(tagName: String) {
         _isTagOnlySearch.value = true
         _searchQuery.value = tagName
-        Log.d("TagSearchDebug", "3. [ViewModel] Switched to Tag-Only mode. Query: $tagName")
+        Log.d("TagSearch", "タグ検索実行: tagName=${tagName}")
     }
 
     fun onTagOnlySearchChanged(isTagOnly: Boolean) {

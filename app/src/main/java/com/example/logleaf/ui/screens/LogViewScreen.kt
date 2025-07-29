@@ -71,6 +71,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -372,10 +373,21 @@ fun LogViewPostCard(
                         Spacer(modifier = Modifier.weight(1f))
                         // 右側にタグをFlowRowで表示
                         if (postWithTags.tags.isNotEmpty()) {
+                            val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+                            val cardPadding = 32.dp // カード左右余白（16dp × 2）
+                            val cardWidth = screenWidth - cardPadding
+                            val colorBarAndSpacing = 20.dp // カラーバー + スペーサー
+
+                            // カード内コンテンツ幅から、カラーバー分を除く
+                            val contentWidth = cardWidth - colorBarAndSpacing
+
+                            // 右から2/3がタグエリア
+                            val tagAreaWidth = contentWidth * 2f / 3f
+
                             SmartTagDisplay(
                                 tags = postWithTags.tags,
                                 onTagClick = onTagClick,
-                                maxWidth = 200.dp // 調整可能
+                                availableWidth = tagAreaWidth
                             )
                         }
                     }
