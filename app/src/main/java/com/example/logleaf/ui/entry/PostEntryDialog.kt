@@ -7,6 +7,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
@@ -18,8 +20,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -70,6 +71,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -132,6 +134,7 @@ fun PostEntryDialog(
     onLaunchPhotoPicker: () -> Unit,
     onImageSelected: (Uri?) -> Unit,
     onImageRemoved: (Int) -> Unit,
+    onImageFavorited: (Int) -> Unit,
     onCreateCameraImageUri: () -> Uri,
     requestFocus: Boolean,
     onFocusConsumed: () -> Unit
@@ -302,7 +305,7 @@ fun PostEntryDialog(
                         onValueChange = onTextChange,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = 80.dp, max = 200.dp)
+                            .heightIn(min = 120.dp, max = 200.dp)
                             .focusRequester(bodyFocusRequester)
                             .onFocusChanged { focusState ->
                                 if (focusState.isFocused && isTimeEditing) {
@@ -332,9 +335,6 @@ fun PostEntryDialog(
                                     modifier = Modifier
                                         .size(80.dp)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .clickable {
-                                            onImageRemoved(index) // 個別削除
-                                        }
                                 ) {
                                     AsyncImage(
                                         model = uri,
@@ -342,19 +342,43 @@ fun PostEntryDialog(
                                         modifier = Modifier.fillMaxSize(),
                                         contentScale = ContentScale.Crop
                                     )
-                                    // 削除アイコン
+
+                                    // 黒いベール
                                     Box(
                                         modifier = Modifier
                                             .matchParentSize()
                                             .background(Color.Black.copy(alpha = 0.3f))
                                     ) {
+                                        // 削除アイコン（右上・1.5倍サイズ）
                                         Icon(
                                             imageVector = Icons.Default.Close,
                                             contentDescription = "画像を削除",
                                             tint = Color.White,
                                             modifier = Modifier
-                                                .size(24.dp)
-                                                .align(Alignment.Center)
+                                                .size(30.dp)
+                                                .align(Alignment.TopEnd)
+                                                .padding(4.dp)
+                                                .clickable { onImageRemoved(index) }
+                                        )
+
+                                        // お気に入りアイコン（左下・2倍サイズ）
+                                        val scale by animateFloatAsState(
+                                            targetValue = if (index == 0) 1.1f else 1.0f,
+                                            animationSpec = tween(200),
+                                            label = "StarScale"
+                                        )
+                                        Icon(
+                                            painter = painterResource(
+                                                id = if (index == 0) R.drawable.ic_star_filled else R.drawable.ic_star_outline
+                                            ),
+                                            contentDescription = "お気に入り設定",
+                                            tint = if (index == 0) Color(0xFFfbd144) else Color.White, // ★黄色、☆白
+                                            modifier = Modifier
+                                                .size(25.dp)
+                                                .align(Alignment.BottomStart)
+                                                .padding(4.dp)
+                                                .clickable { onImageFavorited(index) }
+                                                .scale(scale)
                                         )
                                     }
                                 }

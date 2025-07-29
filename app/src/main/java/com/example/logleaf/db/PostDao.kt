@@ -354,9 +354,11 @@ interface PostDao {
      * 投稿とタグと画像を全て取得する
      */
     @Transaction
-    @Query("SELECT * FROM posts")
+    @Query("""
+    SELECT * FROM posts 
+    ORDER BY createdAt DESC
+""")
     fun getPostsWithTagsAndImages(): Flow<List<PostWithTagsAndImages>>
-
     /**
      * 投稿を更新し、タグと画像も一緒に保存する
      */

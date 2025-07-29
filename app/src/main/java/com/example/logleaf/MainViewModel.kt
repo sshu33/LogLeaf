@@ -379,6 +379,18 @@ class MainViewModel(
         }
     }
 
+    fun onImageFavorited(index: Int) {
+        _postEntryState.update { currentState ->
+            val uris = currentState.selectedImageUris.toMutableList()
+            if (index in 0 until uris.size) {
+                // 選択された画像を先頭に移動
+                val favoriteUri = uris.removeAt(index)
+                uris.add(0, favoriteUri)
+            }
+            currentState.copy(selectedImageUris = uris)
+        }
+    }
+
     fun createImageUri(): Uri {
         val context = getApplication<Application>().applicationContext
         // 保存先のファイルを作成（まだ中身は空）
@@ -395,7 +407,6 @@ class MainViewModel(
     }
 
     fun submitPost(unconfirmedTimeText: String? = null, tagNames: List<String>) {
-        Log.d("TagDebug", "Submit Button Pressed. Tags to save: $tagNames") // ◀◀ 追加
         var currentState = _postEntryState.value
 
         // 1. もし未確定の時刻テキストが渡されていたら、それをパースしてcurrentStateを更新する
@@ -470,7 +481,6 @@ class MainViewModel(
             }
 
             val crossRefs = tagIds.map { tagId -> PostTagCrossRef(postToSave.id, tagId) }
-
             // 複数画像のPostImageオブジェクトを作成
             val postImages = savedImageUrls.mapIndexed { index, imageUrl ->
                 PostImage(
@@ -487,10 +497,11 @@ class MainViewModel(
             withContext(Dispatchers.Main) {
                 clearDraftAndDismiss()
 
-                // ★★★ 追加：新規投稿の場合のみスクロールイベントを発火 ★★★
                 if (isNewPost) {
                     _scrollToTopEvent.value = true
                 }
+
+                refreshPosts() // ←この行を追加
             }
         }
     }

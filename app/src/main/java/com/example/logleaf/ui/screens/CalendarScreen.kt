@@ -2,6 +2,7 @@ package com.example.logleaf.ui.screens
 
 
 import android.net.Uri
+import android.util.Log
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -222,8 +223,7 @@ fun CalendarScreen(
                     ) {
                         items(postsForSelectedDay, key = { it.post.id }) { postWithTagsAndImages ->
                             CalendarPostCardItem(
-                                post = postWithTagsAndImages.post,
-                                tags = postWithTagsAndImages.tags,
+                                postWithTagsAndImages = postWithTagsAndImages, // 引数名変更
                                 maxLines = 5,
                                 isFocused = (postWithTagsAndImages.post.id == focusedPostIdForRipple),
                                 onClick = { postForDetail = postWithTagsAndImages },
@@ -546,8 +546,7 @@ fun DayCell(
 @OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun CalendarPostCardItem(
-    post: Post,
-    tags: List<Tag>,
+    postWithTagsAndImages: PostWithTagsAndImages, // 引数変更
     maxLines: Int,
     isFocused: Boolean,
     onStartEditing: () -> Unit,
@@ -556,6 +555,11 @@ fun CalendarPostCardItem(
     onClick: () -> Unit,
     onImageClick: (Uri) -> Unit,
 ) {
+    // 分解して従来通りに使用
+    val post = postWithTagsAndImages.post
+    val tags = postWithTagsAndImages.tags
+    val images = postWithTagsAndImages.images
+
     val clipboardManager: ClipboardManager = LocalClipboardManager.current
     val localDateTime = post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
     val timeString = localDateTime.format(DateTimeFormatter.ofPattern("HH:mm"))
@@ -666,19 +670,42 @@ fun CalendarPostCardItem(
                     }
                 }
 
-                // ▼▼▼ 画像をRowの外側、最後の要素として配置 ▼▼▼
-                if (post.imageUrl != null) {
-                    val imageUri = remember { Uri.parse(post.imageUrl) }
+                // ▼▼▼ 画像表示部分を修正 ▼▼▼
+                if (images.isNotEmpty()) {
+
+                    Log.d("CalendarImage", "Displaying: ${images.first().imageUrl.takeLast(15)} (orderIndex: ${images.first().orderIndex})")
+
+
+                    val firstImageUri = remember(images.first().imageUrl) {
+                        Uri.parse(images.first().imageUrl)
+                    }
                     Spacer(modifier = Modifier.width(8.dp))
-                    AsyncImage(
-                        model = imageUri,
-                        contentDescription = "投稿画像",
-                        modifier = Modifier
-                            .size(72.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { onImageClick(imageUri) },
-                        contentScale = ContentScale.Crop
-                    )
+                    Box {
+                        AsyncImage(
+                            model = firstImageUri,
+                            contentDescription = "投稿画像",
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onImageClick(firstImageUri) },
+                            contentScale = ContentScale.Crop
+                        )
+                        // 複数画像の場合は枚数表示
+                        if (images.size > 1) {
+                            UserFontText(
+                                text = "${images.size}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White,
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .background(
+                                        Color.Black.copy(alpha = 0.4f),
+                                        RoundedCornerShape(4.dp)
+                                    )
+                                    .padding(horizontal = 3.dp, vertical = 0.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
