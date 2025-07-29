@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.logleaf.Post
 import com.example.logleaf.SessionManager
 import com.example.logleaf.db.PostDao
+import com.example.logleaf.ui.entry.Tag
 import com.example.logleaf.ui.theme.SnsType
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -45,18 +46,15 @@ class SearchViewModel(
     @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
     val searchResultPosts: StateFlow<List<Post>> =
         combine(
-            _searchQuery, // ◀ debounceを一旦外して、生のデータを監視します
+            _searchQuery,
             _selectedSns,
             sessionManager.accountsFlow,
             _isTagOnlySearch
         ) { query, sns, accounts, isTagOnly ->
-            // ▼▼▼ queryからkeywordsをここで生成する ▼▼▼
             val keywords = query.split(" ", "　").filter { it.isNotBlank() }
             Quadruple(keywords, sns, accounts, isTagOnly)
         }
             .debounce(300L)
-            .onEach { (keywords, _, _, isTagOnly) ->
-            }
             .flatMapLatest { (keywords, sns, accounts, isTagOnly) ->
                 if (keywords.isEmpty()) {
                     flowOf(emptyList())
@@ -81,7 +79,7 @@ class SearchViewModel(
                 }
             }
             .map { posts ->
-                val snsValue = selectedSns.value // ◀◀ 変数名を修正
+                val snsValue = selectedSns.value
                 if (snsValue != null) {
                     posts.filter { it.source == snsValue }
                 } else {
@@ -91,8 +89,15 @@ class SearchViewModel(
             .stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(5000),
-                initialValue = emptyList() // 初期値は、空のリスト
+                initialValue = emptyList()
             )
+
+    /**
+     * 検索結果の投稿からタグ情報を取得する（タグ検索時のみ使用）
+     */
+    suspend fun getTagsForPost(postId: String): List<Tag> {
+        return postDao.getTagsForPost(postId)
+    }
 
 
     fun onQueryChanged(query: String) {

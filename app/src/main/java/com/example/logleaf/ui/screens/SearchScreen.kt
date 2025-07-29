@@ -71,7 +71,6 @@ fun SearchScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        // ▼▼▼ [変更点1] Boxを削除し、Surfaceだけに戻す ▼▼▼
         Surface(
             shadowElevation = 2.dp
         ) {
@@ -108,6 +107,8 @@ fun SearchScreen(
                     SearchResultItem(
                         post = post,
                         searchQuery = searchQuery,
+                        isTagOnlySearch = isTagOnlySearch,
+                        viewModel = viewModel,
                         onClick = { onPostClick(post) }
                     )
                 }
@@ -273,6 +274,8 @@ fun SearchTopBar(
 fun SearchResultItem(
     post: Post,
     searchQuery: String,
+    isTagOnlySearch: Boolean,
+    viewModel: SearchViewModel,
     onClick: () -> Unit
 ) {
     val keywords = remember(searchQuery) {
@@ -283,7 +286,6 @@ fun SearchResultItem(
         if (keywords.isEmpty()) {
             post.text
         } else {
-            // 全てのキーワードの最初の出現位置を調べる
             val keywordPositions = keywords.mapNotNull { keyword ->
                 val index = post.text.indexOf(keyword, ignoreCase = true)
                 if (index != -1) index else null
@@ -292,26 +294,39 @@ fun SearchResultItem(
             if (keywordPositions.isEmpty()) {
                 post.text
             } else {
-                // 一番最初に現れるキーワードの位置を取得
                 val firstKeywordIndex = keywordPositions.minOrNull() ?: 0
 
-                // 検索ワードが後ろの方にある長文の場合のみ調整
                 if (firstKeywordIndex <= 30) {
-                    // 検索ワードが前の方なら、そのまま表示（HighlightedTextが3行で切る）
                     post.text
                 } else {
-                    // 検索ワードの前に最大30文字だけ表示（絶対に1行以内）
                     val beforeContextLength = 25
                     val startIndex = (firstKeywordIndex - beforeContextLength).coerceAtLeast(0)
-
                     val extractedText = post.text.substring(startIndex)
-
-                    // 前に省略記号を付ける（必要な場合のみ）
                     val prefix = if (startIndex > 0) "…" else ""
-
                     "$prefix$extractedText"
                 }
             }
+        }
+    }
+
+    // タグ検索の場合、該当するタグを取得
+    var matchingTagName by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(searchQuery, post.id) {
+        if (keywords.isNotEmpty()) {
+            val tags = viewModel.getTagsForPost(post.id)
+            // タグ検索ON: 検索したタグを表示
+            if (isTagOnlySearch) {
+                val searchTagName = keywords.first().removePrefix("#")
+                matchingTagName = tags.find { it.tagName.equals(searchTagName, ignoreCase = true) }?.tagName
+            } else {
+                // タグ検索OFF: 検索キーワードと一致するタグがあれば表示
+                matchingTagName = keywords.firstNotNullOfOrNull { keyword ->
+                    tags.find { it.tagName.equals(keyword, ignoreCase = true) }?.tagName
+                }
+            }
+        } else {
+            matchingTagName = null
         }
     }
 
@@ -327,15 +342,14 @@ fun SearchResultItem(
         Row(
             modifier = Modifier.height(IntrinsicSize.Min)
         ) {
-            // カラーバーを丸角の内側に配置
             Box(
                 modifier = Modifier
-                    .padding(start = 16.dp, top = 10.dp, bottom = 10.dp) // 先にpadding
-                    .width(5.dp) // その後でwidth
+                    .padding(start = 16.dp, top = 10.dp, bottom = 10.dp)
+                    .width(5.dp)
                     .fillMaxHeight()
                     .background(
                         color = post.source.brandColor,
-                        shape = RoundedCornerShape(2.dp) // カラーバー自体も少し丸角に
+                        shape = RoundedCornerShape(2.dp)
                     )
             )
             Column(
@@ -346,13 +360,41 @@ fun SearchResultItem(
                     bottom = 12.dp
                 )
             ) {
-                Text(
-                    text = post.createdAt
-                        .withZoneSameInstant(ZoneId.systemDefault())
-                        .format(DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm")),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                )
+                // 時刻とタグチップの行
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = post.createdAt
+                            .withZoneSameInstant(ZoneId.systemDefault())
+                            .format(DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm")),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+
+                    // タグ検索の場合のみ、該当タグを表示
+                    Box(
+                        modifier = Modifier.height(24.dp), // 固定の高さを設定
+                        contentAlignment = Alignment.CenterEnd
+                    ) {
+                        if (matchingTagName != null) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color.Gray.copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    text = "#$matchingTagName",
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp), // 縦のパディングを少し減らす
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(4.dp))
                 HighlightedText(
                     text = displayText,

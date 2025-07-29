@@ -203,6 +203,16 @@ interface PostDao {
     fun searchPostsByTag(tagName: String, visibleAccountIds: List<String>): Flow<List<Post>>
 
     /**
+     * 投稿IDからタグ情報を取得する（検索結果用）
+     */
+    @Query("""
+        SELECT T.* FROM tags AS T
+        INNER JOIN post_tag_cross_ref AS PTC ON T.tagId = PTC.tagId
+        WHERE PTC.postId = :postId
+    """)
+    suspend fun getTagsForPost(postId: String): List<Tag>
+
+    /**
      * 投稿にハッシュタグを自動抽出して関連付けます
      *
      * @param post 対象の投稿
