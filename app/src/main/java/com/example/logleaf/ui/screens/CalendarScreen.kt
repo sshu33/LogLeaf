@@ -79,11 +79,9 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.logleaf.Post
-import com.example.logleaf.PostWithTags
 import com.example.logleaf.PostWithTagsAndImages
 import com.example.logleaf.UiState
 import com.example.logleaf.ui.entry.PostImage
-import com.example.logleaf.ui.entry.Tag
 import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
 import com.yourpackage.logleaf.ui.components.AutoSizeUserFontText
@@ -95,6 +93,11 @@ import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+
+data class EnlargedImageState(
+    val images: List<PostImage>,
+    val initialIndex: Int
+)
 
 @Composable
 fun CalendarScreen(
@@ -118,7 +121,7 @@ fun CalendarScreen(
     val showDetailDialog = postForDetail != null
 
 
-    val (enlargedImageUri, setEnlargedImageUri) = remember { mutableStateOf<Uri?>(null) }
+    val (enlargedImageState, setEnlargedImageState) = remember { mutableStateOf<EnlargedImageState?>(null) }
 
     val initialDate = remember(initialDateString) {
         if (initialDateString != null) {
@@ -228,7 +231,19 @@ fun CalendarScreen(
                                 maxLines = 5,
                                 isFocused = (postWithTagsAndImages.post.id == focusedPostIdForRipple),
                                 onClick = { postForDetail = postWithTagsAndImages },
-                                onImageClick = { uri -> setEnlargedImageUri(uri) },
+                                onImageClick = { uri ->
+                                    val clickedImageIndex = postWithTagsAndImages.images.indexOfFirst {
+                                        it.imageUrl == uri.toString()
+                                    }
+                                    if (clickedImageIndex != -1) {
+                                        setEnlargedImageState(
+                                            EnlargedImageState(
+                                                images = postWithTagsAndImages.images,
+                                                initialIndex = clickedImageIndex
+                                            )
+                                        )
+                                    }
+                                },
                                 onStartEditing = { onStartEditingPost(postWithTagsAndImages) },
                                 onSetHidden = { isHidden ->
                                     onSetPostHidden(
@@ -265,21 +280,12 @@ fun CalendarScreen(
             }
         }
 
-        enlargedImageUri?.let { uri ->
+        enlargedImageState?.let { state ->
             ZoomableImageDialog(
-                imageUri = uri,
-                images = listOf(
-                    PostImage(id = 0, postId = "dummy", imageUrl = uri.toString(), orderIndex = 0),
-                    PostImage(id = 1, postId = "dummy", imageUrl = uri.toString(), orderIndex = 1),
-                    PostImage(id = 2, postId = "dummy", imageUrl = uri.toString(), orderIndex = 2),
-                    PostImage(id = 3, postId = "dummy", imageUrl = uri.toString(), orderIndex = 3),
-                    PostImage(id = 4, postId = "dummy", imageUrl = uri.toString(), orderIndex = 4),
-                    PostImage(id = 5, postId = "dummy", imageUrl = uri.toString(), orderIndex = 5),
-                    PostImage(id = 6, postId = "dummy", imageUrl = uri.toString(), orderIndex = 6),
-                    PostImage(id = 7, postId = "dummy", imageUrl = uri.toString(), orderIndex = 7)
-                ),
-                initialIndex = 0,
-                onDismiss = { setEnlargedImageUri(null) }
+                imageUri = Uri.parse(state.images[state.initialIndex].imageUrl), // とりあえず残す
+                images = state.images,
+                initialIndex = state.initialIndex,
+                onDismiss = { setEnlargedImageState(null) }
             )
         }
 

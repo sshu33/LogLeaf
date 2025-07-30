@@ -1,6 +1,5 @@
 package com.example.logleaf.ui.screens
 
-import android.graphics.ColorFilter
 import android.net.Uri
 import android.util.Log
 import androidx.compose.animation.core.Animatable
@@ -12,8 +11,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.forEachGesture
@@ -93,6 +90,9 @@ import com.example.logleaf.ui.entry.Tag
 import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
 import com.yourpackage.logleaf.ui.components.UserFontText
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -116,7 +116,7 @@ fun LogViewScreen(
     onSetPostHidden: (String, Boolean) -> Unit,
     onDeletePost: (String) -> Unit
 ) {
-    val (enlargedImageUri, setEnlargedImageUri) = remember { mutableStateOf<Uri?>(null) }
+    val (enlargedImageState, setEnlargedImageState) = remember { mutableStateOf<EnlargedImageState?>(null) }
     val listState = rememberLazyListState()
 
     // アニメーションの管理
@@ -152,7 +152,7 @@ fun LogViewScreen(
         modifier = Modifier
             .fillMaxSize()
             .pointerInput(Unit) {
-                if (enlargedImageUri == null) {
+                if (enlargedImageState == null) {
                     detectTapGestures(onTap = { onDismiss() })
                 }
             }
@@ -178,7 +178,19 @@ fun LogViewScreen(
                 LogViewPostCard(
                     postWithTagsAndImages = postWithTagsAndImages,
                     scale = if (postWithTagsAndImages.post.id == targetPostId) scale.value else 1f,
-                    onImageClick = { uri -> setEnlargedImageUri(uri) },
+                    onImageClick = { uri ->
+                        val clickedImageIndex = postWithTagsAndImages.images.indexOfFirst {
+                            it.imageUrl == uri.toString()
+                        }
+                        if (clickedImageIndex != -1) {
+                            setEnlargedImageState(
+                                EnlargedImageState(
+                                    images = postWithTagsAndImages.images,
+                                    initialIndex = clickedImageIndex
+                                )
+                            )
+                        }
+                    },
                     onTagClick = { tagName ->
                         val encodedTag = URLEncoder.encode(
                             tagName.removePrefix("#"),
@@ -225,21 +237,12 @@ fun LogViewScreen(
         }
     }
 
-    enlargedImageUri?.let { uri ->
+    enlargedImageState?.let { state ->
         ZoomableImageDialog(
-            imageUri = uri,
-            images = listOf(
-                PostImage(id = 0, postId = "dummy", imageUrl = uri.toString(), orderIndex = 0),
-                PostImage(id = 1, postId = "dummy", imageUrl = uri.toString(), orderIndex = 1),
-                PostImage(id = 2, postId = "dummy", imageUrl = uri.toString(), orderIndex = 2),
-                PostImage(id = 3, postId = "dummy", imageUrl = uri.toString(), orderIndex = 3),
-                PostImage(id = 4, postId = "dummy", imageUrl = uri.toString(), orderIndex = 4),
-                PostImage(id = 5, postId = "dummy", imageUrl = uri.toString(), orderIndex = 5),
-                PostImage(id = 6, postId = "dummy", imageUrl = uri.toString(), orderIndex = 6),
-                PostImage(id = 7, postId = "dummy", imageUrl = uri.toString(), orderIndex = 7)
-            ),
-            initialIndex = 0,
-            onDismiss = { setEnlargedImageUri(null) }
+            imageUri = Uri.parse(state.images[state.initialIndex].imageUrl), // とりあえず残す
+            images = state.images,
+            initialIndex = state.initialIndex,
+            onDismiss = { setEnlargedImageState(null) }
         )
     }
 }
@@ -749,18 +752,6 @@ fun ZoomableImageDialog(
                                 translationY = offset.y
                             }
                     )
-
-                    // ★番号オーバーレイ
-                    Text(
-                        text = "Image ${currentImageIndex + 1}",
-                        color = Color.White,
-                        fontSize = 24.sp,
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .padding(16.dp)
-                            .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
-                            .padding(8.dp)
-                    )
                 }
             }
 
@@ -774,27 +765,60 @@ fun ZoomableImageDialog(
                     .height(60.dp)
                     .background(Color.Black.copy(alpha = 0.7f))
                     .pointerInput(Unit) {
+                        var isLongPress = false
+                        var startTime = 0L
                         var startX = 0f
-                        var currentX = 0f
+                        var longPressJob: Job? = null
 
                         awaitPointerEventScope {
                             while (true) {
                                 val event = awaitPointerEvent()
                                 when (event.type) {
                                     PointerEventType.Press -> {
+                                        startTime = System.currentTimeMillis()
                                         startX = event.changes.first().position.x
+                                        isLongPress = false
+
+                                        // 500ms後に長押し判定
+                                        longPressJob = CoroutineScope(Dispatchers.Main).launch {
+                                            delay(200)
+                                            isLongPress = true
+                                        }
                                     }
+                                    PointerEventType.Move -> {
+                                        if (isLongPress) {
+                                            val currentX = event.changes.first().position.x
 
+                                            // ドットの実際の位置を計算
+                                            val dotSize = 24.dp.toPx() // タップエリアサイズ
+                                            val dotSpacing = 0.dp.toPx() // 間隔
+                                            val totalDotsWidth = (images.size * dotSize) + ((images.size - 1) * dotSpacing)
+                                            val startX = (size.width - totalDotsWidth) / 2 // 中央寄せの開始位置
+
+                                            // どのドットの上にいるかを判定
+                                            var targetIndex = currentImageIndex // デフォルトは現在のまま
+
+                                            repeat(images.size) { index ->
+                                                val dotLeft = startX + (index * (dotSize + dotSpacing))
+                                                val dotRight = dotLeft + dotSize
+
+                                                if (currentX >= dotLeft && currentX <= dotRight) {
+                                                    targetIndex = index
+                                                }
+                                            }
+
+                                            currentImageIndex = targetIndex
+                                        }
+                                    }
                                     PointerEventType.Release -> {
-                                        currentX = event.changes.first().position.x
-                                        val distance = currentX - startX
+                                        longPressJob?.cancel() // 長押しタイマーをキャンセル
 
-                                        // 50px以上の移動でフリック判定
-                                        if (abs(distance) > 50f) {
-                                            if (distance > 0 && currentImageIndex > 0) {
-                                                currentImageIndex--
-                                            } else if (distance < 0 && currentImageIndex < images.size - 1) {
-                                                currentImageIndex++
+                                        if (!isLongPress) {
+                                            // 短時間 = フリック
+                                            val distance = event.changes.first().position.x - startX
+                                            if (abs(distance) > 50f) {
+                                                if (distance > 0 && currentImageIndex > 0) currentImageIndex--
+                                                else if (distance < 0 && currentImageIndex < images.size - 1) currentImageIndex++
                                             }
                                         }
                                     }
@@ -819,7 +843,7 @@ fun ZoomableImageDialog(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(if (index == initialIndex) 10.dp else 8.dp) // 見た目は小さいまま
+                                .size(if (index == currentImageIndex) 10.dp else 8.dp)
                                 .clip(CircleShape)
                                 .background(
                                     if (index == currentImageIndex) Color.White else Color.Gray
