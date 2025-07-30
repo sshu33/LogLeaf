@@ -377,8 +377,8 @@ fun MainScreen(
                 },
                 onImageSelected = { uri -> mainViewModel.onImageSelected(uri) },
                 onImageRemoved = { index -> mainViewModel.onImageRemoved(index) },
-                onImageFavorited = { index ->
-                    mainViewModel.onImageFavorited(index)
+                onImageReordered = { fromIndex, toIndex ->
+                    mainViewModel.onImageReordered(fromIndex, toIndex)
                 },
                 onCreateCameraImageUri = { mainViewModel.createImageUri() },
                 requestFocus = uiState.requestFocus,

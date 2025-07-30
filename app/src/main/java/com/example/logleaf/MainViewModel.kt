@@ -379,15 +379,14 @@ class MainViewModel(
         }
     }
 
-    fun onImageFavorited(index: Int) {
+    fun onImageReordered(fromIndex: Int, toIndex: Int) {
         _postEntryState.update { currentState ->
-            val uris = currentState.selectedImageUris.toMutableList()
-            if (index in 0 until uris.size) {
-                // 選択された画像を先頭に移動
-                val favoriteUri = uris.removeAt(index)
-                uris.add(0, favoriteUri)
+            val newUris = currentState.selectedImageUris.toMutableList()
+            if (fromIndex != toIndex && fromIndex in 0 until newUris.size && toIndex in 0 until newUris.size) {
+                val item = newUris.removeAt(fromIndex)
+                newUris.add(toIndex, item)
             }
-            currentState.copy(selectedImageUris = uris)
+            currentState.copy(selectedImageUris = newUris)
         }
     }
 

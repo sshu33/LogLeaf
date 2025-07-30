@@ -7,13 +7,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -71,11 +71,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -134,7 +136,7 @@ fun PostEntryDialog(
     onLaunchPhotoPicker: () -> Unit,
     onImageSelected: (Uri?) -> Unit,
     onImageRemoved: (Int) -> Unit,
-    onImageFavorited: (Int) -> Unit,
+    onImageReordered: (Int, Int) -> Unit,
     onCreateCameraImageUri: () -> Uri,
     requestFocus: Boolean,
     onFocusConsumed: () -> Unit
@@ -324,17 +326,84 @@ fun PostEntryDialog(
                     )
 
                     AnimatedVisibility(visible = selectedImageUris.isNotEmpty()) {
+                        var draggedIndex by remember { mutableStateOf<Int?>(null) }
+                        var dragOffset by remember { mutableStateOf(Offset.Zero) }
+                        var targetIndex by remember { mutableStateOf<Int?>(null) }
+
                         LazyRow(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(top = 8.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            itemsIndexed(selectedImageUris) { index, uri ->
+                            itemsIndexed(
+                                items = selectedImageUris,
+                                key = { index, uri -> "$index-$uri" }
+                            ) { index, uri ->
+                                val isDragged = draggedIndex == index
+                                val isTarget = targetIndex == index
+
+                                // 他の画像の移動アニメーション
+                                val animatedOffsetX by animateDpAsState(
+                                    targetValue = when {
+                                        isDragged -> 0.dp
+                                        draggedIndex != null && draggedIndex!! < index && targetIndex != null && targetIndex!! >= index -> (-88).dp
+                                        draggedIndex != null && draggedIndex!! > index && targetIndex != null && targetIndex!! <= index -> 88.dp
+                                        else -> 0.dp
+                                    },
+                                    animationSpec = spring(dampingRatio = 0.8f, stiffness = 300f),
+                                    label = "ImageReorder"
+                                )
+
                                 Box(
                                     modifier = Modifier
                                         .size(80.dp)
+                                        .offset(x = animatedOffsetX)
+                                        .let { modifier ->
+                                            if (isDragged) {
+                                                modifier.offset { IntOffset(dragOffset.x.roundToInt(), dragOffset.y.roundToInt()) }
+                                            } else {
+                                                modifier
+                                            }
+                                        }
+                                        .graphicsLayer {
+                                            scaleX = if (isDragged) 1.1f else 1.0f
+                                            scaleY = if (isDragged) 1.1f else 1.0f
+                                            alpha = if (isDragged) 0.9f else 1.0f
+                                            shadowElevation = if (isDragged) 8.dp.toPx() else 0.dp.toPx()
+                                        }
                                         .clip(RoundedCornerShape(8.dp))
+                                        .pointerInput(Unit) {
+                                            detectDragGesturesAfterLongPress(
+                                                onDragStart = { offset ->
+                                                    draggedIndex = index
+                                                    dragOffset = Offset.Zero
+                                                    targetIndex = index
+                                                },
+                                                onDragEnd = {
+                                                    draggedIndex?.let { fromIndex ->
+                                                        targetIndex?.let { toIndex ->
+                                                            if (fromIndex != toIndex) {
+                                                                onImageReordered(fromIndex, toIndex)
+                                                            }
+                                                        }
+                                                    }
+                                                    draggedIndex = null
+                                                    dragOffset = Offset.Zero
+                                                    targetIndex = null
+                                                }
+                                            ) { change, dragAmount ->
+                                                dragOffset = Offset(dragOffset.x + dragAmount.x, 0f)
+
+                                                // ドラッグ位置から目標indexを計算
+                                                val itemWidth = 88.dp.toPx() // 80dp + 8dp spacing
+                                                val currentX = dragOffset.x
+                                                val newTargetIndex = (index + (currentX / itemWidth).roundToInt())
+                                                    .coerceIn(0, selectedImageUris.size - 1)
+
+                                                targetIndex = newTargetIndex
+                                            }
+                                        }
                                 ) {
                                     AsyncImage(
                                         model = uri,
@@ -347,9 +416,9 @@ fun PostEntryDialog(
                                     Box(
                                         modifier = Modifier
                                             .matchParentSize()
-                                            .background(Color.Black.copy(alpha = 0.3f))
+                                            .background(Color.Black.copy(alpha = if (isDragged) 0.5f else 0.3f))
                                     ) {
-                                        // 削除アイコン（右上・1.5倍サイズ）
+                                        // 削除アイコン（右上）
                                         Icon(
                                             imageVector = Icons.Default.Close,
                                             contentDescription = "画像を削除",
@@ -358,34 +427,28 @@ fun PostEntryDialog(
                                                 .size(30.dp)
                                                 .align(Alignment.TopEnd)
                                                 .padding(4.dp)
-                                                .clickable { onImageRemoved(index) }
+                                                .clickable {
+                                                    if (!isDragged) onImageRemoved(index)
+                                                }
                                         )
 
-                                        // お気に入りアイコン（左下・2倍サイズ）
-                                        val scale by animateFloatAsState(
-                                            targetValue = if (index == 0) 1.1f else 1.0f,
-                                            animationSpec = tween(200),
-                                            label = "StarScale"
-                                        )
-                                        Icon(
-                                            painter = painterResource(
-                                                id = if (index == 0) R.drawable.ic_star_filled else R.drawable.ic_star_outline
-                                            ),
-                                            contentDescription = "お気に入り設定",
-                                            tint = if (index == 0) Color(0xFFfbd144) else Color.White, // ★黄色、☆白
-                                            modifier = Modifier
-                                                .size(25.dp)
-                                                .align(Alignment.BottomStart)
-                                                .padding(4.dp)
-                                                .clickable { onImageFavorited(index) }
-                                                .scale(scale)
-                                        )
+                                        // 1枚目のみ★マーク（左下）
+                                        if (index == 0) {
+                                            Icon(
+                                                painter = painterResource(id = R.drawable.ic_star_filled),
+                                                contentDescription = "メイン画像",
+                                                tint = Color(0xFFfbd144),
+                                                modifier = Modifier
+                                                    .size(25.dp)
+                                                    .align(Alignment.BottomStart)
+                                                    .padding(4.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-
                     AnimatedVisibility(visible = isTagEditorVisible) {
 
 
