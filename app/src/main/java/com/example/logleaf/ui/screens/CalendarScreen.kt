@@ -82,6 +82,7 @@ import com.example.logleaf.Post
 import com.example.logleaf.PostWithTags
 import com.example.logleaf.PostWithTagsAndImages
 import com.example.logleaf.UiState
+import com.example.logleaf.ui.entry.PostImage
 import com.example.logleaf.ui.entry.Tag
 import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
@@ -267,7 +268,17 @@ fun CalendarScreen(
         enlargedImageUri?.let { uri ->
             ZoomableImageDialog(
                 imageUri = uri,
-                // ▼▼▼【変更点 3/3】ここも同様に専用関数を使う ▼▼▼
+                images = listOf(
+                    PostImage(id = 0, postId = "dummy", imageUrl = uri.toString(), orderIndex = 0),
+                    PostImage(id = 1, postId = "dummy", imageUrl = uri.toString(), orderIndex = 1),
+                    PostImage(id = 2, postId = "dummy", imageUrl = uri.toString(), orderIndex = 2),
+                    PostImage(id = 3, postId = "dummy", imageUrl = uri.toString(), orderIndex = 3),
+                    PostImage(id = 4, postId = "dummy", imageUrl = uri.toString(), orderIndex = 4),
+                    PostImage(id = 5, postId = "dummy", imageUrl = uri.toString(), orderIndex = 5),
+                    PostImage(id = 6, postId = "dummy", imageUrl = uri.toString(), orderIndex = 6),
+                    PostImage(id = 7, postId = "dummy", imageUrl = uri.toString(), orderIndex = 7)
+                ),
+                initialIndex = 0,
                 onDismiss = { setEnlargedImageUri(null) }
             )
         }

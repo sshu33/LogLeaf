@@ -1,6 +1,6 @@
 package com.example.logleaf.ui.screens
 
-import android.content.ClipboardManager
+import android.graphics.ColorFilter
 import android.net.Uri
 import android.util.Log
 import androidx.compose.animation.core.Animatable
@@ -12,6 +12,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -22,8 +23,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -43,6 +42,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.Card
@@ -56,7 +56,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -70,6 +70,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.SubcomposeLayout
@@ -85,9 +86,9 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
-import com.example.logleaf.PostWithTags
 import com.example.logleaf.PostWithTagsAndImages
 import com.example.logleaf.ui.components.SmartTagDisplay
+import com.example.logleaf.ui.entry.PostImage
 import com.example.logleaf.ui.entry.Tag
 import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
@@ -167,8 +168,10 @@ fun LogViewScreen(
             state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
-                top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 220.dp, // ★★★ ステータスバー + インデックスタブ分
-                bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 16.dp // ★★★ ナビゲーションバー + 余白
+                top = WindowInsets.statusBars.asPaddingValues()
+                    .calculateTopPadding() + 220.dp, // ★★★ ステータスバー + インデックスタブ分
+                bottom = WindowInsets.navigationBars.asPaddingValues()
+                    .calculateBottomPadding() + 16.dp // ★★★ ナビゲーションバー + 余白
             )
         ) {
             items(posts, key = { it.post.id }) { postWithTagsAndImages ->
@@ -177,7 +180,10 @@ fun LogViewScreen(
                     scale = if (postWithTagsAndImages.post.id == targetPostId) scale.value else 1f,
                     onImageClick = { uri -> setEnlargedImageUri(uri) },
                     onTagClick = { tagName ->
-                        val encodedTag = URLEncoder.encode(tagName.removePrefix("#"), StandardCharsets.UTF_8.name())
+                        val encodedTag = URLEncoder.encode(
+                            tagName.removePrefix("#"),
+                            StandardCharsets.UTF_8.name()
+                        )
                         navController.navigate("search?tag=$encodedTag")
                     },
                     // ★★★ 追加：投稿操作のコールバック ★★★
@@ -192,7 +198,8 @@ fun LogViewScreen(
                     },
                     onDelete = {
                         // 削除：ログビュー上でそのまま実行
-                        postWithTagsAndImages                    },
+                        postWithTagsAndImages
+                    },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
                 )
             }
@@ -201,7 +208,8 @@ fun LogViewScreen(
         // インデックスタブ
         if (posts.isNotEmpty()) {
             val firstPostDate = remember(posts) {
-                posts.first().post.createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate()
+                posts.first().post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
+                    .toLocalDate()
             }
             IndexTab(
                 dateString = firstPostDate.toString(),
@@ -209,7 +217,8 @@ fun LogViewScreen(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(
-                        top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 16.dp, // ★★★ ステータスバー分を追加
+                        top = WindowInsets.statusBars.asPaddingValues()
+                            .calculateTopPadding() + 16.dp, // ★★★ ステータスバー分を追加
                         end = 8.dp
                     )
             )
@@ -219,6 +228,17 @@ fun LogViewScreen(
     enlargedImageUri?.let { uri ->
         ZoomableImageDialog(
             imageUri = uri,
+            images = listOf(
+                PostImage(id = 0, postId = "dummy", imageUrl = uri.toString(), orderIndex = 0),
+                PostImage(id = 1, postId = "dummy", imageUrl = uri.toString(), orderIndex = 1),
+                PostImage(id = 2, postId = "dummy", imageUrl = uri.toString(), orderIndex = 2),
+                PostImage(id = 3, postId = "dummy", imageUrl = uri.toString(), orderIndex = 3),
+                PostImage(id = 4, postId = "dummy", imageUrl = uri.toString(), orderIndex = 4),
+                PostImage(id = 5, postId = "dummy", imageUrl = uri.toString(), orderIndex = 5),
+                PostImage(id = 6, postId = "dummy", imageUrl = uri.toString(), orderIndex = 6),
+                PostImage(id = 7, postId = "dummy", imageUrl = uri.toString(), orderIndex = 7)
+            ),
+            initialIndex = 0,
             onDismiss = { setEnlargedImageUri(null) }
         )
     }
@@ -489,10 +509,18 @@ fun LogViewPostCard(
 
 @Composable
 fun ZoomableImageDialog(
-    imageUri: Uri,
+    imageUri: Uri,           // 既存（後で使わなくなる）
+    images: List<PostImage>, // 追加
+    initialIndex: Int,       // 追加
     onDismiss: () -> Unit
 ) {
+
+    val currentImageUri = remember(initialIndex) {
+        Uri.parse(images[initialIndex].imageUrl)
+    }
+
     val scope = rememberCoroutineScope()
+    var currentImageIndex by remember { mutableIntStateOf(initialIndex) }
 
     // 状態変数
     var scale by remember { mutableFloatStateOf(1f) }
@@ -504,7 +532,10 @@ fun ZoomableImageDialog(
 
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
     ) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val screenWidthPx = with(density) { maxWidth.toPx() }
@@ -525,7 +556,10 @@ fun ZoomableImageDialog(
                                             Animatable(scale).animateTo(1f, tween(100))
                                         }
                                         val offsetAnimation = async {
-                                            Animatable(offset, Offset.VectorConverter).animateTo(Offset.Zero, tween(100))
+                                            Animatable(offset, Offset.VectorConverter).animateTo(
+                                                Offset.Zero,
+                                                tween(100)
+                                            )
                                         }
 
                                         scaleAnimation.await()
@@ -581,7 +615,11 @@ fun ZoomableImageDialog(
                                         offset = Offset(0f, maxOf(0f, offset.y + pan.y))
 
                                         // 背景透明度の調整（同期処理）
-                                        backgroundAlpha = (1f - offset.y / (screenHeightPx / 6f)).coerceIn(0.2f, 1f)
+                                        backgroundAlpha =
+                                            (1f - offset.y / (screenHeightPx / 6f)).coerceIn(
+                                                0.2f,
+                                                1f
+                                            )
                                     } else if (pan.y < 0 && offset.y > 0f) {
                                         // 上スワイプで位置リセット（下にずれている場合のみ）
                                         val newY = maxOf(0f, offset.y + pan.y)
@@ -590,7 +628,11 @@ fun ZoomableImageDialog(
                                         if (newY == 0f) {
                                             backgroundAlpha = 1f
                                         } else {
-                                            backgroundAlpha = (1f - newY / (screenHeightPx / 6f)).coerceIn(0.2f, 1f)
+                                            backgroundAlpha =
+                                                (1f - newY / (screenHeightPx / 6f)).coerceIn(
+                                                    0.2f,
+                                                    1f
+                                                )
                                         }
                                     }
                                     // 横スワイプは無視（offset.xは常に0のまま）
@@ -613,12 +655,14 @@ fun ZoomableImageDialog(
                                     val velocityThreshold = 800f // 速度による閉じる判定
 
                                     // 速度または位置による閉じる判定
-                                    val shouldDismiss = offset.y > dismissThreshold || lastPanVelocity.y > velocityThreshold
+                                    val shouldDismiss =
+                                        offset.y > dismissThreshold || lastPanVelocity.y > velocityThreshold
 
                                     if (shouldDismiss) {
                                         // 慣性を考慮した自然なスライドアウト
                                         scope.launch {
-                                            val initialVelocity = maxOf(lastPanVelocity.y, 500f) // 最低速度を保証
+                                            val initialVelocity =
+                                                maxOf(lastPanVelocity.y, 500f) // 最低速度を保証
                                             val targetY = screenHeightPx + 300f
 
                                             // 慣性アニメーション
@@ -636,7 +680,11 @@ fun ZoomableImageDialog(
                                             val updateJob = launch {
                                                 while (animationJob.isActive) {
                                                     offset = Offset(0f, animatable.value)
-                                                    backgroundAlpha = (1f - animatable.value / (screenHeightPx / 6f)).coerceIn(0f, 1f)
+                                                    backgroundAlpha =
+                                                        (1f - animatable.value / (screenHeightPx / 6f)).coerceIn(
+                                                            0f,
+                                                            1f
+                                                        )
                                                     kotlinx.coroutines.delay(8) // 約120fps
                                                 }
                                             }
@@ -653,7 +701,10 @@ fun ZoomableImageDialog(
                                         // 不十分な場合は元の位置に戻す（拡大されていない時のみ）
                                         scope.launch {
                                             val offsetAnimation = async {
-                                                Animatable(offset, Offset.VectorConverter).animateTo(
+                                                Animatable(
+                                                    offset,
+                                                    Offset.VectorConverter
+                                                ).animateTo(
                                                     Offset.Zero,
                                                     spring(
                                                         dampingRatio = Spring.DampingRatioMediumBouncy,
@@ -684,19 +735,101 @@ fun ZoomableImageDialog(
                     },
                 contentAlignment = Alignment.Center
             ) {
-                AsyncImage(
-                    model = imageUri,
-                    contentDescription = "拡大画像",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .graphicsLayer {
-                            scaleX = scale
-                            scaleY = scale
-                            translationX = offset.x
-                            translationY = offset.y
+                Box {
+                    AsyncImage(
+                        model = Uri.parse(images[currentImageIndex].imageUrl),
+                        contentDescription = "拡大画像 $currentImageIndex",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .graphicsLayer {
+                                scaleX = scale
+                                scaleY = scale
+                                translationX = offset.x
+                                translationY = offset.y
+                            }
+                    )
+
+                    // ★番号オーバーレイ
+                    Text(
+                        text = "Image ${currentImageIndex + 1}",
+                        color = Color.White,
+                        fontSize = 24.sp,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(16.dp)
+                            .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
+                            .padding(8.dp)
+                    )
+                }
+            }
+
+
+            // ★追加：ドットを下端に配置
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 60.dp)
+                    .fillMaxWidth()
+                    .height(60.dp)
+                    .background(Color.Black.copy(alpha = 0.7f))
+                    .pointerInput(Unit) {
+                        var startX = 0f
+                        var currentX = 0f
+
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                when (event.type) {
+                                    PointerEventType.Press -> {
+                                        startX = event.changes.first().position.x
+                                    }
+
+                                    PointerEventType.Release -> {
+                                        currentX = event.changes.first().position.x
+                                        val distance = currentX - startX
+
+                                        // 50px以上の移動でフリック判定
+                                        if (abs(distance) > 50f) {
+                                            if (distance > 0 && currentImageIndex > 0) {
+                                                currentImageIndex--
+                                            } else if (distance < 0 && currentImageIndex < images.size - 1) {
+                                                currentImageIndex++
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
-                )
+                    },
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                repeat(images.size) { index ->
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp) // タップエリアを大きく
+                            .clickable {
+                                Log.d("DotTap", "Tapped dot $index")
+                                Log.d("DotTap", "Before: currentImageIndex = $currentImageIndex")
+                                currentImageIndex = index
+                                Log.d("DotTap", "After: currentImageIndex = $currentImageIndex")
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(if (index == initialIndex) 10.dp else 8.dp) // 見た目は小さいまま
+                                .clip(CircleShape)
+                                .background(
+                                    if (index == currentImageIndex) Color.White else Color.Gray
+                                )
+                        )
+                    }
+                    if (index < images.size - 1) {
+                        Spacer(modifier = Modifier.width(0.dp))
+                    }
+                }
             }
         }
     }
