@@ -75,3 +75,8 @@ data class PostWithTagsAndImages(
     val images: List<PostImage>
         get() = _images.sortedBy { it.orderIndex }
 }
+
+data class PostWithImageUrls(
+    val post: Post,
+    val imageUrls: List<String>
+)

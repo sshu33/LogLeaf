@@ -213,7 +213,7 @@ class MainViewModel(
                             is Account.Bluesky -> blueskyApi.getPostsForAccount(account)
                             is Account.Mastodon -> mastodonApi.getPosts(account).let { result ->
                                 when (result) {
-                                    is MastodonPostResult.Success -> result.posts
+                                    is MastodonPostResult.Success -> result.postsWithImages
                                     is MastodonPostResult.TokenInvalid -> {
                                         sessionManager.markAccountForReauthentication(account.userId)
                                         emptyList()
@@ -227,9 +227,40 @@ class MainViewModel(
                         }
                     }
                 }
-                val allNewPosts = postLists.awaitAll().flatten()
-                if (allNewPosts.isNotEmpty()) {
-                    postDao.insertAllWithHashtagExtraction(allNewPosts)
+                val allPostsWithImages = postLists.awaitAll().flatten()
+                val allNewPosts = allPostsWithImages.map { it.post }
+                if (allPostsWithImages.isNotEmpty()) {
+                    allPostsWithImages.forEach { postWithImageUrls ->
+                        val post = postWithImageUrls.post
+                        val imageUrls = postWithImageUrls.imageUrls
+
+                        // 1. 投稿を保存
+                        postDao.insertPost(post)
+
+                        // 2. ハッシュタグ抽出・保存
+                        val hashtagPattern = "#(\\w+)".toRegex()
+                        val hashtags = hashtagPattern.findAll(post.text).map { it.groupValues[1] }.toList()
+
+                        hashtags.forEach { tagName ->
+                            val tagId = postDao.insertTag(Tag(tagName = tagName))
+                            val finalTagId = if (tagId == -1L) postDao.getTagIdByName(tagName) ?: 0L else tagId
+                            if (finalTagId != 0L) {
+                                postDao.insertPostTagCrossRef(PostTagCrossRef(post.id, finalTagId))
+                            }
+                        }
+
+                        // 3. 複数画像を保存
+                        postDao.deletePostImagesByPostId(post.id)
+
+                        imageUrls.forEachIndexed { index, imageUrl ->
+                            val postImage = PostImage(
+                                postId = post.id,
+                                imageUrl = imageUrl,
+                                orderIndex = index
+                            )
+                            postDao.insertPostImage(postImage)
+                        }
+                    }
                 }
 
                 checkForDeletedPosts(accountsToFetch, allNewPosts)

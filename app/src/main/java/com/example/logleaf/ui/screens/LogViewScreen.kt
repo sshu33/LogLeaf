@@ -20,6 +20,17 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.with
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -510,6 +521,7 @@ fun LogViewPostCard(
     }
 }
 
+@OptIn(ExperimentalAnimationApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun ZoomableImageDialog(
     imageUri: Uri,           // 既存（後で使わなくなる）
@@ -518,20 +530,17 @@ fun ZoomableImageDialog(
     onDismiss: () -> Unit
 ) {
 
-    val currentImageUri = remember(initialIndex) {
-        Uri.parse(images[initialIndex].imageUrl)
-    }
-
     val scope = rememberCoroutineScope()
-    var currentImageIndex by remember { mutableIntStateOf(initialIndex) }
+    val density = LocalDensity.current
 
     // 状態変数
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     var backgroundAlpha by remember { mutableFloatStateOf(1f) }
     var lastPanVelocity by remember { mutableStateOf(Offset.Zero) }
+    var currentImageIndex by remember { mutableIntStateOf(initialIndex) }
 
-    val density = LocalDensity.current
+    var isFirstLoad by remember { mutableStateOf(true) }
 
     Dialog(
         onDismissRequest = onDismiss,

@@ -35,13 +35,8 @@ data class TokenResponse(
 )
 
 sealed class MastodonPostResult {
-    /** 成功。投稿リストを持つ */
-    data class Success(val posts: List<Post>) : MastodonPostResult()
-
-    /** 失敗: トークンが無効になっている (401 Unauthorized) */
+    data class Success(val postsWithImages: List<PostWithImageUrls>) : MastodonPostResult() // 変更
     object TokenInvalid : MastodonPostResult()
-
-    /** 失敗: その他のエラー (サーバーエラー、ネットワークエラーなど) */
     data class Error(val message: String) : MastodonPostResult()
 }
 
@@ -143,7 +138,7 @@ class MastodonApi {
     suspend fun getPosts(account: Account.Mastodon): MastodonPostResult {
         // 最初に取得するURL
         var url: String? = "https://${account.instanceUrl}/api/v1/accounts/${account.userId}/statuses?limit=40"
-        val allPosts = mutableListOf<Post>()
+        val allPosts = mutableListOf<PostWithImageUrls>()
         var pageCount = 1
 
         try {
@@ -170,19 +165,23 @@ class MastodonApi {
                     break
                 }
 
-                val posts = mastodonStatuses.map { mastodonStatus ->
+                val postsWithImages = mastodonStatuses.map { mastodonStatus ->
                     val sanitizedText = Html.fromHtml(mastodonStatus.content, Html.FROM_HTML_MODE_LEGACY).toString()
-                    val imageUrl = mastodonStatus.mediaAttachments.firstOrNull { it.type == "image" }?.url
-                    Post(
+                    val imageUrls = mastodonStatus.mediaAttachments.filter { it.type == "image" }.map { it.url }
+                    val imageUrl = imageUrls.firstOrNull()
+
+                    val post = Post(
                         id = mastodonStatus.id,
                         accountId = account.userId,
                         text = sanitizedText.trim(),
                         createdAt = ZonedDateTime.parse(mastodonStatus.createdAt),
-                        imageUrl = imageUrl, // ◀◀◀ ここを修正
+                        imageUrl = imageUrl,
                         source = SnsType.MASTODON
                     )
+
+                    PostWithImageUrls(post = post, imageUrls = imageUrls)
                 }
-                allPosts.addAll(posts)
+                allPosts.addAll(postsWithImages)
 
                 // --- 次のページのURLを取得 ---
                 // 'Link'ヘッダーを解析 (例: <...>; rel="next", <...>; rel="prev")

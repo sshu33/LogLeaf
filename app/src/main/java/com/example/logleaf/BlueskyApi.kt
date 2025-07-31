@@ -92,7 +92,7 @@ class BlueskyApi(private val sessionManager: SessionManager) {
         }
     }
 
-    suspend fun getPostsForAccount(account: Account.Bluesky): List<Post> {
+    suspend fun getPostsForAccount(account: Account.Bluesky): List<PostWithImageUrls> {
         try {
             // 1回目の試行
             // ▼ 変更点: tryToGetPostsに account.userId を渡す
@@ -117,7 +117,7 @@ class BlueskyApi(private val sessionManager: SessionManager) {
         }
     }
 
-    private suspend fun tryToGetPosts(token: String, did: String, accountId: String): List<Post> {
+    private suspend fun tryToGetPosts(token: String, did: String, accountId: String): List<PostWithImageUrls> {
         val response: BskyFeedResponse = client.get("https://bsky.social/xrpc/app.bsky.feed.getAuthorFeed") {
             headers { append(HttpHeaders.Authorization, "Bearer $token") }
             parameter("actor", did)
@@ -126,14 +126,19 @@ class BlueskyApi(private val sessionManager: SessionManager) {
 
         return response.feed.map { feedItem ->
             val post = feedItem.post
-            Post(
+            val imageUrls = post.embed?.images?.map { it.fullsize } ?: emptyList()
+            val imageUrl = imageUrls.firstOrNull()
+
+            val postEntity = Post(
                 id = post.uri,
                 accountId = accountId,
                 createdAt = ZonedDateTime.parse(post.record.createdAt),
                 text = post.record.text,
-                imageUrl = post.embed?.images?.firstOrNull()?.fullsize,
+                imageUrl = imageUrl,
                 source = SnsType.BLUESKY
             )
+
+            PostWithImageUrls(post = postEntity, imageUrls = imageUrls)
         }
     }
 

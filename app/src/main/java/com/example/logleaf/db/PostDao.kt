@@ -5,6 +5,7 @@ import androidx.room.*
 import androidx.sqlite.db.SimpleSQLiteQuery
 import com.example.logleaf.HashtagExtractor
 import com.example.logleaf.Post
+import com.example.logleaf.PostWithImageUrls
 import com.example.logleaf.PostWithTags
 import com.example.logleaf.PostWithTagsAndImages
 import com.example.logleaf.ui.entry.PostImage
@@ -21,6 +22,12 @@ interface PostDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(post: Post)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPost(post: Post)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPostImage(postImage: PostImage)
 
     /**
      * 1件の投稿を更新する。編集機能で使用。
@@ -379,5 +386,8 @@ interface PostDao {
             insertPostImages(images)
         }
     }
+
+    @Query("DELETE FROM post_images WHERE postId = :postId")
+    suspend fun deletePostImagesByPostId(postId: String)
 }
 
