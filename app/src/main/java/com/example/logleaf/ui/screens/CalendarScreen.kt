@@ -689,22 +689,29 @@ fun CalendarPostCardItem(
 
                 // ▼▼▼ 画像表示部分を修正 ▼▼▼
                 if (images.isNotEmpty()) {
+                    val firstImage = images.first()
 
-                    Log.d("CalendarImage", "Displaying: ${images.first().imageUrl.takeLast(15)} (orderIndex: ${images.first().orderIndex})")
+                    // サムネイルがあればサムネイル、なければ元画像を使用
+                    val displayImageUrl = firstImage.thumbnailUrl ?: firstImage.imageUrl
 
+                    Log.d("CalendarImage", "Displaying: ${displayImageUrl.takeLast(15)} (thumbnail: ${firstImage.thumbnailUrl != null}) (orderIndex: ${firstImage.orderIndex})")
 
-                    val firstImageUri = remember(images.first().imageUrl) {
-                        Uri.parse(images.first().imageUrl)
+                    val displayImageUri = remember(displayImageUrl) {
+                        Uri.parse(displayImageUrl)
                     }
+
                     Spacer(modifier = Modifier.width(8.dp))
                     Box {
                         AsyncImage(
-                            model = firstImageUri,
+                            model = displayImageUri,
                             contentDescription = "投稿画像",
                             modifier = Modifier
                                 .size(72.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .clickable { onImageClick(firstImageUri) },
+                                .clickable {
+                                    // クリック時は元画像を拡大表示
+                                    onImageClick(Uri.parse(firstImage.imageUrl))
+                                },
                             contentScale = ContentScale.Crop
                         )
                         // 複数画像の場合は枚数表示

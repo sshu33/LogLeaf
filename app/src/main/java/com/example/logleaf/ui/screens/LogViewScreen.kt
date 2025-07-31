@@ -438,13 +438,19 @@ fun LogViewPostCard(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             postWithTagsAndImages.images.forEach { image ->
+                                // サムネイルがあればサムネイル、なければ元画像を使用
+                                val displayImageUrl = image.thumbnailUrl ?: image.imageUrl
+
                                 AsyncImage(
-                                    model = image.imageUrl,
+                                    model = displayImageUrl,
                                     contentDescription = "投稿画像",
                                     modifier = Modifier
                                         .size(80.dp)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .clickable { onImageClick(Uri.parse(image.imageUrl)) },
+                                        .clickable {
+                                            // クリック時は元画像を拡大表示
+                                            onImageClick(Uri.parse(image.imageUrl))
+                                        },
                                     contentScale = ContentScale.Crop
                                 )
                             }

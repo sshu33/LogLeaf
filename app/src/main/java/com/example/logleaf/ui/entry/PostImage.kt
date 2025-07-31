@@ -9,5 +9,6 @@ data class PostImage(
     val id: Long = 0,
     val postId: String,
     val imageUrl: String,
-    val orderIndex: Int // 画像の順番（0, 1, 2...）
+    val thumbnailUrl: String? = null,
+    val orderIndex: Int
 )

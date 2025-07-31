@@ -1,6 +1,8 @@
 package com.example.logleaf
 
 import android.app.Application
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Log
 import androidx.compose.ui.text.input.TextFieldValue
@@ -472,35 +474,56 @@ class MainViewModel(
         }
 
         viewModelScope.launch(Dispatchers.IO) {
-            val savedImageUrls = mutableListOf<String>()
+            val postImages = mutableListOf<PostImage>()
+
             currentState.selectedImageUris.forEachIndexed { index, uri ->
-                val savedUrl = if (uri.scheme == "content") {
-                    saveImageToInternalStorage(uri)
+                if (uri.scheme == "content") {
+                    // 新しいsaveImageToInternalStorage()を使用
+                    val (originalUrl, thumbnailUrl) = saveImageToInternalStorage(uri)
+                    if (originalUrl != null && thumbnailUrl != null) {
+                        postImages.add(
+                            PostImage(
+                                postId = "", // 後で設定
+                                imageUrl = originalUrl,
+                                thumbnailUrl = thumbnailUrl,
+                                orderIndex = index
+                            )
+                        )
+                    }
                 } else {
-                    uri.toString()
-                }
-                if (savedUrl != null) {
-                    savedImageUrls.add(savedUrl)
+                    // 既存のURIの場合（編集時など）
+                    postImages.add(
+                        PostImage(
+                            postId = "", // 後で設定
+                            imageUrl = uri.toString(),
+                            thumbnailUrl = null, // 既存画像はサムネイルなし
+                            orderIndex = index
+                        )
+                    )
                 }
             }
 
-            // 2. 保存するPostオブジェクトを準備（この部分は変更なし）
+            // Postオブジェクトを準備（従来と同じ）
             val postToSave = currentState.editingPost?.post?.copy(
                 text = currentText,
                 createdAt = currentState.dateTime,
-                imageUrl = savedImageUrls.firstOrNull()  // とりあえず1枚目を従来の場所に保存
+                imageUrl = postImages.firstOrNull()?.imageUrl  // 1枚目を従来の場所に保存
             ) ?: Post(
                 id = UUID.randomUUID().toString(),
                 accountId = "LOGLEAF_INTERNAL_POST",
                 text = currentText,
                 createdAt = currentState.dateTime,
                 source = SnsType.LOGLEAF,
-                imageUrl = savedImageUrls.firstOrNull(),
+                imageUrl = postImages.firstOrNull()?.imageUrl,
                 isHidden = false
             )
-            // 3. タグをDBに保存し、IDのリストを作成（重複ロジックを統合）
+
+            // PostImageのpostIdを設定
+            val finalPostImages = postImages.map { it.copy(postId = postToSave.id) }
+
+            // タグ処理（従来と同じ）
             val tagIds = mutableListOf<Long>()
-            tagNames.forEach { tagName -> // ◀◀ currentState.currentTags の代わりに tagName を使用
+            tagNames.forEach { tagName ->
                 var tagId = postDao.insertTag(Tag(tagName = tagName))
                 if (tagId == -1L) {
                     tagId = postDao.getTagIdByName(tagName) ?: 0L
@@ -509,19 +532,10 @@ class MainViewModel(
                     tagIds.add(tagId)
                 }
             }
-
             val crossRefs = tagIds.map { tagId -> PostTagCrossRef(postToSave.id, tagId) }
-            // 複数画像のPostImageオブジェクトを作成
-            val postImages = savedImageUrls.mapIndexed { index, imageUrl ->
-                PostImage(
-                    postId = postToSave.id,
-                    imageUrl = imageUrl,
-                    orderIndex = index
-                )
-            }
 
             // 投稿、タグ、画像を一緒に保存
-            postDao.updatePostWithTagsAndImages(postToSave, crossRefs, postImages)
+            postDao.updatePostWithTagsAndImages(postToSave, crossRefs, finalPostImages)
 
             // 5. 下書きをクリアしてダイアログを閉じる
             withContext(Dispatchers.Main) {
@@ -531,7 +545,7 @@ class MainViewModel(
                     _scrollToTopEvent.value = true
                 }
 
-                refreshPosts() // ←この行を追加
+                refreshPosts()
             }
         }
     }
@@ -540,21 +554,57 @@ class MainViewModel(
         _scrollToTopEvent.value = false
     }
 
-    private suspend fun saveImageToInternalStorage(uri: Uri): String? {
+    private suspend fun saveImageToInternalStorage(uri: Uri): Pair<String?, String?> {
         return withContext(Dispatchers.IO) {
             try {
                 val context = getApplication<Application>().applicationContext
                 val inputStream = context.contentResolver.openInputStream(uri)
-                val fileName = "IMG_${System.currentTimeMillis()}.jpg"
-                val file = File(context.filesDir, fileName)
-                val outputStream = FileOutputStream(file)
-                inputStream?.copyTo(outputStream)
-                inputStream?.close()
-                outputStream.close()
-                Uri.fromFile(file).toString() // 保存したファイルのURIを返す
+
+                if (inputStream == null) {
+                    return@withContext Pair(null, null)
+                }
+
+                // 元画像をBitmapとして読み込み
+                val originalBitmap = BitmapFactory.decodeStream(inputStream)
+                inputStream.close()
+
+                if (originalBitmap == null) {
+                    return@withContext Pair(null, null)
+                }
+
+                val timestamp = System.currentTimeMillis()
+
+                // 1. 元画像を圧縮して保存（品質80%）
+                val originalFileName = "IMG_${timestamp}.jpg"
+                val originalFile = File(context.filesDir, originalFileName)
+                val originalOutputStream = FileOutputStream(originalFile)
+                originalBitmap.compress(Bitmap.CompressFormat.JPEG, 80, originalOutputStream)
+                originalOutputStream.close()
+
+                // 2. サムネイル生成（幅300pxにリサイズ）
+                val thumbnailWidth = 300
+                val thumbnailHeight = (originalBitmap.height * thumbnailWidth) / originalBitmap.width
+                val thumbnailBitmap = Bitmap.createScaledBitmap(originalBitmap, thumbnailWidth, thumbnailHeight, true)
+
+                val thumbnailFileName = "THUMB_${timestamp}.jpg"
+                val thumbnailFile = File(context.filesDir, thumbnailFileName)
+                val thumbnailOutputStream = FileOutputStream(thumbnailFile)
+                thumbnailBitmap.compress(Bitmap.CompressFormat.JPEG, 75, thumbnailOutputStream)
+                thumbnailOutputStream.close()
+
+                // メモリ解放
+                originalBitmap.recycle()
+                thumbnailBitmap.recycle()
+
+                // ファイルURIを返す
+                val originalUri = Uri.fromFile(originalFile).toString()
+                val thumbnailUri = Uri.fromFile(thumbnailFile).toString()
+
+                Pair(originalUri, thumbnailUri)
+
             } catch (e: Exception) {
                 e.printStackTrace()
-                null
+                Pair(null, null)
             }
         }
     }
