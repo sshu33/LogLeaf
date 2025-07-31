@@ -231,47 +231,47 @@ fun SettingsScreen(
 
 // SettingsScreen.kt の一番下に追加してください
 
-    /**
-     * ★★★ 新しく追加した、トップバナーのための部品 ★★★
-     */
-    @Composable
-    fun UpgradeBanner() { // ← private は付けません
-        Card(
+/**
+ * ★★★ 新しく追加した、トップバナーのための部品 ★★★
+ */
+@Composable
+fun UpgradeBanner() { // ← private は付けません
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFFFBF3E9) // 暖色系の背景色
+        )
+    ) {
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = Color(0xFFFBF3E9) // 暖色系の背景色
-            )
+                .padding(horizontal = 24.dp, vertical = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 20.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text(
-                        text = "あなたの 日記を",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "アップグレード",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 26.sp, // 少し大きくしてアクセントに
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-                Icon(
-                    imageVector = Icons.Default.Inventory2, // 宝箱に近いアイコン
-                    contentDescription = null,
-                    modifier = Modifier.size(72.dp),
-                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+            Column {
+                Text(
+                    text = "あなたの 日記を",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "アップグレード",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 26.sp, // 少し大きくしてアクセントに
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
+            Icon(
+                imageVector = Icons.Default.Inventory2, // 宝箱に近いアイコン
+                contentDescription = null,
+                modifier = Modifier.size(72.dp),
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+            )
         }
     }
+}
