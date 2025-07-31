@@ -578,7 +578,7 @@ class MainViewModel(
                 val originalFileName = "IMG_${timestamp}.jpg"
                 val originalFile = File(context.filesDir, originalFileName)
                 val originalOutputStream = FileOutputStream(originalFile)
-                originalBitmap.compress(Bitmap.CompressFormat.JPEG, 80, originalOutputStream)
+                originalBitmap.compress(Bitmap.CompressFormat.JPEG, 85, originalOutputStream)
                 originalOutputStream.close()
 
                 // 2. サムネイル生成（幅300pxにリサイズ）
@@ -589,7 +589,7 @@ class MainViewModel(
                 val thumbnailFileName = "THUMB_${timestamp}.jpg"
                 val thumbnailFile = File(context.filesDir, thumbnailFileName)
                 val thumbnailOutputStream = FileOutputStream(thumbnailFile)
-                thumbnailBitmap.compress(Bitmap.CompressFormat.JPEG, 75, thumbnailOutputStream)
+                thumbnailBitmap.compress(Bitmap.CompressFormat.JPEG, 50, thumbnailOutputStream)
                 thumbnailOutputStream.close()
 
                 // メモリ解放
