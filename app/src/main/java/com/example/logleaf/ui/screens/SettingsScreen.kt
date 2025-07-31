@@ -174,13 +174,7 @@ fun SettingsScreen(
                     icon = Icons.Default.Backup,
                     title = "バックアップ",
                     onClick = {
-                        // ★ 実際にバックアップ機能を呼び出し ★
-                        mainViewModel.exportPostsWithImages()
-                        Toast.makeText(
-                            context,
-                            "バックアップを開始しました。完了後にダウンロードフォルダを確認してください。",
-                            Toast.LENGTH_LONG
-                        ).show()
+                        navController.navigate("backup_settings")
                     }
                 )
             }

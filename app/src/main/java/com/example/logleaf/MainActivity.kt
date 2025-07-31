@@ -42,6 +42,7 @@ import com.example.logleaf.db.AppDatabase
 import com.example.logleaf.ui.components.BottomNavigationBar
 import com.example.logleaf.ui.screens.AccountScreen
 import com.example.logleaf.ui.screens.AccountViewModel
+import com.example.logleaf.ui.screens.BackupSettingsScreen
 import com.example.logleaf.ui.screens.BlueskyViewModelFactory
 import com.example.logleaf.ui.screens.CalendarScreen
 import com.example.logleaf.ui.screens.FontSettingsScreen
@@ -325,6 +326,12 @@ fun MainScreen(
                         val postId = post.id
                         navController.navigate("calendar?date=$date&postId=$postId")
                     },
+                )
+            }
+            composable("backup_settings") {
+                BackupSettingsScreen(
+                    navController = navController,
+                    mainViewModel = mainViewModel
                 )
             }
         }
