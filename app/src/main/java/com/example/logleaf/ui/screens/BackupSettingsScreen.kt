@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.logleaf.MainViewModel
 import com.example.logleaf.R
+import com.example.logleaf.ui.components.CustomTopAppBar
 import com.yourpackage.logleaf.ui.components.UserFontText
 
 
@@ -58,27 +59,24 @@ fun BackupSettingsScreen(
     var isPeriodMenuExpanded by remember { mutableStateOf(false) }
     var isQualityMenuExpanded by remember { mutableStateOf(false) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("バックアップ") },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "戻る"
-                        )
-                    }
-                }
-            )
-        }
-    ) { innerPadding ->
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
+    ) {
+        // --- 1. 自作のタイトルバーを配置 ---
+        CustomTopAppBar(
+            title = "バックアップ",
+            onNavigateBack = { navController.popBackStack() }
+        )
+
+        // --- 2. スクロール可能なコンテンツエリア ---
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(16.dp)
+                .weight(1f)
                 .verticalScroll(rememberScrollState())
+                .padding(16.dp) // コンテンツ全体の左右の余白
         ) {
 
             // データサイズ表示（シンプル右詰め）
@@ -581,5 +579,6 @@ fun BackupSettingsScreen(
                 }
             }
         }
+        Spacer(modifier = Modifier.height(32.dp))
     }
 }
