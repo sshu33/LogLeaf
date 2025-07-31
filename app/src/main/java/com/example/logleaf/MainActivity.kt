@@ -244,19 +244,17 @@ fun MainScreen(
                 AccountScreen(viewModel = accountViewModel, navController = navController)
             }
 
-            composable(
-                "settings",
+            composable("settings",
                 enterTransition = {
-                    // 右側から画面の全幅分スライドインしてくる
                     slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300))
                 },
                 exitTransition = {
-                    // 右側へ画面の全幅分スライドアウトしていく
                     slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300))
                 }
             ) {
                 SettingsScreen(
                     navController = navController,
+                    mainViewModel = mainViewModel, // ← この行を追加
                     onLogout = onLogout,
                     showAccountBadge = showSettingsBadge,
                 )

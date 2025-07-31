@@ -22,13 +22,15 @@ import com.example.logleaf.R
 import com.example.logleaf.ui.components.SettingsMenuItem
 import com.example.logleaf.ui.components.SettingsSectionHeader
 import androidx.compose.runtime.CompositionLocalProvider
+import com.example.logleaf.MainViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     navController: NavController,
+    mainViewModel: MainViewModel, // ← この行を追加
     onLogout: () -> Unit,
-    showAccountBadge: Boolean, // この引数は、新しいデザインではまだ使いませんが、将来のために残しておきます
+    showAccountBadge: Boolean,
 ) {
     // --- 状態管理（ログアウトダイアログ）は変更なし ---
     var showLogoutDialog by remember { mutableStateOf(false) }
@@ -172,10 +174,12 @@ fun SettingsScreen(
                     icon = Icons.Default.Backup,
                     title = "バックアップ",
                     onClick = {
+                        // ★ 実際にバックアップ機能を呼び出し ★
+                        mainViewModel.exportPostsWithImages()
                         Toast.makeText(
                             context,
-                            "「バックアップ」は開発中です",
-                            Toast.LENGTH_SHORT
+                            "バックアップを開始しました。完了後にダウンロードフォルダを確認してください。",
+                            Toast.LENGTH_LONG
                         ).show()
                     }
                 )

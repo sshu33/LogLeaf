@@ -4,6 +4,7 @@ import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Environment
 import android.util.Log
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.core.content.FileProvider
@@ -40,6 +41,8 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.UUID
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 data class DayLog(
     val date: LocalDate,
@@ -706,6 +709,106 @@ class MainViewModel(
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 return MainViewModel(application, blueskyApi, mastodonApi, sessionManager, postDao) as T
+            }
+        }
+    }
+
+    fun exportPostsWithImages() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val context = getApplication<Application>().applicationContext
+                val allPostsWithImages = postDao.getPostsWithTagsAndImages().first() // 複数画像対応
+
+                // 一時フォルダを作成
+                val tempDir = File(context.cacheDir, "backup_temp")
+                tempDir.mkdirs()
+
+                // テキストファイルの内容を作成
+                val exportText = buildString {
+                    appendLine("LogLeaf 投稿データ エクスポート")
+                    appendLine("エクスポート日時: ${ZonedDateTime.now()}")
+                    appendLine("総投稿数: ${allPostsWithImages.size}件")
+                    appendLine("=".repeat(50))
+                    appendLine()
+
+                    allPostsWithImages.sortedByDescending { it.post.createdAt }.forEach { postWithImages ->
+                        val post = postWithImages.post
+                        appendLine("投稿ID: ${post.id}")
+                        appendLine("日時: ${post.createdAt}")
+                        appendLine("アカウント: ${post.accountId}")
+                        appendLine("SNS: ${post.source}")
+
+                        // タグを表示
+                        if (postWithImages.tags.isNotEmpty()) {
+                            appendLine("タグ: ${postWithImages.tags.joinToString(", ") { "#${it.tagName}" }}")
+                        }
+
+                        appendLine("本文:")
+                        appendLine(post.text)
+
+                        // 画像情報を表示
+                        if (postWithImages.images.isNotEmpty()) {
+                            appendLine("画像: ${postWithImages.images.size}枚")
+                            postWithImages.images.forEachIndexed { index, image ->
+                                val originalFile = File(Uri.parse(image.imageUrl).path!!)
+                                if (originalFile.exists()) {
+                                    // 画像をバックアップフォルダにコピー
+                                    val backupImageName = "${post.id}_${index}.jpg"
+                                    val backupImageFile = File(tempDir, "images/$backupImageName")
+                                    backupImageFile.parentFile?.mkdirs()
+                                    originalFile.copyTo(backupImageFile, overwrite = true)
+                                    appendLine("  画像${index + 1}: images/$backupImageName")
+                                }
+                            }
+                        }
+
+                        appendLine("-".repeat(30))
+                        appendLine()
+                    }
+                }
+
+                // テキストファイルを一時フォルダに保存
+                val textFile = File(tempDir, "posts.txt")
+                textFile.writeText(exportText, Charsets.UTF_8)
+
+                // ZIPファイルを作成
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                val zipFileName = "LogLeaf_backup_${System.currentTimeMillis()}.zip"
+                val zipFile = File(downloadsDir, zipFileName)
+
+                // ZIP圧縮
+                zipFile.outputStream().use { fos ->
+                    ZipOutputStream(fos).use { zos ->
+                        // テキストファイルを追加
+                        zos.putNextEntry(ZipEntry("posts.txt"))
+                        textFile.inputStream().copyTo(zos)
+                        zos.closeEntry()
+
+                        // 画像フォルダ内のファイルを追加
+                        val imagesDir = File(tempDir, "images")
+                        if (imagesDir.exists()) {
+                            imagesDir.listFiles()?.forEach { imageFile ->
+                                zos.putNextEntry(ZipEntry("images/${imageFile.name}"))
+                                imageFile.inputStream().copyTo(zos)
+                                zos.closeEntry()
+                            }
+                        }
+                    }
+                }
+
+                // 一時フォルダを削除
+                tempDir.deleteRecursively()
+
+                withContext(Dispatchers.Main) {
+                    Log.d("Backup", "完全バックアップ完了: ${zipFile.absolutePath}")
+                    // TODO: 成功通知
+                }
+
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Log.e("Backup", "テキストバックアップ失敗: ${e.message}")
+                    // TODO: ここでエラー通知
+                }
             }
         }
     }
