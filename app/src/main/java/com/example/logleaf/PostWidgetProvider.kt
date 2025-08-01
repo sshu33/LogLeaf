@@ -39,13 +39,10 @@ class PostWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int
     ) {
-        // ウィジェットのレイアウトを取得
         val views = RemoteViews(context.packageName, R.layout.widget_post)
 
-        // ウィジェットがタップされた時のIntent
-        val intent = Intent(context, MainActivity::class.java).apply {
-            action = ACTION_WIDGET_CLICK
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        val intent = Intent(context, WidgetPostActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
 
         val pendingIntent = PendingIntent.getActivity(
@@ -55,10 +52,7 @@ class PostWidgetProvider : AppWidgetProvider() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // ウィジェット全体にクリックリスナーを設定
         views.setOnClickPendingIntent(R.id.widget_button, pendingIntent)
-
-        // ウィジェットを更新
         appWidgetManager.updateAppWidget(appWidgetId, views)
     }
 }

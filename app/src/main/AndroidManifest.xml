@@ -55,6 +55,13 @@
 
         </activity>
 
+        <activity
+            android:name=".WidgetPostActivity"
+            android:theme="@style/Theme.Transparent"
+            android:launchMode="singleTop"
+            android:excludeFromRecents="true"
+            android:exported="false" />
+
         <receiver android:name=".PostWidgetProvider"
             android:exported="true">
             <intent-filter>

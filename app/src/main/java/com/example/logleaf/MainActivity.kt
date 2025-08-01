@@ -56,22 +56,16 @@ import com.example.logleaf.ui.screens.TimelineScreen
 import com.example.logleaf.ui.theme.LogLeafTheme
 import com.leaf.logleaf.ui.entry.PostEntryDialog
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import java.time.ZoneId
 
 class MainActivity : ComponentActivity() {
 
-    private var handleWidgetClick = false
-
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        WindowCompat.setDecorFitsSystemWindows(window, false)
 
-        if (intent?.action == PostWidgetProvider.ACTION_WIDGET_CLICK) {
-            // ウィジェットから起動された場合の処理は、
-            // Composeの中で MainViewModel.showPostEntrySheet() を呼び出す
-            handleWidgetClick = true
-        }
+        super.onCreate(savedInstanceState)
 
         setContent {
 
@@ -92,9 +86,7 @@ class MainActivity : ComponentActivity() {
 
             val fontUiState by fontSettingsViewModel.uiState.collectAsState()
 
-            LogLeafTheme(
-                fontSettings = fontUiState
-            ) {
+            LogLeafTheme(fontSettings = fontUiState) {
                 AppEntry(
                     onLogout = {
                         val intent = packageManager.getLaunchIntentForPackage(packageName)
@@ -105,28 +97,8 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-
-        // ★★★ ウィジェットからの起動をチェック（追加） ★★★
-        if (intent.action == PostWidgetProvider.ACTION_WIDGET_CLICK) {
-            // intentを更新して、LaunchedEffectで検知できるようにする
-            setIntent(intent)
-        }
-
-        // 既存のMastodon処理
-        if (intent.action == Intent.ACTION_VIEW) {
-            val uri = intent.data
-            if (uri != null && uri.scheme == "logleaf" && uri.host == "callback") {
-                @Suppress("DEPRECATION")
-                GlobalScope.launch {
-                    MastodonAuthHolder.postUri(uri)
-                }
-            }
-        }
-    }
 }
+
 
 @Composable
 fun AppEntry(
@@ -135,14 +107,12 @@ fun AppEntry(
     val context = LocalContext.current
     val sessionManager = remember { SessionManager(context.applicationContext) }
 
-    // AppEntryの役割は、MainScreenを呼び出すだけになる
     MainScreen(
         sessionManager = sessionManager,
         onLogout = onLogout,
-        onNavigateToLogin = { /* この命令はMainScreenの中で処理される */ }
+        onNavigateToLogin = { }
     )
 }
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -159,7 +129,7 @@ fun MainScreen(
     val application = LocalContext.current.applicationContext as Application // ◀◀◀ この行を追加
     val mainViewModel: MainViewModel = viewModel(
         factory = MainViewModel.provideFactory(
-            application = application, // ◀◀◀ applicationを渡す
+            application = application,
             blueskyApi = BlueskyApi(sessionManager),
             mastodonApi = MastodonApi(),
             sessionManager = sessionManager,
@@ -406,9 +376,7 @@ fun MainScreen(
 
                 selectedImageUris = uiState.selectedImageUris,
                 onLaunchPhotoPicker = {
-                    photoPickerLauncher.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                    )
+                    // ウィジェットからは画像選択なし
                 },
                 onImageSelected = { uri -> mainViewModel.onImageSelected(uri) },
                 onImageRemoved = { index -> mainViewModel.onImageRemoved(index) },
