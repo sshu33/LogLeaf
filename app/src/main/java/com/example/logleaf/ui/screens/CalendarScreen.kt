@@ -7,6 +7,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Arrangement
@@ -23,12 +24,15 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.TextAutoSize
@@ -59,12 +63,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -87,12 +93,14 @@ import com.example.logleaf.ui.theme.SnsType
 import com.yourpackage.logleaf.ui.components.AutoSizeUserFontText
 import com.yourpackage.logleaf.ui.components.UserFontText
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
 import java.time.LocalDate
 import java.time.Month
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.abs
 
 data class EnlargedImageState(
     val images: List<PostImage>,
@@ -430,6 +438,9 @@ fun CalendarGrid(
     onDateSelected: (LocalDate) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var dragOffset by remember { mutableStateOf(0f) }
+    var isDragging by remember { mutableStateOf(false) }
+
     BoxWithConstraints(modifier = modifier) {
         val currentYearMonth = YearMonth.from(selectedDate)
         val daysInMonth = currentYearMonth.lengthOfMonth()
@@ -454,7 +465,36 @@ fun CalendarGrid(
         val totalRows = 1 + weeks.size
         val rowHeight = this.maxHeight / totalRows
 
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .offset(x = (dragOffset * 0.3f).dp) // 軽い追従感（30%の移動）
+                .pointerInput(currentYearMonth) {
+                    detectDragGestures(
+                        onDragStart = {
+                            isDragging = true
+                            dragOffset = 0f
+                        },
+                        onDragEnd = {
+                            isDragging = false
+                            if (abs(dragOffset) > 100f) {
+                                val newMonth = if (dragOffset > 0) {
+                                    // 右スワイプ → 前の月（指についてくる感じ）
+                                    currentYearMonth.minusMonths(1)
+                                } else {
+                                    // 左スワイプ → 次の月（指についてくる感じ）
+                                    currentYearMonth.plusMonths(1)
+                                }
+                                onDateSelected(selectedDate.withMonth(newMonth.monthValue).withYear(newMonth.year))
+                            }
+                            dragOffset = 0f
+                        }
+                    ) { _, dragAmount ->
+                        // ドラッグ中はリアルタイムで位置を更新
+                        dragOffset += dragAmount.x
+                    }
+                }
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -463,7 +503,6 @@ fun CalendarGrid(
             ) {
                 listOf("SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT").forEach { day ->
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        // 標準のTextの代わりに、我々が作ったUserFontTextを呼び出す！
                         UserFontText(
                             text = day,
                             style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
@@ -504,7 +543,6 @@ fun CalendarGrid(
         }
     }
 }
-
 
 @Composable
 fun DayCell(
