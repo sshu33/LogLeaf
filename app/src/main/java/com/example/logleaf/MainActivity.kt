@@ -60,9 +60,19 @@ import kotlinx.coroutines.launch
 import java.time.ZoneId
 
 class MainActivity : ComponentActivity() {
+
+    private var handleWidgetClick = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+
+        if (intent?.action == PostWidgetProvider.ACTION_WIDGET_CLICK) {
+            // ウィジェットから起動された場合の処理は、
+            // Composeの中で MainViewModel.showPostEntrySheet() を呼び出す
+            handleWidgetClick = true
+        }
+
         setContent {
 
             // 1. contextとapplicationを、一度だけ取得
@@ -98,6 +108,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+
+        // ★★★ ウィジェットからの起動をチェック（追加） ★★★
+        if (intent.action == PostWidgetProvider.ACTION_WIDGET_CLICK) {
+            // intentを更新して、LaunchedEffectで検知できるようにする
+            setIntent(intent)
+        }
+
+        // 既存のMastodon処理
         if (intent.action == Intent.ACTION_VIEW) {
             val uri = intent.data
             if (uri != null && uri.scheme == "logleaf" && uri.host == "callback") {
@@ -148,6 +166,18 @@ fun MainScreen(
             postDao = postDao
         )
     )
+
+    val activity = context as? ComponentActivity
+    LaunchedEffect(Unit) {
+        activity?.let { act ->
+            if (act.intent?.action == PostWidgetProvider.ACTION_WIDGET_CLICK) {
+                // ウィジェットから起動された場合、投稿ダイアログを表示
+                mainViewModel.showPostEntrySheet()
+                // intentを消費して、再度開かないようにする
+                act.intent = null
+            }
+        }
+    }
 
     val uiState by mainViewModel.uiState.collectAsState()
     val showSettingsBadge by mainViewModel.showSettingsBadge.collectAsState()

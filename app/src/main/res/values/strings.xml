@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">LogLeaf</string>
+    <string name="widget_description">LogLeaf クイック投稿</string>
 </resources>
