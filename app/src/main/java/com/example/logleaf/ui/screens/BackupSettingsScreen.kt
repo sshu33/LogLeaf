@@ -4,6 +4,8 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,6 +19,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -77,6 +80,31 @@ fun BackupSettingsScreen(
 
     var isPeriodMenuExpanded by remember { mutableStateOf(false) }
     var isQualityMenuExpanded by remember { mutableStateOf(false) }
+
+    val backupState by mainViewModel.backupState.collectAsState()
+
+    val animatedProgress by animateFloatAsState(
+        targetValue = backupState.progress,
+        animationSpec = tween(durationMillis = 300),
+        label = "BackupProgress"
+    )
+
+    val restoreState by mainViewModel.restoreState.collectAsState()
+
+    val animatedRestoreProgress by animateFloatAsState(
+        targetValue = restoreState.progress,
+        animationSpec = tween(durationMillis = 300),
+        label = "RestoreProgress"
+    )
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+        onResult = { uri ->
+            if (uri != null) {
+                mainViewModel.importDataFromZip(uri)
+            }
+        }
+    )
 
     Column(
         modifier = Modifier
@@ -351,13 +379,10 @@ fun BackupSettingsScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
-                                mainViewModel.exportPostsWithImages()
-                                Toast.makeText(
-                                    context,
-                                    "バックアップを作成中...",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                            .clickable(enabled = !backupState.isInProgress) {
+                                if (!backupState.isInProgress) {
+                                    mainViewModel.exportPostsWithImages()
+                                }
                             }
                             .padding(vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -365,7 +390,12 @@ fun BackupSettingsScreen(
                         Icon(
                             painter = painterResource(id = R.drawable.ic_download),
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            tint = if (backupState.isInProgress)
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                            else if (backupState.isCompleted)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                             modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.width(16.dp))
@@ -376,32 +406,87 @@ fun BackupSettingsScreen(
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
-                            Text(
-                                text = "すべての投稿と画像をZIP形式で保存",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            )
-                        }
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
 
+                            // 状態に応じた説明文
+                            val subtitleText = when {
+                                backupState.isInProgress -> backupState.statusText
+                                backupState.isCompleted -> "バックアップが完了しました"
+                                backupState.statusText.startsWith("エラー") -> backupState.statusText
+                                else -> "すべての投稿と画像をZIP形式で保存"
+                            }
+
+                            Text(
+                                text = subtitleText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = when {
+                                    backupState.isCompleted -> MaterialTheme.colorScheme.onSurface
+                                    backupState.statusText.startsWith("エラー") -> MaterialTheme.colorScheme.error
+                                    else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                }
+                            )
+
+                            // プログレスバー（進行中のみ表示）
+                            if (backupState.isInProgress) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                LinearProgressIndicator(
+                                    progress = { animatedProgress },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(3.dp),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                )
+                            }
+                        }
+
+                        // 右側のアイコン
+                        Box(modifier = Modifier.size(24.dp)) {
+                            when {
+                                backupState.isInProgress -> {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier
+                                            .size(20.dp)
+                                            .alpha(0.7f),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                backupState.isCompleted -> {
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.ic_check), // チェックマークアイコン
+                                        contentDescription = "完了",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                backupState.statusText.startsWith("エラー") -> {
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.ic_error), // エラーアイコン
+                                        contentDescription = "エラー",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                else -> {
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowRight,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                     // データ復元
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
-                                // ★★★ 変更：ZIPファイル選択を起動 ★★★
-                                documentPickerLauncher.launch(
-                                    arrayOf(
-                                        "application/zip",
-                                        "application/octet-stream"
-                                    )
-                                )
+                            .clickable(enabled = !restoreState.isInProgress) {
+                                if (!restoreState.isInProgress) {
+                                    // ファイルピッカーを開く（BackupSettingsScreenで追加したfilePickerLauncherを使用）
+                                    filePickerLauncher.launch("application/zip")
+                                }
                             }
                             .padding(vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -409,7 +494,12 @@ fun BackupSettingsScreen(
                         Icon(
                             painter = painterResource(id = R.drawable.ic_upload),
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            tint = if (restoreState.isInProgress)
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                            else if (restoreState.isCompleted)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                             modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.width(16.dp))
@@ -420,18 +510,77 @@ fun BackupSettingsScreen(
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
+
+                            // 状態に応じた説明文
+                            val subtitleText = when {
+                                restoreState.isInProgress -> restoreState.statusText
+                                restoreState.isCompleted -> "復元が完了しました"
+                                restoreState.statusText.startsWith("エラー") -> restoreState.statusText
+                                else -> "ZIP形式のバックアップファイルから復元"
+                            }
+
                             Text(
-                                text = "ZIP形式のバックアップファイルから復元",
+                                text = subtitleText,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                color = when {
+                                    restoreState.isCompleted -> MaterialTheme.colorScheme.onSurface // 黒文字
+                                    restoreState.statusText.startsWith("エラー") -> MaterialTheme.colorScheme.error
+                                    else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                }
                             )
+
+                            // プログレスバー（進行中のみ表示）
+                            if (restoreState.isInProgress) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                LinearProgressIndicator(
+                                    progress = { animatedRestoreProgress },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(3.dp),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                )
+                            }
                         }
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                            modifier = Modifier.size(24.dp)
-                        )
+
+                        // 右側のアイコン
+                        Box(modifier = Modifier.size(24.dp)) {
+                            when {
+                                restoreState.isInProgress -> {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier
+                                            .size(20.dp)
+                                            .alpha(0.7f),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                restoreState.isCompleted -> {
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.ic_check),
+                                        contentDescription = "完了",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                restoreState.statusText.startsWith("エラー") -> {
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.ic_error),
+                                        contentDescription = "エラー",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                else -> {
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowRight,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
