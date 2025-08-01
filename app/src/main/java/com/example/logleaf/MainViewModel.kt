@@ -37,11 +37,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import java.io.InputStream
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.UUID
 import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 data class DayLog(
@@ -142,6 +144,11 @@ class MainViewModel(
             }
         }
     }
+    private val _backupProgress = MutableStateFlow<String?>(null)
+    val backupProgress = _backupProgress.asStateFlow()
+
+    private val _restoreProgress = MutableStateFlow<String?>(null)
+    val restoreProgress = _restoreProgress.asStateFlow()
 
     val uiState: StateFlow<UiState> = combine(
         listOf(
@@ -239,18 +246,23 @@ class MainViewModel(
                         val post = postWithImageUrls.post
                         val imageUrls = postWithImageUrls.imageUrls
 
-                        // 1. 投稿を保存
+                        // 1. 既存投稿かチェック
+                        val existingPost = postDao.getPostById(post.id)
+
+                        // 2. 投稿を保存
                         postDao.insertPost(post)
 
-                        // 2. ハッシュタグ抽出・保存
-                        val hashtagPattern = "#(\\w+)".toRegex()
-                        val hashtags = hashtagPattern.findAll(post.text).map { it.groupValues[1] }.toList()
+                        // 3. 新規投稿のみハッシュタグ抽出
+                        if (existingPost == null) {
+                            val hashtagPattern = "#(\\w+)".toRegex()
+                            val hashtags = hashtagPattern.findAll(post.text).map { it.groupValues[1] }.toList()
 
-                        hashtags.forEach { tagName ->
-                            val tagId = postDao.insertTag(Tag(tagName = tagName))
-                            val finalTagId = if (tagId == -1L) postDao.getTagIdByName(tagName) ?: 0L else tagId
-                            if (finalTagId != 0L) {
-                                postDao.insertPostTagCrossRef(PostTagCrossRef(post.id, finalTagId))
+                            hashtags.forEach { tagName ->
+                                val tagId = postDao.insertTag(Tag(tagName = tagName))
+                                val finalTagId = if (tagId == -1L) postDao.getTagIdByName(tagName) ?: 0L else tagId
+                                if (finalTagId != 0L) {
+                                    postDao.insertPostTagCrossRef(PostTagCrossRef(post.id, finalTagId))
+                                }
                             }
                         }
 
@@ -548,7 +560,7 @@ class MainViewModel(
                     _scrollToTopEvent.value = true
                 }
 
-                refreshPosts()
+                refreshPostsWithoutScroll()  // ← これに変更
             }
         }
     }
@@ -716,10 +728,12 @@ class MainViewModel(
     fun exportPostsWithImages() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val context = getApplication<Application>().applicationContext
-                val allPostsWithImages = postDao.getPostsWithTagsAndImages().first() // 複数画像対応
+                _backupProgress.value = "投稿データを取得中..."
 
-                // 一時フォルダを作成
+                val context = getApplication<Application>().applicationContext // ← この行を追加
+                val allPostsWithImages = postDao.getPostsWithTagsAndImages().first()
+
+                _backupProgress.value = "バックアップファイルを作成中..."
                 val tempDir = File(context.cacheDir, "backup_temp")
                 tempDir.mkdirs()
 
@@ -740,7 +754,7 @@ class MainViewModel(
 
                         // タグを表示
                         if (postWithImages.tags.isNotEmpty()) {
-                            appendLine("タグ: ${postWithImages.tags.joinToString(", ") { "#${it.tagName}" }}")
+                            appendLine("タグ: ${postWithImages.tags.joinToString(", ") { it.tagName }}")
                         }
 
                         appendLine("本文:")
@@ -812,4 +826,247 @@ class MainViewModel(
             }
         }
     }
+
+    fun restoreFromBackup(backupUri: Uri, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val context = getApplication<Application>().applicationContext
+
+                // 1. ZIPファイルを一時的に展開
+                val tempDir = File(context.cacheDir, "restore_temp")
+                tempDir.mkdirs()
+
+                // ZIPファイルを展開
+                context.contentResolver.openInputStream(backupUri)?.use { inputStream ->
+                    extractZip(inputStream, tempDir)
+                } ?: run {
+                    withContext(Dispatchers.Main) {
+                        onResult(false, "バックアップファイルを開けませんでした")
+                    }
+                    return@launch
+                }
+
+                // 2. posts.txtを解析
+                val postsFile = File(tempDir, "posts.txt")
+                if (!postsFile.exists()) {
+                    withContext(Dispatchers.Main) {
+                        onResult(false, "posts.txtが見つかりません")
+                    }
+                    return@launch
+                }
+
+                val restoredPosts = parsePostsFromText(postsFile.readText())
+
+                // 3. 画像ファイルを内部ストレージにコピー
+                val imagesDir = File(tempDir, "images")
+                if (imagesDir.exists()) {
+                    copyImagesToInternalStorage(imagesDir)
+                }
+
+                // 4. データベースに保存（重複チェック付き、ハッシュタグ自動抽出なし）
+                var newPostCount = 0
+                var updatedPostCount = 0
+
+                restoredPosts.forEach { restoredData ->
+                    val existingPost = postDao.getPostById(restoredData.post.id)
+
+                    if (existingPost == null) {
+                        // 新規投稿として保存（ハッシュタグ自動抽出なし）
+                        postDao.insert(restoredData.post)
+
+                        // タグ情報を保存
+                        restoredData.tagNames.forEach { tagName ->
+                            var tagId = postDao.insertTag(Tag(tagName = tagName))
+                            if (tagId == -1L) {
+                                tagId = postDao.getTagIdByName(tagName) ?: 0L
+                            }
+                            if (tagId != 0L) {
+                                postDao.insertPostTagCrossRef(PostTagCrossRef(restoredData.post.id, tagId))
+                            }
+                        }
+
+                        // 画像情報を保存
+                        if (restoredData.images.isNotEmpty()) {
+                            postDao.insertPostImages(restoredData.images)
+                        }
+
+                        newPostCount++
+                    } else {
+                        // 既存投稿を更新
+                        postDao.update(restoredData.post)
+
+                        // タグを更新（古いタグを削除して新しいタグを追加）
+                        postDao.deletePostTagCrossRefs(restoredData.post.id)
+                        restoredData.tagNames.forEach { tagName ->
+                            var tagId = postDao.insertTag(Tag(tagName = tagName))
+                            if (tagId == -1L) {
+                                tagId = postDao.getTagIdByName(tagName) ?: 0L
+                            }
+                            if (tagId != 0L) {
+                                postDao.insertPostTagCrossRef(PostTagCrossRef(restoredData.post.id, tagId))
+                            }
+                        }
+
+                        // 画像を更新
+                        postDao.deletePostImages(restoredData.post.id)
+                        if (restoredData.images.isNotEmpty()) {
+                            postDao.insertPostImages(restoredData.images)
+                        }
+
+                        updatedPostCount++
+                    }
+                }
+
+                // 5. 一時フォルダを削除
+                tempDir.deleteRecursively()
+
+                withContext(Dispatchers.Main) {
+                    val message = " (新規: ${newPostCount}件、更新: ${updatedPostCount}件)"
+                    onResult(true, message)
+                    refreshPosts() // データ更新
+                }
+
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    onResult(false, e.message ?: "不明なエラー")
+                }
+            }
+        }
+    }
+
+    private fun extractZip(inputStream: InputStream, targetDir: File) {
+        ZipInputStream(inputStream).use { zis ->
+            var entry = zis.nextEntry
+            while (entry != null) {
+                val file = File(targetDir, entry.name)
+
+                if (entry.isDirectory) {
+                    file.mkdirs()
+                } else {
+                    file.parentFile?.mkdirs()
+                    file.outputStream().use { output ->
+                        zis.copyTo(output)
+                    }
+                }
+                entry = zis.nextEntry
+            }
+        }
+    }
+
+    private fun parsePostsFromText(text: String): List<RestoredPostData> {
+        val posts = mutableListOf<RestoredPostData>()
+        val postBlocks = text.split("------------------------------").filter { it.contains("投稿ID:") }
+
+        postBlocks.forEach { block ->
+            try {
+                val lines = block.trim().split("\n")
+
+                // 基本情報を抽出
+                val postId = lines.find { it.startsWith("投稿ID:") }?.substringAfter("投稿ID: ")?.trim() ?: return@forEach
+                val dateTimeStr = lines.find { it.startsWith("日時:") }?.substringAfter("日時: ")?.trim() ?: return@forEach
+                val accountId = lines.find { it.startsWith("アカウント:") }?.substringAfter("アカウント: ")?.trim() ?: return@forEach
+                val snsStr = lines.find { it.startsWith("SNS:") }?.substringAfter("SNS: ")?.trim() ?: return@forEach
+
+                // タグ情報を抽出
+                val tagNames = lines.find { it.startsWith("タグ:") }?.let { tagLine ->
+                    tagLine.substringAfter("タグ: ").split(",").map { it.trim() }
+                } ?: emptyList()
+
+                // 本文を抽出（「本文:」の次の行から画像情報or区切りまで）
+                val bodyStartIndex = lines.indexOfFirst { it.startsWith("本文:") }
+                if (bodyStartIndex == -1) return@forEach
+
+                val bodyLines = mutableListOf<String>()
+                var i = bodyStartIndex + 1
+                while (i < lines.size && !lines[i].startsWith("画像:") && lines[i].trim().isNotEmpty()) {
+                    bodyLines.add(lines[i])
+                    i++
+                }
+                val bodyText = bodyLines.joinToString("\n")
+
+                // 画像情報を抽出（LogLeaf投稿の実際のファイルパスのみ）
+                val images = mutableListOf<PostImage>()
+
+                // 実際の画像パス行のみを処理（"画像1: images/..."の形式）
+                val imagePathLines = lines.filter {
+                    it.trim().matches(Regex("\\s*画像\\d+: images/.+"))
+                }
+
+                imagePathLines.forEachIndexed { index, imageLine ->
+                    val imagePath = imageLine.substringAfter(": ").trim()
+                    if (imagePath.startsWith("images/")) {
+                        // LogLeaf投稿の画像のみ処理
+                        val imageFileName = imagePath.substringAfter("images/")
+                        val internalImagePath = "file://${getApplication<Application>().filesDir}/$imageFileName"
+
+                        images.add(
+                            PostImage(
+                                postId = postId,
+                                imageUrl = internalImagePath,
+                                orderIndex = index
+                            )
+                        )
+                    }
+                }
+
+                // Postオブジェクトを作成
+                val snsType = when (snsStr) {
+                    "BLUESKY" -> SnsType.BLUESKY
+                    "MASTODON" -> SnsType.MASTODON
+                    else -> SnsType.LOGLEAF
+                }
+
+                val post = Post(
+                    id = postId,
+                    accountId = accountId,
+                    text = bodyText,
+                    createdAt = ZonedDateTime.parse(dateTimeStr),
+                    source = snsType,
+                    imageUrl = images.firstOrNull()?.imageUrl,
+                    isHidden = false
+                )
+
+                posts.add(RestoredPostData(post = post, tagNames = tagNames, images = images))
+
+            } catch (e: Exception) {
+                Log.e("RestoreBackup", "投稿解析エラー: ${e.message}")
+            }
+        }
+
+        return posts
+    }
+
+    private fun copyImagesToInternalStorage(imagesDir: File) {
+        val context = getApplication<Application>().applicationContext
+
+        imagesDir.listFiles()?.forEach { imageFile ->
+            try {
+                val targetFile = File(context.filesDir, imageFile.name)
+                imageFile.copyTo(targetFile, overwrite = true)
+            } catch (e: Exception) {
+                Log.e("RestoreBackup", "画像コピーエラー: ${e.message}")
+            }
+        }
+    }
+
+    // データクラスを追加（MainViewModel.kt内、どこでもOK）
+    data class RestoredPostData(
+        val post: Post,
+        val tagNames: List<String>,
+        val images: List<PostImage>
+    )
+
+    private fun refreshPostsWithoutScroll() {
+        viewModelScope.launch {
+            if (_isRefreshing.value) return@launch
+            _isRefreshing.value = true
+            try {
+                fetchPosts(sessionManager.accountsFlow.first()).join()
+                // スクロールイベントは発火しない
+            } finally {
+                _isRefreshing.value = false
+            }
+        }
+    }
 }
+

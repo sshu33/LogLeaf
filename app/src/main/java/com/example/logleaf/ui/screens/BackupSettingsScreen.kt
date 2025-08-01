@@ -1,6 +1,8 @@
 package com.example.logleaf.ui.screens
 
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -10,7 +12,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,7 +28,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavController
 import com.example.logleaf.MainViewModel
 import com.example.logleaf.R
@@ -42,6 +43,24 @@ fun BackupSettingsScreen(
     mainViewModel: MainViewModel
 ) {
     val context = LocalContext.current
+
+    val backupProgress by mainViewModel.backupProgress.collectAsState()
+    val restoreProgress by mainViewModel.restoreProgress.collectAsState()
+
+    val documentPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+        onResult = { uri ->
+            if (uri != null) {
+                mainViewModel.restoreFromBackup(uri) { success, message ->
+                    Toast.makeText(
+                        context,
+                        if (success) "復元が完了しました！" else "復元に失敗しました: $message",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+    )
 
     // --- ▼ 最適化メニューで使う変数を準備 ---
     var isOptimizationExpanded by remember { mutableStateOf(false) }
@@ -172,8 +191,14 @@ fun BackupSettingsScreen(
                                     colors = ButtonDefaults.outlinedButtonColors(
                                         contentColor = MaterialTheme.colorScheme.onSurface
                                     ),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                    border = BorderStroke(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                    ),
+                                    contentPadding = PaddingValues(
+                                        horizontal = 12.dp,
+                                        vertical = 4.dp
+                                    )
                                 ) {
                                     Text(
                                         text = selectedPeriod,
@@ -219,8 +244,14 @@ fun BackupSettingsScreen(
                                     colors = ButtonDefaults.outlinedButtonColors(
                                         contentColor = MaterialTheme.colorScheme.onSurface
                                     ),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                    border = BorderStroke(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                    ),
+                                    contentPadding = PaddingValues(
+                                        horizontal = 12.dp,
+                                        vertical = 4.dp
+                                    )
                                 ) {
                                     Text(
                                         text = selectedQualityText,
@@ -364,11 +395,13 @@ fun BackupSettingsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                Toast.makeText(
-                                    context,
-                                    "復元機能は準備中です",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                // ★★★ 変更：ZIPファイル選択を起動 ★★★
+                                documentPickerLauncher.launch(
+                                    arrayOf(
+                                        "application/zip",
+                                        "application/octet-stream"
+                                    )
+                                )
                             }
                             .padding(vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -577,8 +610,26 @@ fun BackupSettingsScreen(
                         )
                     }
                 }
+                Spacer(modifier = Modifier.height(32.dp))
             }
         }
-        Spacer(modifier = Modifier.height(32.dp))
+    }
+    if (backupProgress != null) {
+        Dialog(onDismissRequest = { }) {
+            Card(
+                modifier = Modifier.padding(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    CircularProgressIndicator()
+                    Spacer(Modifier.height(16.dp))
+                    Text(backupProgress!!)
+                }
+            }
+        }
     }
 }
+
