@@ -50,7 +50,8 @@ import java.util.zip.ZipOutputStream
 data class DayLog(
     val date: LocalDate,
     val firstPost: Post?,
-    val totalPosts: Int
+    val totalPosts: Int,
+    val dayImageUrl: String? = null // その日の最初の画像URL
 )
 
 data class UiState(
@@ -749,16 +750,26 @@ class MainViewModel(
             return emptyList()
         }
         val groupedByDate: Map<LocalDate, List<PostWithTagsAndImages>> = posts.groupBy {
-            it.post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
-                .toLocalDate() // ◀◀ it.post を経由
+            it.post.createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate()
         }
         return groupedByDate.map { (date, postList) ->
-            // ここでのソートは不要になるが、念のため残しておく
-            val sortedPostList = postList.sortedByDescending { it.post.createdAt } // ◀◀ 1. .postを追加
+            val sortedPostList = postList.sortedByDescending { it.post.createdAt }
+
+            // その日の最初の画像URLを探す
+            val dayImageUrl = sortedPostList
+                .firstNotNullOfOrNull { postWithImages ->
+                    // 複数画像対応：imagesリストから最初の画像を取得
+                    postWithImages.images.firstOrNull()?.let { image ->
+                        // サムネイルがあればサムネイル、なければ元画像
+                        image.thumbnailUrl ?: image.imageUrl
+                    } ?: postWithImages.post.imageUrl // 従来の単一画像フィールドもチェック
+                }
+
             DayLog(
                 date = date,
-                firstPost = sortedPostList.firstOrNull()?.post, // ◀◀ 2. .postを追加
-                totalPosts = postList.size
+                firstPost = sortedPostList.firstOrNull()?.post,
+                totalPosts = postList.size,
+                dayImageUrl = dayImageUrl
             )
         }.sortedByDescending { it.date }
     }
