@@ -1096,7 +1096,12 @@ class MainViewModel(
 
                 // タグ情報を抽出
                 val tagNames = lines.find { it.startsWith("タグ:") }?.let { tagLine ->
-                    tagLine.substringAfter("タグ: ").split(",").map { it.trim() }
+                    tagLine.substringAfter("タグ: ").split(",")
+                        .map { tag ->
+                            //タグから # を削除
+                            tag.replace("#+".toRegex(), "").trim()
+                        }
+                        .filterNot { it.isBlank() } // 空文字を除外
                 } ?: emptyList()
 
                 // 本文を抽出（「本文:」の次の行から画像情報or区切りまで）
