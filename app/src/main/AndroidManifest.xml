@@ -60,9 +60,9 @@
             android:theme="@style/Theme.Transparent"
             android:launchMode="singleTop"
             android:excludeFromRecents="true"
-            android:exported="false" />
+            android:exported="true" />
 
-        <receiver android:name=".PostWidgetProvider"
+        <receiver android:name=".ui.widget.PostWidgetProvider"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />

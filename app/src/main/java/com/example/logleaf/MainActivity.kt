@@ -8,7 +8,6 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -29,8 +28,6 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
-import androidx.core.view.WindowCompat
-import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -54,11 +51,8 @@ import com.example.logleaf.ui.screens.SettingsScreen
 import com.example.logleaf.ui.screens.SnsSelectScreen
 import com.example.logleaf.ui.screens.TimelineScreen
 import com.example.logleaf.ui.theme.LogLeafTheme
+import com.example.logleaf.ui.widget.PostWidgetProvider
 import com.leaf.logleaf.ui.entry.PostEntryDialog
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.launch
 import java.time.ZoneId
 
 class MainActivity : ComponentActivity() {
