@@ -81,7 +81,6 @@ dependencies {
 
     implementation(libs.ktor.client.logging)
     implementation("androidx.compose.foundation:foundation-layout:1.5.0")
-    implementation("androidx.compose.material:material:1.6.8")
 
 
     coreLibraryDesugaring(libs.android.desugar.jdk.libs)

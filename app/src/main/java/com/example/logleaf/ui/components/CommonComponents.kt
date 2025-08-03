@@ -137,13 +137,13 @@ fun BottomNavigationBar(
 ) {
     val items = listOf(Screen.Timeline, Screen.Calendar, Screen.Search, Screen.Settings)
 
-    // ✅ リップル効果を透明にするテーマでラップ
+    //  リップル効果を透明にするテーマでラップ
     CompositionLocalProvider(
         LocalRippleTheme provides NoRippleTheme
     ) {
         Surface(shadowElevation = 4.dp, color = Color.Transparent) {
             NavigationBar(
-                modifier = Modifier.height(100.dp),
+                modifier = Modifier.height(45.dp),
                 containerColor = Color.White, // 背景色は白
                 tonalElevation = 0.dp // 色合いを適用する高さを0に設定
             ) {
@@ -174,6 +174,7 @@ fun BottomNavigationBar(
                             // ▼▼▼ [変更点2] 我々自身の手で、完璧な「飲み薬」を描画する ▼▼▼
                             Box(
                                 modifier = Modifier
+                                    .offset(y = 4.dp)
                                     // これが「飲み薬」のサイズだ！
                                     .height(32.dp)
                                     .width(64.dp)
@@ -209,6 +210,7 @@ fun BottomNavigationBar(
                                             imageVector = screen.icon,
                                             contentDescription = screen.label,
                                             modifier = Modifier.size(28.dp)
+
                                         )
                                     }
                                 } else {
