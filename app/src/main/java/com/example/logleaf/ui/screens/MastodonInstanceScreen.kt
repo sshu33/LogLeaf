@@ -38,6 +38,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
@@ -158,7 +159,12 @@ fun MastodonInstanceScreen(
                     value = uiState.instanceUrl,
                     onValueChange = { viewModel.onInstanceUrlChange(it) },
                     label = { Text("インスタンスURL") },
-                    placeholder = { Text("mstdn.jp") },
+                    placeholder = {
+                        Text(
+                            text = "mstdn.jp",
+                            color = Color.LightGray  // ✅ お好みの色に変更
+                        )
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.large,
                     singleLine = true,
