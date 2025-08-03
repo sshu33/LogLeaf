@@ -8,6 +8,7 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -370,7 +371,9 @@ fun MainScreen(
 
                 selectedImageUris = uiState.selectedImageUris,
                 onLaunchPhotoPicker = {
-                    // ウィジェットからは画像選択なし
+                    photoPickerLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
                 },
                 onImageSelected = { uri -> mainViewModel.onImageSelected(uri) },
                 onImageRemoved = { index -> mainViewModel.onImageRemoved(index) },
