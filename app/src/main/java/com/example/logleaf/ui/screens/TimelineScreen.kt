@@ -15,24 +15,34 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,6 +59,7 @@ import coil.compose.AsyncImage
 import com.example.logleaf.DayLog
 import com.example.logleaf.UiState
 import com.yourpackage.logleaf.ui.components.UserFontText
+import kotlinx.coroutines.launch
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -59,9 +70,11 @@ import java.util.Locale
 fun TimelineScreen(
     uiState: UiState,
     onRefresh: () -> Unit,
-    navController: NavController
+    navController: NavController,
+    listState: LazyListState
 ) {
     val pullToRefreshState = rememberPullToRefreshState()
+    val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(uiState.isRefreshing) {
         if (uiState.isRefreshing) {
@@ -79,7 +92,39 @@ fun TimelineScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Timeline") })
+
+            Surface(
+                color = Color.White,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                // ★★★ 2. ヘッダー全体をタップ可能にします ★★★
+                modifier = Modifier.clickable {
+                    coroutineScope.launch {
+                        listState.animateScrollToItem(index = 0)
+                    }
+                }
+            ) {
+                // --- デザインの微調整値は、すべて維持します ---
+                val headerHeight = 65.dp
+                val horizontalPadding = 12.dp
+                val titleStartPadding = 4.dp
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(headerHeight)
+                        .padding(horizontal = horizontalPadding),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Timeline",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontSize = 24.sp
+                        ),
+                        modifier = Modifier.padding(start = titleStartPadding)
+                    )
+                }
+            }
         },
         containerColor = MaterialTheme.colorScheme.surfaceVariant
     ) { innerPadding ->
@@ -105,22 +150,23 @@ fun TimelineScreen(
                 }
 
                 LazyColumn(
-                    // ★★★ ここが原因でした ★★★
-                    // innerPaddingをcontentPaddingではなく、Modifier.padding()で指定します。
-                    // これにより、LazyColumnコンポーネント全体がTopAppBarの下に配置されます。
+                    // ★★★ 3. リモコンをLazyColumnに接続します ★★★
+                    state = listState,
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(top = innerPadding.calculateTopPadding()), // 上のパディングだけ適用
+                        .padding(top = innerPadding.calculateTopPadding()),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
-                    // ★★★ 下のパディングは、リストの最後にSpacerを追加することで確保します
                     contentPadding = PaddingValues(bottom = innerPadding.calculateBottomPadding())
                 ) {
+                    // ... LazyColumnの中身（月のセクションヘッダーなど）は一切変更ありません ...
                     groupedByMonth.forEach { (yearMonth, logsInMonth) ->
                         stickyHeader {
                             val monthString = yearMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH))
                             UserFontText(
                                 text = monthString,
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontSize = 15.sp
+                                ),
                                 fontWeight = FontWeight.Bold,
                                 color = Color.Black,
                                 modifier = Modifier
@@ -134,7 +180,6 @@ fun TimelineScreen(
                             PostItem(
                                 dayLog = dayLog,
                                 onTextClick = {
-                                    // テキストクリック時は今まで通りfirstPostに飛ぶ
                                     dayLog.firstPost?.let { post ->
                                         val date = dayLog.date.toString()
                                         val postId = post.id
@@ -142,7 +187,6 @@ fun TimelineScreen(
                                     }
                                 },
                                 onImageClick = {
-                                    // ★追加: 画像クリック時は、画像の投稿ID (imagePostId) に飛ぶ
                                     dayLog.imagePostId?.let { postId ->
                                         val date = dayLog.date.toString()
                                         navController.navigate("calendar?date=$date&postId=$postId")
@@ -233,7 +277,9 @@ fun PostItem(
                             if (dayLog.totalPosts > 1) {
                                 Text(
                                     text = "${dayLog.totalPosts} Social Moments",
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontSize = MaterialTheme.typography.bodyMedium.fontSize * 0.9
+                                    ),
                                     color = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.padding(top = 4.dp)
                                 )

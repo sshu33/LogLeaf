@@ -49,6 +49,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -71,6 +72,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -570,7 +572,7 @@ fun PostEntryDialog(
                                             dismissOnBackPress = true
                                         )
                                     ) {
-                                        TagSuggestionPopupContent(
+                                        TagSuggestionPopup(
                                             favoriteTags = favoriteTags,
                                             frequentlyUsedTags = frequentlyUsedTags,
                                             onAddTag = { tagName ->
@@ -1153,19 +1155,14 @@ private fun TagChip(
 /**
  * タグサジェストのポップアップの中身全体を描画する。
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun TagSuggestionPopupContent(
+fun TagSuggestionPopup(
     favoriteTags: List<Tag>,
     frequentlyUsedTags: List<Tag>,
     onAddTag: (String) -> Unit,
     onToggleFavorite: (Tag) -> Unit,
     onReorder: (from: Int, to: Int) -> Unit
 ) {
-    var draggedIndex by remember { mutableStateOf<Int?>(null) }
-    var dragOffset by remember { mutableStateOf(Offset.Zero) }
-    var targetIndex by remember { mutableStateOf<Int?>(null) }
-    var itemHeight by remember { mutableStateOf(0) }
     Card(
         modifier = Modifier
             .fillMaxWidth(0.9f)
@@ -1183,177 +1180,186 @@ private fun TagSuggestionPopupContent(
             modifier = Modifier
                 .heightIn(max = 240.dp)
                 .wrapContentHeight()
-                .padding(vertical = 8.dp)
+                .padding(vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            // --- お気に入りセクション ---
+            // === お気に入りタグセクション ===
             if (favoriteTags.isNotEmpty()) {
-                item { /* Favoritesヘッダー */ }
-
-                itemsIndexed(favoriteTags, key = { _, tag -> tag.tagId }) { index, tag ->
-                    val isDragging = index == draggedIndex
-
-                    // ★★★ ここからアニメーションロジックを追加 ★★★
-                    val animatedOffsetY by animateDpAsState(
-                        targetValue = with(LocalDensity.current) {
-                            when {
-                                !isDragging && draggedIndex != null && targetIndex != null -> {
-                                    val from = draggedIndex!!
-                                    val to = targetIndex!!
-                                    when {
-                                        // 上から下にドラッグ中、間にあるアイテムは上に移動
-                                        from < to && index in (from + 1)..to -> -itemHeight.toDp()
-                                        // 下から上にドラッグ中、間にあるアイテムは下に移動
-                                        from > to && index in to..(from - 1) -> itemHeight.toDp()
-                                        else -> 0.dp
-                                    }
-                                }
-                                else -> 0.dp
-                            }
-                        }.value.dp, // .value.dpを追加
-                        animationSpec = spring(dampingRatio = 0.8f, stiffness = 500f),
-                        label = "TagReorderAnimation"
+                item {
+                    Text(
+                        text = "お気に入り",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
                     )
+                }
 
-                    Box(
-                        modifier = Modifier
-                            .onGloballyPositioned {
-                                itemHeight = it.size.height // アイテムの高さを実測
-                            }
-                            .graphicsLayer {
-                                // Y方向（縦）のオフセットを適用
-                                translationY = if (isDragging) dragOffset.y else 0f
-                                // ドラッグ中は少し拡大して浮き上がったように見せる
-                                scaleX = if (isDragging) 1.03f else 1.0f
-                                scaleY = if (isDragging) 1.03f else 1.0f
-                                alpha = if (isDragging) 0.95f else 1.0f
-                            }
-                            .pointerInput(Unit) {
-                                detectDragGesturesAfterLongPress(
-                                    onDragStart = {
-                                        draggedIndex = index
-                                        dragOffset = Offset.Zero
-                                        targetIndex = index
-                                    },
-                                    onDragEnd = {
-                                        draggedIndex?.let { fromIndex ->
-                                            targetIndex?.let { toIndex ->
-                                                if (fromIndex != toIndex) {
-                                                    onReorder(fromIndex, toIndex)
-                                                }
-                                            }
-                                        }
-                                        draggedIndex = null
-                                        dragOffset = Offset.Zero
-                                        targetIndex = null
-                                    },
-                                    onDragCancel = {
-                                        draggedIndex = null
-                                        dragOffset = Offset.Zero
-                                        targetIndex = null
-                                    }
-                                ) { change, dragAmount ->
-                                    change.consume()
-                                    // Y方向（縦）の移動量だけをdragOffsetに加算
-                                    dragOffset = Offset(0f, dragOffset.y + dragAmount.y)
+                items(favoriteTags.size) { index ->
+                    val tag = favoriteTags[index]
 
-                                    // アイテムの高さが測定できていれば、移動先のインデックスを計算
-                                    if (itemHeight > 0) {
-                                        val currentY = dragOffset.y
-                                        val newTargetIndex = (index + (currentY / itemHeight).roundToInt())
-                                            .coerceIn(0, favoriteTags.size - 1)
-                                        targetIndex = newTargetIndex
-                                    }
-                                }
-                            }
-                    ) {
-                        SuggestionTagItem(
-                            tag = tag,
-                            isFavorite = true,
-                            isDragging = isDragging,
-                            onAddClick = { onAddTag(tag.tagName) },
-                            onFavoriteClick = { onToggleFavorite(tag) }
-                        )
-                    }
+                    DraggableTagRow(
+                        tag = tag,
+                        onAddClick = { onAddTag(tag.tagName) },
+                        onFavoriteClick = { onToggleFavorite(tag) },
+                        onReorder = { fromIndex, toIndex ->
+                            onReorder(fromIndex, toIndex)
+                        },
+                        currentIndex = index,
+                        listSize = favoriteTags.size
+                    )
                 }
             }
 
-            // --- よく使うタグセクション（並び替え非対応なので変更なし） ---
+            // === よく使うタグセクション ===
             if (frequentlyUsedTags.isNotEmpty()) {
+                if (favoriteTags.isNotEmpty()) {
+                    item { Spacer(modifier = Modifier.height(4.dp)) }
+                }
+
                 item {
-                    UserFontText(
-                        "Frequently Used",
+                    Text(
+                        text = "よく使うタグ",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.Gray,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
                     )
                 }
-                items(frequentlyUsedTags, key = { it.tagId }) { tag ->
-                    // こちらはReorderableItemでラップしない
-                    SuggestionTagItem(
+
+                items(frequentlyUsedTags) { tag ->
+                    SimpleTagRow(
                         tag = tag,
-                        isFavorite = false,
-                        isDragging = false, // 常にfalse
                         onAddClick = { onAddTag(tag.tagName) },
                         onFavoriteClick = { onToggleFavorite(tag) }
                     )
                 }
             }
 
-            // --- どちらのリストも空の場合の表示 ---
+            // === 空の場合 ===
             if (favoriteTags.isEmpty() && frequentlyUsedTags.isEmpty()) {
                 item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("候補はありません", color = Color.Gray)
-                    }
+                    Text(
+                        "候補はありません",
+                        color = Color.Gray,
+                        modifier = Modifier.padding(12.dp)
+                    )
                 }
             }
         }
     }
 }
 
-/**
- * ポップアップ内の各タグ行を描画する。
- */
+// === コンパクトなドラッグ可能タグ行 ===
 @Composable
-private fun SuggestionTagItem(
+private fun DraggableTagRow(
     tag: Tag,
-    isFavorite: Boolean,
-    isDragging: Boolean, // ★★★ この行を追加 ★★★
     onAddClick: () -> Unit,
     onFavoriteClick: () -> Unit,
-    modifier: Modifier = Modifier // ★★★ ドラッグ操作のためにModifierを受け取れるようにする ★★★
+    onReorder: (from: Int, to: Int) -> Unit,
+    currentIndex: Int,
+    listSize: Int
 ) {
+    var isDragging by remember { mutableStateOf(false) }
+    var draggedDistance by remember { mutableStateOf(0f) }
+
     Row(
-        // ★★★ modifierをここに適用 ★★★
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onAddClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp)
-            // ★★★ ドラッグ中は背景色を少し変えてフィードバック ★★★
-            .background(if (isDragging) Color.LightGray.copy(alpha = 0.2f) else Color.Transparent),
+            .offset(y = with(LocalDensity.current) { draggedDistance.toDp() })
+            .alpha(if (isDragging) 0.7f else 1f)
+            .background(
+                if (isDragging) MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
+                else Color.Transparent
+            )
+            .pointerInput(currentIndex) {
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { isDragging = true },
+                    onDragEnd = {
+                        // 自然な縦移動計算
+                        val rowHeight = 36.dp.toPx()
+                        val movedRows = (draggedDistance / rowHeight).roundToInt()
+                        val targetIndex = (currentIndex + movedRows).coerceIn(0, listSize - 1)
+
+                        if (targetIndex != currentIndex) {
+                            onReorder(currentIndex, targetIndex)
+                        }
+
+                        isDragging = false
+                        draggedDistance = 0f
+                    }
+                ) { _, dragAmount ->
+                    draggedDistance += dragAmount.y
+                }
+            }
+            .clickable { onAddClick() }
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // タグ名
+        // ドラッグハンドル（小さく）
+        Icon(
+            painter = painterResource(id = R.drawable.ic_drag_handle),
+            contentDescription = null,
+            tint = Color.Gray.copy(alpha = 0.4f),
+            modifier = Modifier.size(12.dp)
+        )
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        // タグ名（コンパクト）
         Text(
             text = tag.tagName,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.weight(1f)
         )
-        // お気に入りアイコン
+
+        // お気に入りアイコン（小さく）
         Icon(
-            // ここにあなたが見つけてきた可愛いアイコンを指定してください！
-            // 例: imageVector = Icons.Filled.Star
-            painter = painterResource(id = if (isFavorite) R.drawable.ic_star_filled else R.drawable.ic_star_outline), // 仮のアイコンです
-            contentDescription = "お気に入りを切り替え",
-            tint = if (isFavorite) MaterialTheme.colorScheme.primary else Color.LightGray,
+            painter = painterResource(id = R.drawable.ic_star_filled),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier
-                .size(20.dp)
-                .clickable(onClick = onFavoriteClick)
+                .size(14.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onFavoriteClick
+                )
+        )
+    }
+}
+
+// === シンプルなタグ行 ===
+@Composable
+private fun SimpleTagRow(
+    tag: Tag,
+    onAddClick: () -> Unit,
+    onFavoriteClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onAddClick() }
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Spacer(modifier = Modifier.width(20.dp)) // ハンドル分のスペース
+
+        Text(
+            text = tag.tagName,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.weight(1f)
+        )
+
+        Icon(
+            painter = painterResource(id = R.drawable.ic_star_outline),
+            contentDescription = null,
+            tint = Color.Gray.copy(alpha = 0.5f),
+            modifier = Modifier
+                .size(14.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onFavoriteClick
+                )
         )
     }
 }

@@ -16,6 +16,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -131,6 +132,7 @@ fun MainScreen(
             postDao = postDao
         )
     )
+    val timelineListState = rememberLazyListState()
 
     val activity = context as? ComponentActivity
     LaunchedEffect(Unit) {
@@ -181,10 +183,12 @@ fun MainScreen(
 
         ) {
             composable("timeline") {
+                // ★★★ 2. TimelineScreenに「リモコン」を渡します ★★★
                 TimelineScreen(
-                    uiState = uiState, // これでuiStateを渡せる
+                    uiState = uiState,
                     onRefresh = mainViewModel::refreshPosts,
-                    navController = navController
+                    navController = navController,
+                    listState = timelineListState // ← この一行を追加
                 )
             }
             composable(
