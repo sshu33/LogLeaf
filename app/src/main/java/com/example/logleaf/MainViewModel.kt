@@ -122,6 +122,10 @@ class MainViewModel(
     private val favoriteTagsFlow: Flow<List<Tag>> = postDao.getFavoriteTags()
     private val frequentlyUsedTagsFlow: Flow<List<Tag>> = postDao.getFrequentlyUsedTags()
 
+    private val uniqueFrequentlyUsedTagsFlow: Flow<List<Tag>> = frequentlyUsedTagsFlow.map { tags ->
+        tags.distinctBy { it.tagName }
+    }
+
     private suspend fun checkForDeletedPosts(accounts: List<Account>, fetchedPosts: List<Post>) {
         accounts.forEach { account ->
             try {
@@ -191,22 +195,25 @@ class MainViewModel(
             _showHiddenPosts,
             _isRefreshing,
             favoriteTagsFlow,
-            frequentlyUsedTagsFlow
+            frequentlyUsedTagsFlow // ← ここは元のままでOK
         )
     ) { results ->
+        // 1. 必要なデータを`results`から全て取り出す
         @Suppress("UNCHECKED_CAST")
         val posts = results[0] as List<PostWithTagsAndImages>
         val postEntry = results[1] as PostEntryState
         val showHidden = results[2] as Boolean
         val isRefreshing = results[3] as Boolean
-
         @Suppress("UNCHECKED_CAST")
         val favoriteTags = results[4] as List<Tag>
-
         @Suppress("UNCHECKED_CAST")
-        val frequentTags = results[5] as List<Tag>
+        val frequentTags = results[5] as List<Tag> // ← まず変数'frequentTags'を定義する
 
+        // 2. 取り出したデータを使って、必要な加工処理を行う
         val dayLogs = groupPostsByDay(posts)
+        val uniqueFrequentTags = frequentTags.distinctBy { it.tagName } // ← ★定義済みの'frequentTags'をここで加工する
+
+        // 3. 最終的なデータをUiStateに渡す
         UiState(
             dayLogs = dayLogs,
             allPosts = posts,
@@ -221,7 +228,7 @@ class MainViewModel(
             selectedImageUris = postEntry.selectedImageUris,
             requestFocus = postEntry.requestFocus,
             favoriteTags = favoriteTags,
-            frequentlyUsedTags = frequentTags
+            frequentlyUsedTags = uniqueFrequentTags // ← ★加工済みのリストを渡す
         )
     }.stateIn(
         scope = viewModelScope,
