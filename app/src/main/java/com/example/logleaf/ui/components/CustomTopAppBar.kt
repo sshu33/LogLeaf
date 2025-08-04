@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.dp
  * ★★★ アプリ全体で使う、自作のタイトルバー ★★★
  */
 @Composable
-fun CustomTopAppBar(title: String, onNavigateBack: () -> Unit) { // ← privateを削除
+fun CustomTopAppBar(title: String, onNavigateBack: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()

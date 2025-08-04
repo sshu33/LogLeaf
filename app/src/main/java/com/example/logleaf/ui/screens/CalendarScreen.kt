@@ -605,8 +605,6 @@ fun DayCell(
 
         Box(
             modifier = Modifier
-                // ★★★ ここを修正しました ★★★
-                // toDp() を使わず、ピクセル単位で直接オフセットを指定します
                 .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
                 .size(circleSize)
                 .background(

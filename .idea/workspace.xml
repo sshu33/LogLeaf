@@ -46,8 +46,7 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fcfefcaf-ff37-4bd5-aa0e-d28134bdfd73" name="Changes" comment="カレンダー画面の細かい修正">
-      <change afterPath="$PROJECT_DIR$/app/src/main/res/drawable/ic_drag_handle.xml" afterDir="false" />
+    <list default="true" id="fcfefcaf-ff37-4bd5-aa0e-d28134bdfd73" name="Changes" comment="カレンダーの●の位置修正">
       <change beforePath="$PROJECT_DIR$/.gradle/8.13/executionHistory/executionHistory.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.13/executionHistory/executionHistory.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.13/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.13/executionHistory/executionHistory.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.13/fileHashes/fileHashes.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.13/fileHashes/fileHashes.bin" afterDir="false" />
@@ -55,8 +54,8 @@
       <change beforePath="$PROJECT_DIR$/.gradle/8.13/fileHashes/resourceHashesCache.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.13/fileHashes/resourceHashesCache.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/MainViewModel.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/MainViewModel.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/screens/BackupSettingsScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/screens/BackupSettingsScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/components/CustomTopAppBar.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/components/CustomTopAppBar.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/screens/AccountScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/screens/AccountScreen.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/screens/CalendarScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/screens/CalendarScreen.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -215,14 +214,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1752160736127</updated>
-    </task>
-    <task id="LOCAL-00033" summary="編集中の内容が破棄されるようになった">
-      <option name="closed" value="true" />
-      <created>1753284951938</created>
-      <option name="number" value="00033" />
-      <option name="presentableId" value="LOCAL-00033" />
-      <option name="project" value="LOCAL" />
-      <updated>1753284951938</updated>
     </task>
     <task id="LOCAL-00034" summary="投稿画面に写真の追加/削除&#10;投稿はまだ">
       <option name="closed" value="true" />
@@ -608,7 +599,15 @@
       <option name="project" value="LOCAL" />
       <updated>1754325201820</updated>
     </task>
-    <option name="localTasksCounter" value="82" />
+    <task id="LOCAL-00082" summary="カレンダーの●の位置修正">
+      <option name="closed" value="true" />
+      <created>1754331695000</created>
+      <option name="number" value="00082" />
+      <option name="presentableId" value="LOCAL-00082" />
+      <option name="project" value="LOCAL" />
+      <updated>1754331695000</updated>
+    </task>
+    <option name="localTasksCounter" value="83" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -623,7 +622,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="SNS側で削除済みのポストを編集策度できる機能を実装" />
     <MESSAGE value="複数画像投稿とりあえず実装" />
     <MESSAGE value="ログビューに複数画像表示" />
     <MESSAGE value="下部ビューの複数画像投稿時の表示調整完了・ドットエリア実装" />
@@ -648,19 +646,20 @@
     <MESSAGE value="よく使うタグが重複されて表示されていたのを修正" />
     <MESSAGE value="細かい調整" />
     <MESSAGE value="カレンダー画面の細かい修正" />
-    <option name="LAST_COMMIT_MESSAGE" value="カレンダー画面の細かい修正" />
+    <MESSAGE value="カレンダーの●の位置修正" />
+    <option name="LAST_COMMIT_MESSAGE" value="カレンダーの●の位置修正" />
   </component>
   <component name="play_dynamic_filters_status">
     <option name="appIdToCheckInfo">
       <map>
         <entry key="com.example.logleaf">
           <value>
-            <CheckInfo lastCheckTimestamp="1754236736717" />
+            <CheckInfo lastCheckTimestamp="1754331695957" />
           </value>
         </entry>
         <entry key="com.example.logleaf.test">
           <value>
-            <CheckInfo lastCheckTimestamp="1754236736718" />
+            <CheckInfo lastCheckTimestamp="1754331695957" />
           </value>
         </entry>
       </map>
