@@ -3,10 +3,8 @@ package com.example.logleaf.ui.screens
 
 import android.net.Uri
 import android.util.Log
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -14,7 +12,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -59,7 +56,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -67,11 +63,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -81,9 +80,9 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.unit.times
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavController
@@ -104,6 +103,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 data class EnlargedImageState(
     val images: List<PostImage>,
@@ -574,15 +574,19 @@ fun DayCell(
     day: Int,
     colors: List<Color>,
     isSelected: Boolean,
-    height: Dp,
+    height: Dp, // このheightが月によって変わるが、もう気にしない
     onClick: () -> Unit,
-    date: LocalDate // ★★★ selectedDateではなくdateを渡す ★★★
+    date: LocalDate
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-
-    // ★★★ 今日かどうかを判定 ★★★
     val today = LocalDate.now()
     val isToday = date == today
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val onPrimaryColor = MaterialTheme.colorScheme.onPrimary
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+
+    val offsetX = 0.0f
+    val offsetY = 3.0f
 
     Column(
         modifier = Modifier
@@ -596,26 +600,36 @@ fun DayCell(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        val textContainerSize = height * 0.55f
+
+        val circleSize = 21.dp
+
         Box(
             modifier = Modifier
-                .size(textContainerSize)
+                // ★★★ ここを修正しました ★★★
+                // toDp() を使わず、ピクセル単位で直接オフセットを指定します
+                .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
+                .size(circleSize)
                 .background(
-                    color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                    color = if (isSelected) primaryColor else Color.Transparent,
                     shape = CircleShape
                 )
-                // ★★★ 今日の場合は白抜きの輪郭を追加 ★★★
-                .let {
+                .drawBehind {
                     if (isToday && !isSelected) {
-                        it.border(0.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                    } else it
+                        drawCircle(
+                            color = primaryColor,
+                            radius = size.minDimension / 2.0f,
+                            style = Stroke(width = 0.5.dp.toPx())
+                        )
+                    }
                 },
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = day.toString(),
                 style = MaterialTheme.typography.bodyLarge.copy(fontSize = 14.sp),
-                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                // ★★★ こちらも同様に修正しました ★★★
+                modifier = Modifier.offset { IntOffset(-offsetX.roundToInt(), -offsetY.roundToInt()) },
+                color = if (isSelected) onPrimaryColor else onSurfaceColor
             )
         }
         Row(
@@ -626,7 +640,7 @@ fun DayCell(
             colors.take(4).forEach { color ->
                 Box(
                     modifier = Modifier
-                        .size(height * 0.1f)
+                        .size(height * 0.1f) // 下のドットは行の高さに合わせる
                         .background(color, shape = CircleShape)
                 )
             }

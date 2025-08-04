@@ -180,6 +180,9 @@ class MainViewModel(
         }
     }
 
+    private val _dataSize = MutableStateFlow<String>("計算中...")
+    val dataSize = _dataSize.asStateFlow()
+
     private val _backupState = MutableStateFlow(BackupState.Idle)
     val backupState = _backupState.asStateFlow()
 
@@ -1299,6 +1302,42 @@ class MainViewModel(
                     }
                 }
                 Log.e("Restore", "データ復元失敗: ${e.message}")
+            }
+        }
+    }
+
+    private val _dataSizeDetails = MutableStateFlow("テキスト 0 MB / 画像 0 MB")
+    val dataSizeDetails = _dataSizeDetails.asStateFlow()
+
+    fun calculateDataSize() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val context = getApplication<Application>().applicationContext
+
+                // 1. データベースファイルのサイズ（テキストデータ）
+                val dbFile = context.getDatabasePath("app_database")
+                val dbSize = if (dbFile.exists()) dbFile.length() else 0L
+
+                // 2. 画像フォルダのサイズ
+                val imagesSize = context.filesDir.listFiles()?.sumOf { file ->
+                    if (file.isFile && (file.name.endsWith(".jpg") || file.name.endsWith(".png"))) {
+                        file.length()
+                    } else 0L
+                } ?: 0L
+
+                // 3. サイズをMBで計算
+                val totalSizeBytes = dbSize + imagesSize
+                val totalSizeMB = totalSizeBytes / (1024.0 * 1024.0)
+                val textSizeMB = dbSize / (1024.0 * 1024.0)
+                val imagesSizeMB = imagesSize / (1024.0 * 1024.0)
+
+                // 4. 表示用の文字列を作成
+                _dataSize.value = "%.1f MB".format(totalSizeMB)
+                _dataSizeDetails.value = "テキスト %.1f MB / 画像 %.1f MB".format(textSizeMB, imagesSizeMB)
+
+            } catch (e: Exception) {
+                _dataSize.value = "計算エラー"
+                _dataSizeDetails.value = "計算エラー"
             }
         }
     }

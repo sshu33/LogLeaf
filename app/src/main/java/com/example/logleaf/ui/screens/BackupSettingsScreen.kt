@@ -37,6 +37,8 @@ import com.example.logleaf.MainViewModel
 import com.example.logleaf.R
 import com.example.logleaf.ui.components.CustomTopAppBar
 import com.yourpackage.logleaf.ui.components.UserFontText
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -45,6 +47,9 @@ fun BackupSettingsScreen(
     navController: NavController,
     mainViewModel: MainViewModel
 ) {
+    val dataSize by mainViewModel.dataSize.collectAsState()
+    val dataSizeDetails by mainViewModel.dataSizeDetails.collectAsState()
+
     val context = LocalContext.current
 
     val backupProgress by mainViewModel.backupProgress.collectAsState()
@@ -106,6 +111,10 @@ fun BackupSettingsScreen(
         }
     )
 
+    LaunchedEffect(Unit) {
+        mainViewModel.calculateDataSize()
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -132,7 +141,7 @@ fun BackupSettingsScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // 1. タイトル
-                Text(
+                UserFontText(
                     text = "現在のデータサイズ",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -151,8 +160,8 @@ fun BackupSettingsScreen(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = buildAnnotatedString {
-                            append("500 ")
-                            withStyle(style = SpanStyle(fontSize = 0.7.em)) { // または0.8.em
+                            append(dataSize.replace(" MB", " "))
+                            withStyle(style = SpanStyle(fontSize = 0.7.em)) {
                                 append("MB")
                             }
                         },
@@ -164,8 +173,8 @@ fun BackupSettingsScreen(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 // 3. データ内訳
-                Text(
-                    text = "テキスト 12.5 MB / 画像 487.5 MB",
+                UserFontText(
+                    text = dataSizeDetails, // ← 固定値から変更
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                 )
