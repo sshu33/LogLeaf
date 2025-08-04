@@ -753,6 +753,30 @@ class MainViewModel(
         }
     }
 
+    fun onFavoriteTagReorder(from: Int, to: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            // 1. 現在のお気に入りタグリストを取得
+            val currentFavoriteTags = favoriteTagsFlow.first().toMutableList()
+
+            // 2. リスト内で要素を移動
+            if (from in currentFavoriteTags.indices && to in currentFavoriteTags.indices) {
+                val item = currentFavoriteTags.removeAt(from)
+                currentFavoriteTags.add(to, item)
+            } else {
+                // インデックスが範囲外の場合は何もしない
+                return@launch
+            }
+
+            // 3. 新しい順序に基づいて `favoriteOrder` を更新
+            val updatedTags = currentFavoriteTags.mapIndexed { index, tag ->
+                tag.copy(favoriteOrder = index)
+            }
+
+            // 4. 更新したタグのリストをデータベースに保存
+            postDao.updateTags(updatedTags)
+        }
+    }
+
     private fun groupPostsByDay(posts: List<PostWithTagsAndImages>): List<DayLog> {
         if (posts.isEmpty()) {
             return emptyList()

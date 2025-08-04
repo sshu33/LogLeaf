@@ -366,6 +366,7 @@ fun MainScreen(
                 },
 
                 favoriteTags = uiState.favoriteTags,
+                onFavoriteTagReorder = mainViewModel::onFavoriteTagReorder,
                 frequentlyUsedTags = uiState.frequentlyUsedTags,
                 onToggleFavorite = mainViewModel::toggleTagFavoriteStatus,
 

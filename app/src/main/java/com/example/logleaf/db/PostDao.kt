@@ -196,7 +196,7 @@ interface PostDao {
      * 結果はタグ名のアルファベット順でソートされます。
      * @return お気に入りタグのリストをFlowで返します。
      */
-    @Query("SELECT * FROM tags WHERE isFavorite = 1 ORDER BY tagName ASC")
+    @Query("SELECT * FROM tags WHERE isFavorite = 1 ORDER BY favoriteOrder ASC")
     fun getFavoriteTags(): Flow<List<Tag>>
 
     /**
@@ -389,5 +389,8 @@ interface PostDao {
 
     @Query("DELETE FROM post_images WHERE postId = :postId")
     suspend fun deletePostImagesByPostId(postId: String)
+
+    @Update
+    suspend fun updateTags(tags: List<Tag>)
 }
 

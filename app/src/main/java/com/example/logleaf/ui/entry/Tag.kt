@@ -8,5 +8,6 @@ data class Tag(
     @PrimaryKey(autoGenerate = true)
     val tagId: Long = 0,
     val tagName: String,
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    val favoriteOrder: Int = 0
 )

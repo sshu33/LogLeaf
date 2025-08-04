@@ -11,6 +11,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -132,6 +133,7 @@ fun PostEntryDialog(
     favoriteTags: List<Tag>,
     frequentlyUsedTags: List<Tag>,
     onToggleFavorite: (Tag) -> Unit,
+    onFavoriteTagReorder: (Int, Int) -> Unit,
     selectedImageUris: List<Uri>,
     onLaunchPhotoPicker: () -> Unit,
     onImageSelected: (Uri?) -> Unit,
@@ -566,7 +568,8 @@ fun PostEntryDialog(
                                                 isSuggestionVisible = false
                                                 onAddTag(tagName)
                                             },
-                                            onToggleFavorite = onToggleFavorite
+                                            onToggleFavorite = onToggleFavorite,
+                                            onReorder = onFavoriteTagReorder // ★★★ 追加したコールバックを渡す ★★★
                                         )
                                     }
                                 }
@@ -1141,27 +1144,32 @@ private fun TagChip(
 /**
  * タグサジェストのポップアップの中身全体を描画する。
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TagSuggestionPopupContent(
     favoriteTags: List<Tag>,
     frequentlyUsedTags: List<Tag>,
     onAddTag: (String) -> Unit,
-    onToggleFavorite: (Tag) -> Unit
+    onToggleFavorite: (Tag) -> Unit,
+    onReorder: (from: Int, to: Int) -> Unit
 ) {
+    var draggedIndex by remember { mutableStateOf<Int?>(null) }
+    var dragOffset by remember { mutableStateOf(Offset.Zero) }
+    var targetIndex by remember { mutableStateOf<Int?>(null) }
+    var itemHeight by remember { mutableStateOf(0) }
     Card(
         modifier = Modifier
             .fillMaxWidth(0.9f)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
-                onClick = { /* 何もしない - クリックイベントを吸収 */ }
+                onClick = { /* 何もしない */ }
             ),
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f))
     ) {
-        // LazyColumnを使用して、リストが長くなってもスクロールできるようにする
         LazyColumn(
             modifier = Modifier
                 .heightIn(max = 240.dp)
@@ -1170,25 +1178,97 @@ private fun TagSuggestionPopupContent(
         ) {
             // --- お気に入りセクション ---
             if (favoriteTags.isNotEmpty()) {
-                item {
-                    UserFontText(
-                        "Favorites",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.Gray,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                item { /* Favoritesヘッダー */ }
+
+                itemsIndexed(favoriteTags, key = { _, tag -> tag.tagId }) { index, tag ->
+                    val isDragging = index == draggedIndex
+
+                    // ★★★ ここからアニメーションロジックを追加 ★★★
+                    val animatedOffsetY by animateDpAsState(
+                        targetValue = with(LocalDensity.current) {
+                            when {
+                                !isDragging && draggedIndex != null && targetIndex != null -> {
+                                    val from = draggedIndex!!
+                                    val to = targetIndex!!
+                                    when {
+                                        // 上から下にドラッグ中、間にあるアイテムは上に移動
+                                        from < to && index in (from + 1)..to -> -itemHeight.toDp()
+                                        // 下から上にドラッグ中、間にあるアイテムは下に移動
+                                        from > to && index in to..(from - 1) -> itemHeight.toDp()
+                                        else -> 0.dp
+                                    }
+                                }
+                                else -> 0.dp
+                            }
+                        }.value.dp, // .value.dpを追加
+                        animationSpec = spring(dampingRatio = 0.8f, stiffness = 500f),
+                        label = "TagReorderAnimation"
                     )
-                }
-                items(favoriteTags) { tag ->
-                    SuggestionTagItem(
-                        tag = tag,
-                        isFavorite = true, // お気に入りセクションなので常にtrue
-                        onAddClick = { onAddTag(tag.tagName) },
-                        onFavoriteClick = { onToggleFavorite(tag) }
-                    )
+
+                    Box(
+                        modifier = Modifier
+                            .onGloballyPositioned {
+                                itemHeight = it.size.height // アイテムの高さを実測
+                            }
+                            .graphicsLayer {
+                                // Y方向（縦）のオフセットを適用
+                                translationY = if (isDragging) dragOffset.y else 0f
+                                // ドラッグ中は少し拡大して浮き上がったように見せる
+                                scaleX = if (isDragging) 1.03f else 1.0f
+                                scaleY = if (isDragging) 1.03f else 1.0f
+                                alpha = if (isDragging) 0.95f else 1.0f
+                            }
+                            .pointerInput(Unit) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = {
+                                        draggedIndex = index
+                                        dragOffset = Offset.Zero
+                                        targetIndex = index
+                                    },
+                                    onDragEnd = {
+                                        draggedIndex?.let { fromIndex ->
+                                            targetIndex?.let { toIndex ->
+                                                if (fromIndex != toIndex) {
+                                                    onReorder(fromIndex, toIndex)
+                                                }
+                                            }
+                                        }
+                                        draggedIndex = null
+                                        dragOffset = Offset.Zero
+                                        targetIndex = null
+                                    },
+                                    onDragCancel = {
+                                        draggedIndex = null
+                                        dragOffset = Offset.Zero
+                                        targetIndex = null
+                                    }
+                                ) { change, dragAmount ->
+                                    change.consume()
+                                    // Y方向（縦）の移動量だけをdragOffsetに加算
+                                    dragOffset = Offset(0f, dragOffset.y + dragAmount.y)
+
+                                    // アイテムの高さが測定できていれば、移動先のインデックスを計算
+                                    if (itemHeight > 0) {
+                                        val currentY = dragOffset.y
+                                        val newTargetIndex = (index + (currentY / itemHeight).roundToInt())
+                                            .coerceIn(0, favoriteTags.size - 1)
+                                        targetIndex = newTargetIndex
+                                    }
+                                }
+                            }
+                    ) {
+                        SuggestionTagItem(
+                            tag = tag,
+                            isFavorite = true,
+                            isDragging = isDragging,
+                            onAddClick = { onAddTag(tag.tagName) },
+                            onFavoriteClick = { onToggleFavorite(tag) }
+                        )
+                    }
                 }
             }
 
-            // --- よく使うタグセクション ---
+            // --- よく使うタグセクション（並び替え非対応なので変更なし） ---
             if (frequentlyUsedTags.isNotEmpty()) {
                 item {
                     UserFontText(
@@ -1198,10 +1278,12 @@ private fun TagSuggestionPopupContent(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                     )
                 }
-                items(frequentlyUsedTags) { tag ->
+                items(frequentlyUsedTags, key = { it.tagId }) { tag ->
+                    // こちらはReorderableItemでラップしない
                     SuggestionTagItem(
                         tag = tag,
-                        isFavorite = false, // よく使うセクションなので常にfalse
+                        isFavorite = false,
+                        isDragging = false, // 常にfalse
                         onAddClick = { onAddTag(tag.tagName) },
                         onFavoriteClick = { onToggleFavorite(tag) }
                     )
@@ -1232,14 +1314,19 @@ private fun TagSuggestionPopupContent(
 private fun SuggestionTagItem(
     tag: Tag,
     isFavorite: Boolean,
+    isDragging: Boolean, // ★★★ この行を追加 ★★★
     onAddClick: () -> Unit,
-    onFavoriteClick: () -> Unit
+    onFavoriteClick: () -> Unit,
+    modifier: Modifier = Modifier // ★★★ ドラッグ操作のためにModifierを受け取れるようにする ★★★
 ) {
     Row(
-        modifier = Modifier
+        // ★★★ modifierをここに適用 ★★★
+        modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onAddClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+            // ★★★ ドラッグ中は背景色を少し変えてフィードバック ★★★
+            .background(if (isDragging) Color.LightGray.copy(alpha = 0.2f) else Color.Transparent),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // タグ名

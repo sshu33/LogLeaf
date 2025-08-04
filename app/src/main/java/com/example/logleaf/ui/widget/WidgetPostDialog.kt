@@ -285,14 +285,7 @@ fun WidgetPostDialog(
                                 ),
                                 textStyle = MaterialTheme.typography.bodyLarge,
                                 singleLine = false,
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                                keyboardActions = KeyboardActions(
-                                    onSend = {
-                                        if (postText.text.isNotBlank()) {
-                                            executePost()
-                                        }
-                                    }
-                                )
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
                             )
 
                             // === 現在のタグ表示 ===
