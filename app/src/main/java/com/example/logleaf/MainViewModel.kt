@@ -51,7 +51,8 @@ data class DayLog(
     val date: LocalDate,
     val firstPost: Post?,
     val totalPosts: Int,
-    val dayImageUrl: String? = null // その日の最初の画像URL
+    val dayImageUrl: String? = null,
+    val imagePostId: String? = null // ★ これを追加！
 )
 
 data class UiState(
@@ -753,23 +754,29 @@ class MainViewModel(
             it.post.createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate()
         }
         return groupedByDate.map { (date, postList) ->
-            val sortedPostList = postList.sortedByDescending { it.post.createdAt }
+            val sortedPostList = postList.sortedBy { it.post.createdAt }
 
-            // その日の最初の画像URLを探す
-            val dayImageUrl = sortedPostList
-                .firstNotNullOfOrNull { postWithImages ->
-                    // 複数画像対応：imagesリストから最初の画像を取得
-                    postWithImages.images.firstOrNull()?.let { image ->
-                        // サムネイルがあればサムネイル、なければ元画像
+            // ★変更点: 画像を持つ投稿とそのURLをペアで探す
+            val firstImageInfo: Pair<String, String>? = sortedPostList
+                .firstNotNullOfOrNull { postWithTagsAndImages ->
+                    // 投稿から画像URLを探す
+                    val imageUrl = postWithTagsAndImages.images.firstOrNull()?.let { image ->
                         image.thumbnailUrl ?: image.imageUrl
-                    } ?: postWithImages.post.imageUrl // 従来の単一画像フィールドもチェック
+                    } ?: postWithTagsAndImages.post.imageUrl // 従来のフィールドもチェック
+
+                    // 画像URLが見つかった場合、その投稿IDとURLのペアを返す
+                    imageUrl?.let { url ->
+                        Pair(postWithTagsAndImages.post.id, url)
+                    }
                 }
 
             DayLog(
                 date = date,
                 firstPost = sortedPostList.firstOrNull()?.post,
                 totalPosts = postList.size,
-                dayImageUrl = dayImageUrl
+                // ★変更点: Pairからそれぞれの値を取り出して代入
+                imagePostId = firstImageInfo?.first,  // 投稿ID
+                dayImageUrl = firstImageInfo?.second  // 画像URL
             )
         }.sortedByDescending { it.date }
     }

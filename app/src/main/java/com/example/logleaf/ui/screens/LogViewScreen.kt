@@ -89,6 +89,7 @@ import com.example.logleaf.ui.entry.PostImage
 import com.example.logleaf.ui.entry.Tag
 import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
+import com.yourpackage.logleaf.ui.components.HyperlinkUserFontText
 import com.yourpackage.logleaf.ui.components.UserFontText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -417,8 +418,8 @@ fun LogViewPostCard(
                             )
                         }
                     }
-                    UserFontText(
-                        text = post.text,
+                    HyperlinkUserFontText(
+                        fullText = post.text,
                         style = MaterialTheme.typography.bodyLarge
                     )
                     if (postWithTagsAndImages.images.isNotEmpty()) {

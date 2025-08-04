@@ -133,10 +133,18 @@ fun TimelineScreen(
                         items(logsInMonth, key = { it.date }) { dayLog ->
                             PostItem(
                                 dayLog = dayLog,
-                                onClick = {
+                                onTextClick = {
+                                    // テキストクリック時は今まで通りfirstPostに飛ぶ
                                     dayLog.firstPost?.let { post ->
                                         val date = dayLog.date.toString()
                                         val postId = post.id
+                                        navController.navigate("calendar?date=$date&postId=$postId")
+                                    }
+                                },
+                                onImageClick = {
+                                    // ★追加: 画像クリック時は、画像の投稿ID (imagePostId) に飛ぶ
+                                    dayLog.imagePostId?.let { postId ->
+                                        val date = dayLog.date.toString()
                                         navController.navigate("calendar?date=$date&postId=$postId")
                                     }
                                 }
@@ -157,15 +165,18 @@ fun TimelineScreen(
 }
 
 @Composable
-fun PostItem(dayLog: DayLog, onClick: () -> Unit = {}) {
+fun PostItem(
+    dayLog: DayLog,
+    onTextClick: () -> Unit = {}, // ★変更: 名前をより具体的に
+    onImageClick: () -> Unit = {}  // ★追加: 画像クリック用のコールバック
+) {
     val post = dayLog.firstPost ?: return
     val localDateTime = post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .clickable(onClick = onClick),
+            .padding(horizontal = 16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
@@ -178,46 +189,56 @@ fun PostItem(dayLog: DayLog, onClick: () -> Unit = {}) {
                 .padding(horizontal = 16.dp, vertical = 12.dp)
                 .height(IntrinsicSize.Min)
         ) {
-            // --- 日付部分 ---
-            Column(
-                modifier = Modifier.width(56.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(text = localDateTime.dayOfMonth.toString(), fontSize = 28.sp, fontWeight = FontWeight.Medium)
-                Text(text = localDateTime.format(DateTimeFormatter.ofPattern("EEE", Locale.ENGLISH)).uppercase(), fontSize = 12.sp, color = Color.Gray)
-            }
-
-            // --- カラーバーと本文 ---
-            Row(
+            // --- 日付と本文エリアをBoxで囲み、クリック可能にする ---
+            Box(
                 modifier = Modifier
-                    .weight(1f) // 残りのスペースを使用
+                    .weight(1f) // 画像がない場合は全幅、ある場合は残りの領域を確保
                     .fillMaxHeight()
+                    .clickable(onClick = onTextClick) // ★移動: テキスト側のクリックをここに設定
             ) {
-                Box(
-                    modifier = Modifier
-                        .width(4.dp)
-                        .fillMaxHeight()
-                        .background(post.source.brandColor)
-                )
-                Column(modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 12.dp)
-                ) {
-                    Text(
-                        text = post.text,
-                        style = MaterialTheme.typography.bodyLarge,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.defaultMinSize(minHeight = 48.dp)
-                    )
+                Row { // 元のRow構造を維持
+                    // --- 日付部分 ---
+                    Column(
+                        modifier = Modifier.width(56.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(text = localDateTime.dayOfMonth.toString(), fontSize = 28.sp, fontWeight = FontWeight.Medium)
+                        Text(text = localDateTime.format(DateTimeFormatter.ofPattern("EEE", Locale.ENGLISH)).uppercase(), fontSize = 12.sp, color = Color.Gray)
+                    }
 
-                    if (dayLog.totalPosts > 1) {
-                        Text(
-                            text = "${dayLog.totalPosts} Social Moments",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(top = 4.dp)
+                    // --- カラーバーと本文 ---
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(4.dp)
+                                .fillMaxHeight()
+                                .background(post.source.brandColor)
                         )
+                        Column(modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 12.dp)
+                        ) {
+                            Text(
+                                text = post.text,
+                                style = MaterialTheme.typography.bodyLarge,
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                            )
+
+                            if (dayLog.totalPosts > 1) {
+                                Text(
+                                    text = "${dayLog.totalPosts} Social Moments",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -230,7 +251,8 @@ fun PostItem(dayLog: DayLog, onClick: () -> Unit = {}) {
                     contentDescription = "その日の投稿画像",
                     modifier = Modifier
                         .size(64.dp)
-                        .clip(RoundedCornerShape(8.dp)),
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onImageClick), // ★追加: 画像のクリックをここに設定
                     contentScale = ContentScale.Crop
                 )
             }
