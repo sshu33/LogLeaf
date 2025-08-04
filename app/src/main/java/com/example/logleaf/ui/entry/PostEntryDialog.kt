@@ -395,14 +395,23 @@ fun PostEntryDialog(
                                                     targetIndex = null
                                                 }
                                             ) { change, dragAmount ->
-                                                dragOffset = Offset(dragOffset.x + dragAmount.x, 0f)
+                                                val itemWidth = 88.dp.toPx()
+                                                val maxItems = selectedImageUris.size
 
-                                                // ドラッグ位置から目標indexを計算
-                                                val itemWidth = 88.dp.toPx() // 80dp + 8dp spacing
-                                                val currentX = dragOffset.x
-                                                val newTargetIndex = (index + (currentX / itemWidth).roundToInt())
-                                                    .coerceIn(0, selectedImageUris.size - 1)
+                                                // 新しいX座標を計算
+                                                val newX = dragOffset.x + dragAmount.x
 
+                                                // 単純に範囲制限（左端〜右端まで）
+                                                val clampedX = newX.coerceIn(
+                                                    -(index * itemWidth),           // 左端（一番左の位置）
+                                                    (maxItems - 1 - index) * itemWidth  // 右端（一番右の位置）
+                                                )
+
+                                                dragOffset = Offset(clampedX, 0f)
+
+                                                // 目標indexを計算
+                                                val newTargetIndex = (index + (clampedX / itemWidth).roundToInt())
+                                                    .coerceIn(0, maxItems - 1)
                                                 targetIndex = newTargetIndex
                                             }
                                         }

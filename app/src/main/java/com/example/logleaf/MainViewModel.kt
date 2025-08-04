@@ -342,12 +342,11 @@ class MainViewModel(
     fun refreshPosts() {
         viewModelScope.launch {
             if (_isRefreshing.value) return@launch
-
             _isRefreshing.value = true
             try {
-                fetchPosts(sessionManager.accountsFlow.first()).join()
-                // ★★★ 追加：リフレッシュ完了後にスクロールイベント発火 ★★★
+                // データ取得開始と同時にスクロール（即座に実行）
                 _scrollToTopEvent.value = true
+                fetchPosts(sessionManager.accountsFlow.first()).join()
             } finally {
                 _isRefreshing.value = false
             }
@@ -609,10 +608,14 @@ class MainViewModel(
                 clearDraftAndDismiss()
 
                 if (isNewPost) {
+                    // データ保存と同時にスクロール（即座に実行）
                     _scrollToTopEvent.value = true
                 }
 
-                refreshPostsWithoutScroll()  // ← これに変更
+                // スクロール実行後にデータ更新
+                launch(Dispatchers.IO) {
+                    refreshPostsWithoutScroll()
+                }
             }
         }
     }
