@@ -7,12 +7,14 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -24,9 +26,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -58,8 +60,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
@@ -73,15 +75,20 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import coil.compose.AsyncImage
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
 import com.example.logleaf.R
 import com.example.logleaf.ui.entry.Tag
 import com.yourpackage.logleaf.ui.components.UserFontText
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
@@ -90,6 +97,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.roundToInt
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun WidgetPostDialog(
     visible: Boolean,
@@ -115,13 +123,11 @@ fun WidgetPostDialog(
     requestFocus: Boolean,
     onFocusConsumed: () -> Unit
 ) {
-    // PostEntryDialogから必要な状態だけコピー
+    // === 状態管理 ===
     var isTagEditorVisible by remember { mutableStateOf(false) }
     var tagInput by remember { mutableStateOf("") }
     var isSuggestionVisible by remember { mutableStateOf(false) }
-    var isCalendarVisible by remember { mutableStateOf(false) }
     var isTimeEditing by remember { mutableStateOf(false) }
-    var dateRowPosition by remember { mutableStateOf(IntOffset.Zero) }
 
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -129,7 +135,7 @@ fun WidgetPostDialog(
     val focusRequester = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
 
-    // 時刻編集用の状態
+    // === 時刻編集 ===
     val confirmedDateTime = remember(dateTime) {
         dateTime.withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime()
     }
@@ -150,10 +156,14 @@ fun WidgetPostDialog(
         val newDateTime = confirmedDateTime.withHour(hour).withMinute(minute)
         onDateTimeChange(newDateTime.atZone(ZoneId.systemDefault()))
         isTimeEditing = false
-        focusRequester.requestFocus()
+        try {
+            focusRequester.requestFocus()
+        } catch (e: Exception) {
+            // フォーカスエラーを無視
+        }
     }
 
-    // 自動フォーカス
+    // === フォーカス管理 ===
     LaunchedEffect(visible) {
         if (visible) {
             delay(100)
@@ -161,6 +171,28 @@ fun WidgetPostDialog(
                 focusRequester.requestFocus()
             } catch (e: Exception) {
                 // フォーカスエラーを無視
+            }
+        }
+    }
+
+    // === 投稿実行関数 ===
+    val executePost: () -> Unit = {
+        val tagsToSubmit = currentTags.map { it.tagName }.toMutableList()
+        if (tagInput.isNotBlank()) {
+            tagsToSubmit.add(tagInput.trim())
+            onAddTag(tagInput)
+            tagInput = ""
+        }
+
+        scope.launch {
+            focusManager.clearFocus()
+            keyboardController?.hide()
+            delay(50)
+
+            if (isTimeEditing) {
+                onPostSubmit(timeText.text, tagsToSubmit)
+            } else {
+                onPostSubmit(null, tagsToSubmit)
             }
         }
     }
@@ -174,7 +206,7 @@ fun WidgetPostDialog(
             )
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
-                // 軽い黒ベール：即座にフェードイン/アウト
+                // === 黒ベール ===
                 AnimatedVisibility(
                     visible = visible,
                     enter = fadeIn(animationSpec = tween(150)),
@@ -188,10 +220,6 @@ fun WidgetPostDialog(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
                                 onClick = {
-                                    if (isCalendarVisible) {
-                                        isCalendarVisible = false
-                                        return@clickable
-                                    }
                                     if (isTimeEditing) {
                                         confirmAndFinishEditing()
                                         return@clickable
@@ -202,7 +230,7 @@ fun WidgetPostDialog(
                     )
                 }
 
-                // 軽いダイアログカード：下からスライド
+                // === メインダイアログ ===
                 AnimatedVisibility(
                     visible = visible,
                     enter = slideInVertically(
@@ -220,94 +248,60 @@ fun WidgetPostDialog(
                             .fillMaxWidth(0.9f)
                             .padding(bottom = 100.dp)
                             .clickable(
+                                enabled = isTimeEditing,
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
-                                onClick = { /* カードクリックは何もしない */ }
+                                onClick = { if (isTimeEditing) confirmAndFinishEditing() }
                             ),
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = Color.White)
                     ) {
-                        // ★★★ すべてのコンテンツを一つのColumnに収める ★★★
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            // メインのテキスト入力欄
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            // === メイン入力エリア ===
                             TextField(
                                 value = postText,
                                 onValueChange = onTextChange,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .heightIn(min = 120.dp, max = 200.dp)
-                                    .focusRequester(focusRequester),
-                                placeholder = null,
+                                    .heightIn(min = 120.dp, max = 180.dp)
+                                    .focusRequester(focusRequester)
+                                    .onFocusChanged { focusState ->
+                                        if (focusState.isFocused && isTimeEditing) {
+                                            confirmAndFinishEditing()
+                                        }
+                                    },
+                                placeholder = {
+                                    Text(
+                                        "本文を入力...",
+                                        color = Color.Gray.copy(alpha = 0.6f),
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                },
                                 colors = TextFieldDefaults.colors(
                                     unfocusedContainerColor = Color.Transparent,
                                     focusedContainerColor = Color.Transparent,
                                     unfocusedIndicatorColor = Color.Transparent,
                                     focusedIndicatorColor = Color.Transparent
                                 ),
+                                textStyle = MaterialTheme.typography.bodyLarge,
                                 singleLine = false,
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default)
-                            )
-
-                            // 画像表示エリア（シンプル版）
-                            AnimatedVisibility(visible = selectedImageUris.isNotEmpty()) {
-                                LazyRow(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 8.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    itemsIndexed(selectedImageUris) { index, uri ->
-                                        Box(modifier = Modifier.size(80.dp)) {
-                                            AsyncImage(
-                                                model = uri,
-                                                contentDescription = "選択された画像 ${index + 1}",
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .clip(RoundedCornerShape(8.dp)),
-                                                contentScale = ContentScale.Crop
-                                            )
-
-                                            Box(
-                                                modifier = Modifier
-                                                    .matchParentSize()
-                                                    .background(Color.Black.copy(alpha = 0.3f))
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Close,
-                                                    contentDescription = "画像を削除",
-                                                    tint = Color.White,
-                                                    modifier = Modifier
-                                                        .size(30.dp)
-                                                        .align(Alignment.TopEnd)
-                                                        .padding(4.dp)
-                                                        .clickable { onImageRemoved(index) }
-                                                )
-
-                                                if (index == 0) {
-                                                    Icon(
-                                                        painter = painterResource(id = R.drawable.ic_star_filled),
-                                                        contentDescription = "メイン画像",
-                                                        tint = Color(0xFFfbd144),
-                                                        modifier = Modifier
-                                                            .size(25.dp)
-                                                            .align(Alignment.BottomStart)
-                                                            .padding(4.dp)
-                                                    )
-                                                }
-                                            }
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                                keyboardActions = KeyboardActions(
+                                    onSend = {
+                                        if (postText.text.isNotBlank()) {
+                                            executePost()
                                         }
                                     }
-                                }
-                            }
+                                )
+                            )
 
-                            // 現在のタグ表示
+                            // === 現在のタグ表示 ===
                             if (currentTags.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(12.dp))
                                 FlowRow(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 8.dp),
+                                    modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     currentTags.forEach { tag ->
                                         WidgetTagChip(tag = tag, onRemove = { onRemoveTag(tag) })
@@ -315,14 +309,23 @@ fun WidgetPostDialog(
                                 }
                             }
 
-                            // タグエディター
+                            // === タグ入力エリア ===
                             AnimatedVisibility(visible = isTagEditorVisible) {
-                                Column(modifier = Modifier.padding(top = 8.dp)) {
-                                    // 手動入力欄
+                                Column(modifier = Modifier.padding(top = 12.dp)) {
+                                    // タグ入力欄
                                     BasicTextField(
                                         value = tagInput,
                                         onValueChange = { tagInput = it },
-                                        modifier = Modifier.fillMaxWidth(),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .onFocusChanged { focusState ->
+                                                if (!focusState.isFocused) {
+                                                    if (tagInput.isNotBlank()) {
+                                                        onAddTag(tagInput)
+                                                        tagInput = ""
+                                                    }
+                                                }
+                                            },
                                         textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.Gray),
                                         singleLine = true,
                                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -335,237 +338,211 @@ fun WidgetPostDialog(
                                             }
                                         ),
                                         decorationBox = { innerTextField ->
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .background(
+                                                        Color.Gray.copy(alpha = 0.1f),
+                                                        RoundedCornerShape(8.dp)
+                                                    )
+                                                    .padding(12.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
                                                 Icon(
                                                     painter = painterResource(id = R.drawable.ic_tag),
-                                                    contentDescription = "タグアイコン",
+                                                    contentDescription = "タグ",
                                                     tint = Color.Gray,
                                                     modifier = Modifier.size(16.dp)
                                                 )
                                                 Spacer(Modifier.width(8.dp))
                                                 Box(modifier = Modifier.weight(1f)) {
                                                     if (tagInput.isEmpty()) {
-                                                        Text(
-                                                            "タグを追加...(Enterで確定)",
-                                                            color = Color.LightGray
-                                                        )
+                                                        Text("タグを追加...", color = Color.Gray.copy(alpha = 0.6f))
                                                     }
                                                     innerTextField()
                                                 }
-                                                if (favoriteTags.isNotEmpty()) {
-                                                    Spacer(Modifier.width(8.dp))
-                                                    IconButton(
-                                                        onClick = { isSuggestionVisible = !isSuggestionVisible },
-                                                        modifier = Modifier.size(24.dp)
-                                                    ) {
-                                                        Icon(
-                                                            painter = painterResource(id = R.drawable.ic_star_filled),
-                                                            contentDescription = "お気に入りタグ",
-                                                            tint = if (isSuggestionVisible) MaterialTheme.colorScheme.primary else Color.Gray,
-                                                            modifier = Modifier.size(16.dp)
-                                                        )
-                                                    }
+
+                                                // サジェスト表示ボタン
+                                                IconButton(
+                                                    onClick = { isSuggestionVisible = !isSuggestionVisible },
+                                                    modifier = Modifier.size(24.dp)
+                                                ) {
+                                                    Icon(
+                                                        painter = painterResource(
+                                                            id = if (isSuggestionVisible) R.drawable.ic_arrowup else R.drawable.ic_arrowdown
+                                                        ),
+                                                        contentDescription = "タグサジェスト",
+                                                        tint = Color.Gray,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
                                                 }
                                             }
                                         }
                                     )
 
-                                    Spacer(Modifier.height(8.dp))
-
-                                    // お気に入りタグ表示（条件付き）
-                                    AnimatedVisibility(visible = isSuggestionVisible && favoriteTags.isNotEmpty()) {
-                                        LazyRow(
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            modifier = Modifier.padding(bottom = 8.dp)
+                                    // お気に入りタグサジェスト
+                                    AnimatedVisibility(visible = isSuggestionVisible) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(top = 8.dp)
+                                                .background(Color.White, RoundedCornerShape(8.dp))
+                                                .padding(12.dp)
                                         ) {
-                                            items(favoriteTags.size) { index ->
-                                                val tag = favoriteTags[index]
-                                                FavoriteTagButton(
-                                                    tag = tag,
-                                                    onClick = {
-                                                        onAddTag(tag.tagName)
-                                                        isSuggestionVisible = false // タップしたら閉じる
+                                            if (favoriteTags.isNotEmpty()) {
+                                                LazyRow(
+                                                    modifier = Modifier.heightIn(max = 120.dp),
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    items(favoriteTags.size) { index ->
+                                                        val tag = favoriteTags[index]
+                                                        WidgetFavoriteTag(
+                                                            tag = tag,
+                                                            onClick = {
+                                                                onAddTag(tag.tagName)
+                                                            }
+                                                        )
                                                     }
-                                                )
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
 
-                            // ★★★ 日時表示をColumnの中に移動 ★★★
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // === 日時 + アクションエリア ===
                             Row(
-                                modifier = Modifier
-                                    .align(Alignment.End)
-                                    .padding(top = 8.dp, bottom = 8.dp)
-                                    .onGloballyPositioned { coordinates ->
-                                        val positionInRoot = coordinates.positionInRoot()
-                                        dateRowPosition = IntOffset(
-                                            positionInRoot.x.roundToInt(),
-                                            positionInRoot.y.roundToInt()
-                                        )
-                                    },
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                UserFontText(
-                                    text = confirmedDateTime.format(DateTimeFormatter.ofPattern("M月d日(E)", Locale.JAPAN)),
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
-                                    color = Color.Gray,
-                                    modifier = Modifier.clickable {
-                                        isCalendarVisible = true
-                                        isTimeEditing = false
-                                    }
-                                )
+                                // 時刻表示
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    UserFontText(
+                                        text = confirmedDateTime.format(DateTimeFormatter.ofPattern("M月d日(E)", Locale.JAPAN)),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = Color.Gray,
+                                        modifier = Modifier
+                                            .background(
+                                                Color.Gray.copy(alpha = 0.1f),
+                                                RoundedCornerShape(6.dp)
+                                            )
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                    // 時刻
+                                    if (isTimeEditing) {
+                                        val timeFocusRequester = remember { FocusRequester() }
 
-                                Spacer(modifier = Modifier.width(8.dp))
+                                        LaunchedEffect(Unit) {
+                                            timeFocusRequester.requestFocus()
+                                        }
 
-                                if (isTimeEditing) {
-                                    BasicTextField(
-                                        value = timeText,
-                                        onValueChange = { newValue ->
-                                            if (newValue.text.length <= 4 && newValue.text.all { it.isDigit() }) {
-                                                timeText = newValue
-                                            }
-                                        },
-                                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                        BasicTextField(
+                                            value = timeText,
+                                            onValueChange = { newValue ->
+                                                if (newValue.text.length <= 4 && newValue.text.all { it.isDigit() }) {
+                                                    timeText = newValue
+                                                }
+                                            },
+                                            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                                color = Color.Gray,
+                                                textAlign = TextAlign.Center
+                                            ),
+                                            keyboardOptions = KeyboardOptions(
+                                                keyboardType = KeyboardType.Number,
+                                                imeAction = ImeAction.Done
+                                            ),
+                                            keyboardActions = KeyboardActions(
+                                                onDone = { confirmAndFinishEditing() }
+                                            ),
+                                            modifier = Modifier
+                                                .focusRequester(timeFocusRequester)
+                                                .width(60.dp)
+                                                .background(
+                                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                                    RoundedCornerShape(6.dp)
+                                                )
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    } else {
+                                        UserFontText(
+                                            text = confirmedDateTime.format(DateTimeFormatter.ofPattern("HH:mm")),
+                                            style = MaterialTheme.typography.bodyMedium,
                                             color = Color.Gray,
-                                            textAlign = TextAlign.Center
-                                        ),
-                                        keyboardOptions = KeyboardOptions(
-                                            keyboardType = KeyboardType.Number,
-                                            imeAction = ImeAction.Done
-                                        ),
-                                        keyboardActions = KeyboardActions(
-                                            onDone = { confirmAndFinishEditing() }
+                                            modifier = Modifier
+                                                .background(
+                                                    Color.Gray.copy(alpha = 0.1f),
+                                                    RoundedCornerShape(6.dp)
+                                                )
+                                                .clickable { isTimeEditing = true }
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
+
+                                    // リセットボタン
+                                    IconButton(
+                                        onClick = { onRevertDateTime() },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(id = R.drawable.ic_sync),
+                                            contentDescription = "時刻をリセット",
+                                            tint = Color.Gray,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+
+                                // アクションボタン
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // タグボタン
+                                    IconButton(
+                                        onClick = { isTagEditorVisible = !isTagEditorVisible },
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(id = R.drawable.ic_tag),
+                                            contentDescription = "タグ",
+                                            tint = if (isTagEditorVisible || currentTags.isNotEmpty()) {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                Color.Gray
+                                            },
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+
+                                    // 投稿ボタン
+                                    Button(
+                                        onClick = executePost,
+                                        enabled = postText.text.isNotBlank(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.primary,
+                                            disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
                                         ),
                                         modifier = Modifier
-                                            .width(60.dp)
-                                            .background(
-                                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                                                shape = RoundedCornerShape(4.dp)
-                                            )
-                                            .padding(vertical = 4.dp)
-                                    )
-                                } else {
-                                    UserFontText(
-                                        text = confirmedDateTime.format(DateTimeFormatter.ofPattern("HH:mm")),
-                                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
-                                        color = Color.Gray,
-                                        modifier = Modifier.clickable { isTimeEditing = true }
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(8.dp))
-
-                                IconButton(
-                                    onClick = { onRevertDateTime() },
-                                    modifier = Modifier.size(20.dp)
-                                ) {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.ic_sync),
-                                        contentDescription = "元に戻す",
-                                        tint = Color.Gray
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(2.dp))
-                            }
-
-                            // ★★★ 下部ボタンもColumnの中に移動 ★★★
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                IconButton(onClick = { /* カメラ機能は後で */ }) {
-                                    Icon(
-                                        painterResource(id = R.drawable.ic_camera),
-                                        "カメラ",
-                                        tint = Color.Gray,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                                IconButton(onClick = onLaunchPhotoPicker) {
-                                    Icon(
-                                        painterResource(id = R.drawable.ic_image),
-                                        "ギャラリー",
-                                        tint = Color.Gray,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                                IconButton(onClick = { isTagEditorVisible = !isTagEditorVisible }) {
-                                    Icon(
-                                        painterResource(id = R.drawable.ic_tag),
-                                        "タグ",
-                                        tint = if (isTagEditorVisible || currentTags.isNotEmpty()) MaterialTheme.colorScheme.primary else Color.Gray,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.weight(1f))
-                                Button(
-                                    onClick = {
-                                        val tagsToSubmit = currentTags.map { it.tagName }.toMutableList()
-                                        if (tagInput.isNotBlank()) {
-                                            tagsToSubmit.add(tagInput.trim())
-                                            onAddTag(tagInput)
-                                            tagInput = ""
-                                        }
-
-                                        if (isTimeEditing) {
-                                            onPostSubmit(timeText.text, tagsToSubmit)
-                                        } else {
-                                            onPostSubmit(null, tagsToSubmit)
-                                        }
-                                    },
-                                    enabled = postText.text.isNotBlank(),
-                                    shape = RoundedCornerShape(8.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                                        disabledContentColor = Color.White
-                                    )
-                                ) {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.ic_post),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(20.dp)
-                                    )
+                                            .height(40.dp)
+                                            .width(56.dp),
+                                        contentPadding = PaddingValues(0.dp)
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(id = R.drawable.ic_post),
+                                            contentDescription = "投稿",
+                                            tint = Color.White, // ← この行追加
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
                                 }
                             }
-                        } // ★★★ Columnをここで閉じる ★★★
-                    }
-                }
-
-                // シンプルなカレンダーポップアップ（重いアニメーションなし）
-                if (isCalendarVisible) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.5f))
-                            .clickable { isCalendarVisible = false },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth(0.9f)
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null,
-                                    onClick = { /* カードクリックは何もしない */ }
-                                ),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White)
-                        ) {
-                            MinimalCalendar(
-                                selectedDate = confirmedDateTime.toLocalDate(),
-                                onDateSelected = { newDate ->
-                                    onDateTimeChange(
-                                        confirmedDateTime.with(newDate).atZone(ZoneId.systemDefault())
-                                    )
-                                    isCalendarVisible = false
-                                },
-                                modifier = Modifier.padding(8.dp)
-                            )
                         }
                     }
                 }
@@ -574,197 +551,69 @@ fun WidgetPostDialog(
     }
 }
 
+// === ウィジェット専用タグチップ ===
 @Composable
 private fun WidgetTagChip(
     tag: Tag,
     onRemove: () -> Unit
 ) {
-    Box(
+    Row(
         modifier = Modifier
             .background(
-                color = Color.LightGray.copy(alpha = 0.3f),
-                shape = RoundedCornerShape(6.dp)
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                RoundedCornerShape(8.dp)
             )
-            .padding(horizontal = 6.dp, vertical = 3.dp)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(3.dp)
-        ) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_tag),
-                contentDescription = "タグアイコン",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(12.dp)
-            )
-            UserFontText(
-                text = tag.tagName,
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray
-            )
-            Icon(
-                imageVector = Icons.Default.Close,
-                contentDescription = "タグを削除",
-                tint = Color.Gray,
-                modifier = Modifier
-                    .size(14.dp)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onRemove
-                    )
-            )
-        }
+        UserFontText(
+            text = "#${tag.tagName}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Icon(
+            imageVector = Icons.Default.Close,
+            contentDescription = "削除",
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier
+                .size(14.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onRemove
+                )
+        )
     }
 }
 
+// === お気に入りタグ（サジェスト用） ===
 @Composable
-private fun MinimalCalendar(
-    selectedDate: LocalDate,
-    onDateSelected: (LocalDate) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val currentMonth = YearMonth.from(selectedDate)
-    var displayedMonth by remember { mutableStateOf(currentMonth) }
-
-    Column(
-        modifier = modifier
-            .padding(vertical = 8.dp)
-            .background(Color.White)
-    ) {
-        // 月移動のヘッダー
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color.White),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = { displayedMonth = displayedMonth.minusMonths(1) }) {
-                Icon(
-                    Icons.Default.KeyboardArrowLeft,
-                    contentDescription = "前の月",
-                    tint = Color.Black
-                )
-            }
-            UserFontText(
-                text = displayedMonth.format(
-                    DateTimeFormatter.ofPattern("yyyy年 MMMM", Locale.JAPAN)
-                ),
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
-            IconButton(onClick = { displayedMonth = displayedMonth.plusMonths(1) }) {
-                Icon(
-                    Icons.Default.KeyboardArrowRight,
-                    contentDescription = "次の月",
-                    tint = Color.Black
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // 曜日のヘッダー
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color.White)
-        ) {
-            listOf("日", "月", "火", "水", "木", "金", "土").forEach { day ->
-                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                    UserFontText(
-                        text = day,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.Black
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        // 日付グリッド
-        val daysInMonth = displayedMonth.lengthOfMonth()
-        val firstDayOfMonth = displayedMonth.atDay(1).dayOfWeek.value % 7
-        val dayCells = (1..firstDayOfMonth).map { null } + (1..daysInMonth).map { displayedMonth.atDay(it) }
-        val weekChunks = dayCells.chunked(7)
-
-        weekChunks.forEachIndexed { weekIndex, week ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.White)
-            ) {
-                week.forEach { date ->
-                    Box(
-                        modifier = Modifier.weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (date != null) {
-                            Text(
-                                text = date.dayOfMonth.toString(),
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .clickable { onDateSelected(date) }
-                                    .background(
-                                        if (date == selectedDate) MaterialTheme.colorScheme.primary else Color.Transparent
-                                    )
-                                    .wrapContentSize(Alignment.Center),
-                                color = if (date == selectedDate) MaterialTheme.colorScheme.onPrimary else Color.Black,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
-                }
-                // 足りない分のスペーサーを追加
-                if (week.size < 7) {
-                    repeat(7 - week.size) {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-                }
-            }
-
-            // 最後の週以外は行間スペーサーを追加
-            if (weekIndex < weekChunks.size - 1) {
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-        }
-    }
-}
-
-// お気に入りタグボタンのコンポーネント
-@Composable
-private fun FavoriteTagButton(
+private fun WidgetFavoriteTag(
     tag: Tag,
     onClick: () -> Unit
 ) {
-    Box(
+    Row(
         modifier = Modifier
             .clickable(onClick = onClick)
             .background(
-                color = Color.LightGray.copy(alpha = 0.3f),
-                shape = RoundedCornerShape(6.dp)
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                RoundedCornerShape(6.dp)
             )
-            .padding(horizontal = 6.dp, vertical = 3.dp)
+            .padding(horizontal = 6.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(3.dp)
-        ) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_tag),
-                contentDescription = "タグアイコン",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(12.dp)
-            )
-            UserFontText(
-                text = tag.tagName,
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray
-            )
-        }
+        Icon(
+            painter = painterResource(id = R.drawable.ic_star_filled),
+            contentDescription = "お気に入り",
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(10.dp)
+        )
+        UserFontText(
+            text = tag.tagName,
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.Gray
+        )
     }
 }
