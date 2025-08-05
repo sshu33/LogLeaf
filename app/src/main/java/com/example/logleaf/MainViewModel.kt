@@ -231,7 +231,7 @@ class MainViewModel(
             selectedImageUris = postEntry.selectedImageUris,
             requestFocus = postEntry.requestFocus,
             favoriteTags = favoriteTags,
-            frequentlyUsedTags = uniqueFrequentTags // ← ★加工済みのリストを渡す
+            frequentlyUsedTags = frequentTags
         )
     }.stateIn(
         scope = viewModelScope,
@@ -593,11 +593,11 @@ class MainViewModel(
             // タグ処理（従来と同じ）
             val tagIds = mutableListOf<Long>()
             tagNames.forEach { tagName ->
-                var tagId = postDao.insertTag(Tag(tagName = tagName))
-                if (tagId == -1L) {
-                    tagId = postDao.getTagIdByName(tagName) ?: 0L
+                var tagId = postDao.getTagIdByName(tagName) // まず既存チェック
+                if (tagId == null) {
+                    tagId = postDao.insertTag(Tag(tagName = tagName)) // なければ新規作成
                 }
-                if (tagId != 0L) {
+                if (tagId != null && tagId != -1L) {
                     tagIds.add(tagId)
                 }
             }
@@ -719,23 +719,36 @@ class MainViewModel(
         if (trimmed.isBlank()) return
 
         _postEntryState.update { currentState ->
-            // すでに同じ名前のタグがなければ追加
             if (currentState.currentTags.none { it.tagName.equals(trimmed, ignoreCase = true) }) {
-                // ▼▼▼ ここで newTag を定義します ▼▼▼
-                val newTag = Tag(tagId = 0, tagName = trimmed)
 
+                // ★★★ 重複チェック追加 ★★★
+                viewModelScope.launch(Dispatchers.IO) {
+                    val existingTagId = postDao.getTagIdByName(trimmed)
+                    if (existingTagId == null) {
+                        postDao.insertTag(Tag(tagName = trimmed))
+                    }
+                }
+
+                // ★★★ 追加：タグをDBに即座に保存 ★★★
+                viewModelScope.launch(Dispatchers.IO) {
+                    val existingTagId = postDao.getTagIdByName(trimmed)
+                    if (existingTagId == null) {
+                        postDao.insertTag(Tag(tagName = trimmed))
+                    }
+                }
+
+                val newTag = Tag(tagId = 0, tagName = trimmed)
                 val newState = currentState.copy(currentTags = currentState.currentTags + newTag)
 
-                // ログは状態更新後に記録
-                Log.d(
-                    "TagDebug",
-                    "ViewModel State Updated (Add): ${newState.currentTags.map { it.tagName }}"
-                )
-
+                Log.d("TagDebug", "ViewModel State Updated (Add): ${newState.currentTags.map { it.tagName }}")
                 newState
             } else {
                 currentState
             }
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            val allTags = postDao.getAllTagsForDebug()
+            Log.d("TagDebug", "全タグ: ${allTags.map { "${it.tagName}(${it.tagId})" }}")
         }
     }
 
@@ -852,6 +865,7 @@ class MainViewModel(
                 // 一時フォルダを作成
                 val tempDir = File(context.cacheDir, "backup_temp")
                 tempDir.mkdirs()
+                Log.d("ImportDebug", "一時フォルダ作成完了: ${tempDir.absolutePath}")
 
                 _backupState.value = BackupState.Progress(0.2f, "テキストファイルを作成中...")
 
@@ -965,8 +979,6 @@ class MainViewModel(
                     }
                 }
 
-                Log.d("Backup", "完全バックアップ完了: ${zipFile.absolutePath}")
-
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     _backupState.value = BackupState.Error(e.message ?: "不明なエラー")
@@ -975,7 +987,6 @@ class MainViewModel(
                         _backupState.value = BackupState.Idle
                     }
                 }
-                Log.e("Backup", "バックアップ失敗: ${e.message}")
             }
         }
     }
@@ -1002,9 +1013,6 @@ class MainViewModel(
                 // 2. posts.txtを解析
                 val postsFile = File(tempDir, "posts.txt")
                 if (!postsFile.exists()) {
-                    withContext(Dispatchers.Main) {
-                        onResult(false, "posts.txtが見つかりません")
-                    }
                     return@launch
                 }
 
@@ -1117,9 +1125,9 @@ class MainViewModel(
     }
 
     private fun parsePostsFromText(text: String): List<RestoredPostData> {
+
         val posts = mutableListOf<RestoredPostData>()
-        val postBlocks =
-            text.split("------------------------------").filter { it.contains("投稿ID:") }
+        val postBlocks = text.split("------------------------------").filter { it.contains("投稿ID:") }
 
         postBlocks.forEach { block ->
             try {
@@ -1208,7 +1216,6 @@ class MainViewModel(
                 posts.add(RestoredPostData(post = post, tagNames = tagNames, images = images))
 
             } catch (e: Exception) {
-                Log.e("RestoreBackup", "投稿解析エラー: ${e.message}")
             }
         }
 
@@ -1223,7 +1230,6 @@ class MainViewModel(
                 val targetFile = File(context.filesDir, imageFile.name)
                 imageFile.copyTo(targetFile, overwrite = true)
             } catch (e: Exception) {
-                Log.e("RestoreBackup", "画像コピーエラー: ${e.message}")
             }
         }
     }
@@ -1252,46 +1258,91 @@ class MainViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 _restoreState.value = BackupState.Starting.copy(statusText = "復元準備中...")
-
                 val context = getApplication<Application>().applicationContext
 
                 _restoreState.value = BackupState.Progress(0.2f, "ZIPファイルを読み込み中...")
 
-                // ZIPファイルを解凍して処理
+                // ★★★ 本物の処理開始 ★★★
                 val inputStream = context.contentResolver.openInputStream(uri)
                 if (inputStream == null) {
                     throw Exception("ファイルを読み込めませんでした")
                 }
 
-                _restoreState.value = BackupState.Progress(0.4f, "ファイルを解析中...")
+                _restoreState.value = BackupState.Progress(0.4f, "ファイルを展開中...")
 
-                // 実際のZIP解凍処理は複雑なので、今は簡単な確認だけ
-                val availableBytes = inputStream.available()
-                inputStream.close()
+                // ZIPファイル展開
+                val tempDir = File(context.cacheDir, "restore_temp")
+                tempDir.mkdirs()
+                extractZip(inputStream, tempDir)
 
-                if (availableBytes <= 0) {
-                    throw Exception("無効なファイルです")
+                _restoreState.value = BackupState.Progress(0.6f, "データを解析中...")
+
+                // posts.txt読み込み
+                val postsFile = File(tempDir, "posts.txt")
+                if (!postsFile.exists()) {
+                    throw Exception("posts.txtが見つかりません")
                 }
 
-                _restoreState.value = BackupState.Progress(0.6f, "データを復元中...")
-                delay(1000) // 実際の復元処理の代替
+                val restoredPosts = parsePostsFromText(postsFile.readText())
 
-                _restoreState.value = BackupState.Progress(0.8f, "データベースを更新中...")
-                delay(500) // DB更新処理の代替
+                _restoreState.value = BackupState.Progress(0.8f, "データベースに保存中...")
+
+                // 画像ファイル復元
+                val imagesDir = File(tempDir, "images")
+                if (imagesDir.exists()) {
+                    copyImagesToInternalStorage(imagesDir)
+                }
+
+                // DBに保存
+                var newPostCount = 0
+                var updatedPostCount = 0
+
+                restoredPosts.forEach { restoredData ->
+                    val existingPost = postDao.getPostById(restoredData.post.id)
+
+                    if (existingPost == null) {
+                        // 新規投稿として保存
+                        postDao.insert(restoredData.post)
+
+                        // タグ情報を保存
+                        restoredData.tagNames.forEach { tagName ->
+                            var tagId = postDao.getTagIdByName(tagName)
+                            if (tagId == null) {
+                                tagId = postDao.insertTag(Tag(tagName = tagName))
+                            }
+                            if (tagId != null && tagId != -1L) {
+                                postDao.insertPostTagCrossRef(
+                                    PostTagCrossRef(restoredData.post.id, tagId)
+                                )
+                            }
+                        }
+
+                        // 画像情報を保存
+                        if (restoredData.images.isNotEmpty()) {
+                            postDao.insertPostImages(restoredData.images)
+                        }
+
+                        newPostCount++
+                    } else {
+                        updatedPostCount++
+                    }
+                }
+
+                // 一時フォルダ削除
+                tempDir.deleteRecursively()
 
                 _restoreState.value = BackupState.Progress(1.0f, "完了")
 
                 withContext(Dispatchers.Main) {
                     launch {
                         delay(1000)
-                        _restoreState.value =
-                            BackupState.Completed.copy(statusText = "復元が完了しました")
+                        _restoreState.value = BackupState.Completed.copy(
+                            statusText = "復元完了 (新規: ${newPostCount}件、更新: ${updatedPostCount}件)"
+                        )
                         delay(2000)
                         _restoreState.value = BackupState.Idle
                     }
                 }
-
-                Log.d("Restore", "データ復元完了: ${availableBytes}バイト")
 
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
@@ -1301,7 +1352,6 @@ class MainViewModel(
                         _restoreState.value = BackupState.Idle
                     }
                 }
-                Log.e("Restore", "データ復元失敗: ${e.message}")
             }
         }
     }
@@ -1339,6 +1389,15 @@ class MainViewModel(
                 _dataSize.value = "計算エラー"
                 _dataSizeDetails.value = "計算エラー"
             }
+        }
+    }
+
+    fun cleanupDuplicateTags() {
+        viewModelScope.launch(Dispatchers.IO) {
+            postDao.normalizeTagNames() // ← 追加
+            postDao.removeDuplicateTags()
+            postDao.cleanupOrphanedTagRelations()
+            Log.d("TagCleanup", "重複タグ削除・正規化完了")
         }
     }
 }

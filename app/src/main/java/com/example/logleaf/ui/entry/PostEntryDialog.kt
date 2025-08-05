@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
+
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -1155,6 +1156,7 @@ private fun TagChip(
 /**
  * タグサジェストのポップアップの中身全体を描画する。
  */
+
 @Composable
 fun TagSuggestionPopup(
     favoriteTags: List<Tag>,
@@ -1186,11 +1188,11 @@ fun TagSuggestionPopup(
             // === お気に入りタグセクション ===
             if (favoriteTags.isNotEmpty()) {
                 item {
-                    Text(
-                        text = "お気に入り",
+                    UserFontText(
+                        text = "Favorites",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.Gray,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+                        modifier = Modifier.padding(horizontal = 21.dp, vertical = 2.dp) // ← 左右余白追加
                     )
                 }
 
@@ -1217,11 +1219,11 @@ fun TagSuggestionPopup(
                 }
 
                 item {
-                    Text(
-                        text = "よく使うタグ",
+                    UserFontText(
+                        text = "Frequently Used",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.Gray,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+                        modifier = Modifier.padding(horizontal = 21.dp, vertical = 2.dp) // ← 左右余白追加
                     )
                 }
 
@@ -1238,9 +1240,9 @@ fun TagSuggestionPopup(
             if (favoriteTags.isEmpty() && frequentlyUsedTags.isEmpty()) {
                 item {
                     Text(
-                        "候補はありません",
+                        "No suggestions available",
                         color = Color.Gray,
-                        modifier = Modifier.padding(12.dp)
+                        modifier = Modifier.padding(21.dp) // ← 余白も統一
                     )
                 }
             }
@@ -1248,7 +1250,7 @@ fun TagSuggestionPopup(
     }
 }
 
-// === コンパクトなドラッグ可能タグ行 ===
+// === ドラッグ可能なタグ行（シンプル版） ===
 @Composable
 private fun DraggableTagRow(
     tag: Tag,
@@ -1267,15 +1269,15 @@ private fun DraggableTagRow(
             .offset(y = with(LocalDensity.current) { draggedDistance.toDp() })
             .alpha(if (isDragging) 0.7f else 1f)
             .background(
-                if (isDragging) MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
+                if (isDragging) Color.LightGray.copy(alpha = 0.1f)
                 else Color.Transparent
             )
             .pointerInput(currentIndex) {
                 detectDragGesturesAfterLongPress(
                     onDragStart = { isDragging = true },
                     onDragEnd = {
-                        // 自然な縦移動計算
-                        val rowHeight = 36.dp.toPx()
+                        // ドラッグ終了時に一度だけ並び替え
+                        val rowHeight = 40.dp.toPx()
                         val movedRows = (draggedDistance / rowHeight).roundToInt()
                         val targetIndex = (currentIndex + movedRows).coerceIn(0, listSize - 1)
 
@@ -1287,14 +1289,20 @@ private fun DraggableTagRow(
                         draggedDistance = 0f
                     }
                 ) { _, dragAmount ->
-                    draggedDistance += dragAmount.y
+                    // ドラッグ範囲制限
+                    val rowHeight = 40.dp.toPx()
+                    val maxDistance = (listSize - 1 - currentIndex) * rowHeight
+                    val minDistance = -currentIndex * rowHeight
+
+                    val newDistance = (draggedDistance + dragAmount.y).coerceIn(minDistance, maxDistance)
+                    draggedDistance = newDistance
                 }
             }
             .clickable { onAddClick() }
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = 21.dp, vertical = 8.dp), // ← 左右余白追加
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // ドラッグハンドル（小さく）
+        // ドラッグハンドル
         Icon(
             painter = painterResource(id = R.drawable.ic_drag_handle),
             contentDescription = null,
@@ -1304,20 +1312,20 @@ private fun DraggableTagRow(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // タグ名（コンパクト）
+        // タグ名
         Text(
             text = tag.tagName,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodyMedium, // ← 読みやすいサイズに戻した
             modifier = Modifier.weight(1f)
         )
 
-        // お気に入りアイコン（小さく）
+        // お気に入りアイコン
         Icon(
             painter = painterResource(id = R.drawable.ic_star_filled),
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier
-                .size(14.dp)
+                .size(16.dp)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -1338,14 +1346,14 @@ private fun SimpleTagRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onAddClick() }
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = 21.dp, vertical = 8.dp), // ← こっちも左右余白追加
         verticalAlignment = Alignment.CenterVertically
     ) {
         Spacer(modifier = Modifier.width(20.dp)) // ハンドル分のスペース
 
         Text(
             text = tag.tagName,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodyMedium, // ← こっちも読みやすく
             modifier = Modifier.weight(1f)
         )
 
@@ -1354,7 +1362,7 @@ private fun SimpleTagRow(
             contentDescription = null,
             tint = Color.Gray.copy(alpha = 0.5f),
             modifier = Modifier
-                .size(14.dp)
+                .size(16.dp)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,

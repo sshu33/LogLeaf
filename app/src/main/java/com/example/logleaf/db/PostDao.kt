@@ -205,14 +205,38 @@ interface PostDao {
      * @return よく使うタグのリストをFlowで返します。
      */
     @Query("""
-        SELECT T.* FROM tags AS T
-        INNER JOIN post_tag_cross_ref AS PTC ON T.tagId = PTC.tagId
-        WHERE T.isFavorite = 0
-        GROUP BY T.tagId
-        ORDER BY COUNT(T.tagId) DESC
-        LIMIT 10
-    """)
+    SELECT T.* FROM tags AS T
+    INNER JOIN post_tag_cross_ref AS PTC ON T.tagId = PTC.tagId
+    WHERE T.isFavorite = 0
+    GROUP BY T.tagName  -- ← tagIdじゃなくてtagNameでグループ化
+    ORDER BY COUNT(PTC.tagId) DESC
+    LIMIT 10
+""")
     fun getFrequentlyUsedTags(): Flow<List<Tag>>
+
+    @Query("SELECT * FROM tags ORDER BY tagName")
+    suspend fun getAllTagsForDebug(): List<Tag>
+
+    @Query("""
+    DELETE FROM tags 
+    WHERE tagId NOT IN (
+        SELECT MIN(tagId) 
+        FROM tags 
+        GROUP BY LOWER(REPLACE(tagName, '#', ''))
+    )
+""")
+    suspend fun removeDuplicateTags()
+
+    @Query("""
+    DELETE FROM post_tag_cross_ref 
+    WHERE tagId NOT IN (
+        SELECT tagId FROM tags
+    )
+""")
+    suspend fun cleanupOrphanedTagRelations()
+
+    @Query("UPDATE tags SET tagName = REPLACE(tagName, '#', '') WHERE tagName LIKE '#%'")
+    suspend fun normalizeTagNames()
 
     /**
      * 指定されたタグ名を持つ投稿を検索します。
