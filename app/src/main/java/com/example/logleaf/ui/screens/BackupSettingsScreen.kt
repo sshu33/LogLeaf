@@ -1,5 +1,6 @@
 package com.example.logleaf.ui.screens
 
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -55,14 +56,14 @@ fun BackupSettingsScreen(
     val backupProgress by mainViewModel.backupProgress.collectAsState()
     val restoreProgress by mainViewModel.restoreProgress.collectAsState()
 
-    val documentPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument(),
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
         onResult = { uri ->
             if (uri != null) {
                 mainViewModel.restoreFromBackup(uri) { success, message ->
                     Toast.makeText(
                         context,
-                        if (success) "復元が完了しました！" else "復元に失敗しました: $message",
+                        if (success) "復元が完了しました！$message" else "復元に失敗しました: $message",
                         Toast.LENGTH_LONG
                     ).show()
                 }
@@ -100,15 +101,6 @@ fun BackupSettingsScreen(
         targetValue = restoreState.progress,
         animationSpec = tween(durationMillis = 300),
         label = "RestoreProgress"
-    )
-
-    val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent(),
-        onResult = { uri ->
-            if (uri != null) {
-                mainViewModel.importDataFromZip(uri)
-            }
-        }
     )
 
     LaunchedEffect(Unit) {
@@ -616,7 +608,7 @@ fun BackupSettingsScreen(
                 Box(
                     modifier = Modifier
                         .width(4.dp)
-                        .height(180.dp)
+                        .height(240.dp)
                         .background(
                             MaterialTheme.colorScheme.primary,
                             RoundedCornerShape(2.dp)
@@ -767,6 +759,40 @@ fun BackupSettingsScreen(
                             modifier = Modifier.size(24.dp)
                         )
                     }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            //.clickable {
+                             //   mainViewModel.cleanupDuplicateTags()
+                             //   Toast.makeText(context, "重複タグを削除しました", Toast.LENGTH_SHORT).show()
+                            //}
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_delete), // 削除アイコン
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "重複タグ削除",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "DBの重複タグを削除して最適化",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
+
+
                 }
                 Spacer(modifier = Modifier.height(32.dp))
             }

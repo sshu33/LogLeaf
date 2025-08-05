@@ -46,7 +46,7 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fcfefcaf-ff37-4bd5-aa0e-d28134bdfd73" name="Changes" comment="タイムラインのスクロール位置記憶するよう修正">
+    <list default="true" id="fcfefcaf-ff37-4bd5-aa0e-d28134bdfd73" name="Changes" comment="インポート関数重複問題に着手">
       <change beforePath="$PROJECT_DIR$/.gradle/8.13/executionHistory/executionHistory.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.13/executionHistory/executionHistory.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.13/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.13/executionHistory/executionHistory.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.13/fileHashes/fileHashes.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.13/fileHashes/fileHashes.bin" afterDir="false" />
@@ -55,8 +55,6 @@
       <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/MainViewModel.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/MainViewModel.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/db/PostDao.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/db/PostDao.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/entry/PostEntryDialog.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/entry/PostEntryDialog.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/screens/BackupSettingsScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/screens/BackupSettingsScreen.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -215,14 +213,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1752160736127</updated>
-    </task>
-    <task id="LOCAL-00036" summary="画像投稿機能実装&lt;3">
-      <option name="closed" value="true" />
-      <created>1753291745544</created>
-      <option name="number" value="00036" />
-      <option name="presentableId" value="LOCAL-00036" />
-      <option name="project" value="LOCAL" />
-      <updated>1753291745544</updated>
     </task>
     <task id="LOCAL-00037" summary="ログビュー実装分岐点">
       <option name="closed" value="true" />
@@ -608,7 +598,15 @@
       <option name="project" value="LOCAL" />
       <updated>1754338775010</updated>
     </task>
-    <option name="localTasksCounter" value="85" />
+    <task id="LOCAL-00085" summary="インポート関数重複問題に着手">
+      <option name="closed" value="true" />
+      <created>1754352146685</created>
+      <option name="number" value="00085" />
+      <option name="presentableId" value="LOCAL-00085" />
+      <option name="project" value="LOCAL" />
+      <updated>1754352146685</updated>
+    </task>
+    <option name="localTasksCounter" value="86" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -623,7 +621,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="下部ビューの複数画像投稿時の表示調整完了・ドットエリア実装" />
     <MESSAGE value="投稿画面での画像ソート機能完成" />
     <MESSAGE value="SNSからの複数画像取得に対応" />
     <MESSAGE value="サムネは専用画像を表示させるように修正" />
@@ -648,7 +645,8 @@
     <MESSAGE value="カレンダーの●の位置修正" />
     <MESSAGE value="アカウント追加ボタンの修正" />
     <MESSAGE value="タイムラインのスクロール位置記憶するよう修正" />
-    <option name="LAST_COMMIT_MESSAGE" value="タイムラインのスクロール位置記憶するよう修正" />
+    <MESSAGE value="インポート関数重複問題に着手" />
+    <option name="LAST_COMMIT_MESSAGE" value="インポート関数重複問題に着手" />
   </component>
   <component name="play_dynamic_filters_status">
     <option name="appIdToCheckInfo">

@@ -991,40 +991,48 @@ class MainViewModel(
         }
     }
 
+// MainViewModel.kt の restoreFromBackup 関数を完全に置き換えてください
+
     fun restoreFromBackup(backupUri: Uri, onResult: (Boolean, String) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
+                _restoreState.value = BackupState.Starting.copy(statusText = "復元準備中...")
                 val context = getApplication<Application>().applicationContext
 
-                // 1. ZIPファイルを一時的に展開
-                val tempDir = File(context.cacheDir, "restore_temp")
-                tempDir.mkdirs()
+                _restoreState.value = BackupState.Progress(0.2f, "ZIPファイルを読み込み中...")
 
-                // ZIPファイルを展開
-                context.contentResolver.openInputStream(backupUri)?.use { inputStream ->
-                    extractZip(inputStream, tempDir)
-                } ?: run {
-                    withContext(Dispatchers.Main) {
-                        onResult(false, "バックアップファイルを開けませんでした")
-                    }
-                    return@launch
+                // ★★★ 本物の処理開始 ★★★
+                val inputStream = context.contentResolver.openInputStream(backupUri)
+                if (inputStream == null) {
+                    throw Exception("ファイルを読み込めませんでした")
                 }
 
-                // 2. posts.txtを解析
+                _restoreState.value = BackupState.Progress(0.4f, "ファイルを展開中...")
+
+                // ZIPファイル展開
+                val tempDir = File(context.cacheDir, "restore_temp")
+                tempDir.mkdirs()
+                extractZip(inputStream, tempDir)
+
+                _restoreState.value = BackupState.Progress(0.6f, "データを解析中...")
+
+                // posts.txt読み込み
                 val postsFile = File(tempDir, "posts.txt")
                 if (!postsFile.exists()) {
-                    return@launch
+                    throw Exception("posts.txtが見つかりません")
                 }
 
                 val restoredPosts = parsePostsFromText(postsFile.readText())
 
-                // 3. 画像ファイルを内部ストレージにコピー
+                _restoreState.value = BackupState.Progress(0.8f, "データベースに保存中...")
+
+                // 画像ファイル復元
                 val imagesDir = File(tempDir, "images")
                 if (imagesDir.exists()) {
                     copyImagesToInternalStorage(imagesDir)
                 }
 
-                // 4. データベースに保存（重複チェック付き、ハッシュタグ自動抽出なし）
+                // DBに保存
                 var newPostCount = 0
                 var updatedPostCount = 0
 
@@ -1032,22 +1040,26 @@ class MainViewModel(
                     val existingPost = postDao.getPostById(restoredData.post.id)
 
                     if (existingPost == null) {
-                        // 新規投稿として保存（ハッシュタグ自動抽出なし）
+                        // 新規投稿として保存
                         postDao.insert(restoredData.post)
 
                         // タグ情報を保存
                         restoredData.tagNames.forEach { tagName ->
-                            var tagId = postDao.insertTag(Tag(tagName = tagName))
-                            if (tagId == -1L) {
-                                tagId = postDao.getTagIdByName(tagName) ?: 0L
+                            // まず既存タグIDを検索
+                            var tagId = postDao.getTagIdByName(tagName)
+
+                            // 存在しない場合は新規作成
+                            if (tagId == null) {
+                                tagId = postDao.insertTag(Tag(tagName = tagName))
                             }
-                            if (tagId != 0L) {
-                                postDao.insertPostTagCrossRef(
-                                    PostTagCrossRef(
-                                        restoredData.post.id,
-                                        tagId
+
+                            // タグIDが有効な場合のみ関連付けを作成
+                            tagId?.let { id ->
+                                if (id > 0L) {
+                                    postDao.insertPostTagCrossRef(
+                                        PostTagCrossRef(restoredData.post.id, id)
                                     )
-                                )
+                                }
                             }
                         }
 
@@ -1064,17 +1076,21 @@ class MainViewModel(
                         // タグを更新（古いタグを削除して新しいタグを追加）
                         postDao.deletePostTagCrossRefs(restoredData.post.id)
                         restoredData.tagNames.forEach { tagName ->
-                            var tagId = postDao.insertTag(Tag(tagName = tagName))
-                            if (tagId == -1L) {
-                                tagId = postDao.getTagIdByName(tagName) ?: 0L
+                            // まず既存タグIDを検索
+                            var tagId = postDao.getTagIdByName(tagName)
+
+                            // 存在しない場合は新規作成
+                            if (tagId == null) {
+                                tagId = postDao.insertTag(Tag(tagName = tagName))
                             }
-                            if (tagId != 0L) {
-                                postDao.insertPostTagCrossRef(
-                                    PostTagCrossRef(
-                                        restoredData.post.id,
-                                        tagId
+
+                            // タグIDが有効な場合のみ関連付けを作成
+                            tagId?.let { id ->
+                                if (id > 0L) {
+                                    postDao.insertPostTagCrossRef(
+                                        PostTagCrossRef(restoredData.post.id, id)
                                     )
-                                )
+                                }
                             }
                         }
 
@@ -1088,18 +1104,33 @@ class MainViewModel(
                     }
                 }
 
-                // 5. 一時フォルダを削除
+                // 一時フォルダを削除
                 tempDir.deleteRecursively()
 
+                _restoreState.value = BackupState.Progress(1.0f, "完了")
+
                 withContext(Dispatchers.Main) {
-                    val message = " (新規: ${newPostCount}件、更新: ${updatedPostCount}件)"
-                    onResult(true, message)
+                    launch {
+                        delay(1000)
+                        _restoreState.value = BackupState.Completed.copy(
+                            statusText = "復元完了 (新規: ${newPostCount}件、更新: ${updatedPostCount}件)"
+                        )
+                        delay(2000)
+                        _restoreState.value = BackupState.Idle
+                    }
+                }
+
+                withContext(Dispatchers.Main) {
                     refreshPosts() // データ更新
                 }
 
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    onResult(false, e.message ?: "不明なエラー")
+                    _restoreState.value = BackupState.Error(e.message ?: "復元に失敗しました")
+                    launch {
+                        delay(3000)
+                        _restoreState.value = BackupState.Idle
+                    }
                 }
             }
         }
@@ -1148,12 +1179,18 @@ class MainViewModel(
 
                 // タグ情報を抽出
                 val tagNames = lines.find { it.startsWith("タグ:") }?.let { tagLine ->
-                    tagLine.substringAfter("タグ: ").split(",")
-                        .map { tag ->
-                            //タグから # を削除
-                            tag.replace("#+".toRegex(), "").trim()
-                        }
-                        .filterNot { it.isBlank() } // 空文字を除外
+                    val tagText = tagLine.substringAfter("タグ: ").trim()
+                    if (tagText.isBlank()) {
+                        emptyList()
+                    } else {
+                        // カンマ、スペース、全角スペースで分割
+                        tagText.split(",", " ", "　")
+                            .map { tag ->
+                                // タグから # を削除し、前後の空白も除去
+                                tag.replace("#+".toRegex(), "").trim()
+                            }
+                            .filterNot { it.isBlank() } // 空文字を除外
+                    }
                 } ?: emptyList()
 
                 // 本文を抽出（「本文:」の次の行から画像情報or区切りまで）
@@ -1250,108 +1287,6 @@ class MainViewModel(
                 // スクロールイベントは発火しない
             } finally {
                 _isRefreshing.value = false
-            }
-        }
-    }
-
-    fun importDataFromZip(uri: Uri) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                _restoreState.value = BackupState.Starting.copy(statusText = "復元準備中...")
-                val context = getApplication<Application>().applicationContext
-
-                _restoreState.value = BackupState.Progress(0.2f, "ZIPファイルを読み込み中...")
-
-                // ★★★ 本物の処理開始 ★★★
-                val inputStream = context.contentResolver.openInputStream(uri)
-                if (inputStream == null) {
-                    throw Exception("ファイルを読み込めませんでした")
-                }
-
-                _restoreState.value = BackupState.Progress(0.4f, "ファイルを展開中...")
-
-                // ZIPファイル展開
-                val tempDir = File(context.cacheDir, "restore_temp")
-                tempDir.mkdirs()
-                extractZip(inputStream, tempDir)
-
-                _restoreState.value = BackupState.Progress(0.6f, "データを解析中...")
-
-                // posts.txt読み込み
-                val postsFile = File(tempDir, "posts.txt")
-                if (!postsFile.exists()) {
-                    throw Exception("posts.txtが見つかりません")
-                }
-
-                val restoredPosts = parsePostsFromText(postsFile.readText())
-
-                _restoreState.value = BackupState.Progress(0.8f, "データベースに保存中...")
-
-                // 画像ファイル復元
-                val imagesDir = File(tempDir, "images")
-                if (imagesDir.exists()) {
-                    copyImagesToInternalStorage(imagesDir)
-                }
-
-                // DBに保存
-                var newPostCount = 0
-                var updatedPostCount = 0
-
-                restoredPosts.forEach { restoredData ->
-                    val existingPost = postDao.getPostById(restoredData.post.id)
-
-                    if (existingPost == null) {
-                        // 新規投稿として保存
-                        postDao.insert(restoredData.post)
-
-                        // タグ情報を保存
-                        restoredData.tagNames.forEach { tagName ->
-                            var tagId = postDao.getTagIdByName(tagName)
-                            if (tagId == null) {
-                                tagId = postDao.insertTag(Tag(tagName = tagName))
-                            }
-                            if (tagId != null && tagId != -1L) {
-                                postDao.insertPostTagCrossRef(
-                                    PostTagCrossRef(restoredData.post.id, tagId)
-                                )
-                            }
-                        }
-
-                        // 画像情報を保存
-                        if (restoredData.images.isNotEmpty()) {
-                            postDao.insertPostImages(restoredData.images)
-                        }
-
-                        newPostCount++
-                    } else {
-                        updatedPostCount++
-                    }
-                }
-
-                // 一時フォルダ削除
-                tempDir.deleteRecursively()
-
-                _restoreState.value = BackupState.Progress(1.0f, "完了")
-
-                withContext(Dispatchers.Main) {
-                    launch {
-                        delay(1000)
-                        _restoreState.value = BackupState.Completed.copy(
-                            statusText = "復元完了 (新規: ${newPostCount}件、更新: ${updatedPostCount}件)"
-                        )
-                        delay(2000)
-                        _restoreState.value = BackupState.Idle
-                    }
-                }
-
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    _restoreState.value = BackupState.Error(e.message ?: "復元に失敗しました")
-                    launch {
-                        delay(3000)
-                        _restoreState.value = BackupState.Idle
-                    }
-                }
             }
         }
     }
