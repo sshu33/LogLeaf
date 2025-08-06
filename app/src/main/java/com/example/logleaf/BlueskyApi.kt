@@ -163,8 +163,8 @@ class BlueskyApi(private val sessionManager: SessionManager) {
             refreshedAccount // 更新されたアカウント情報を返す
         } catch (e: Exception) {
             println("セッションの更新に失敗しました: ${e.message}")
-            // 更新に失敗したアカウントはリストから削除する
-            sessionManager.deleteAccount(accountToRefresh)
+            // ★ 変更：削除ではなく要再認証状態にマーク
+            sessionManager.markAccountForReauthentication(accountToRefresh.userId)
             null
         }
     }
