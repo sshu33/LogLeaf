@@ -227,6 +227,92 @@ interface PostDao {
 """)
     suspend fun removeDuplicateTags()
 
+    /**
+     * 確実に重複タグを削除する処理
+     * 手動で重複を特定して削除します
+     */
+    suspend fun forceRemoveDuplicateTags() {
+        try {
+            Log.d("TagCleanup", "重複削除処理開始")
+            val allTags = getAllTagsForDebug()
+            Log.d("TagCleanup", "全タグ数: ${allTags.size}")
+
+            // タグ名（正規化済み）でグループ化
+            val grouped = allTags.groupBy {
+                it.tagName.lowercase().replace("#", "").trim()
+            }
+
+            Log.d("TagCleanup", "グループ数: ${grouped.size}")
+
+            grouped.forEach { (normalizedName, tags) ->
+                Log.d("TagCleanup", "処理中: '$normalizedName' (${tags.size}個)")
+
+                if (tags.size > 1) {
+                    Log.d("TagCleanup", "重複発見: '$normalizedName' - ${tags.size}個")
+
+                    // 最古のタグ（最小ID）を残す
+                    val keepTag = tags.minByOrNull { it.tagId }
+                    if (keepTag == null) {
+                        Log.e("TagCleanup", "keepTagがnull: $normalizedName")
+                        return@forEach
+                    }
+
+                    val duplicatesToDelete = tags.filter { it.tagId != keepTag.tagId }
+                    Log.d("TagCleanup", "残すタグID:${keepTag.tagId}, 削除する数:${duplicatesToDelete.size}")
+
+                    duplicatesToDelete.forEach { duplicateTag ->
+                        try {
+                            Log.d("TagCleanup", "削除開始: ID:${duplicateTag.tagId} 名前:'${duplicateTag.tagName}'")
+
+                            // 1. 関連付けを移し替え
+                            transferTagRelations(duplicateTag.tagId, keepTag.tagId)
+
+                            // 2. 重複タグを削除
+                            deleteTagById(duplicateTag.tagId)
+
+                            Log.d("TagCleanup", "削除完了: ID:${duplicateTag.tagId}")
+                        } catch (e: Exception) {
+                            Log.e("TagCleanup", "削除エラー ID:${duplicateTag.tagId}: ${e.message}")
+                        }
+                    }
+                }
+            }
+
+            // 最後に孤児関連付けをクリーンアップ
+            cleanupOrphanedTagRelations()
+            Log.d("TagCleanup", "重複削除処理完了")
+
+        } catch (e: Exception) {
+            Log.e("TagCleanup", "重複削除処理でエラー: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    /**
+     * タグの関連付けを別のタグに移し替える
+     */
+    private suspend fun transferTagRelations(fromTagId: Long, toTagId: Long) {
+        // fromTagIdの関連付けを取得
+        val relations = getPostTagRelationsByTagId(fromTagId)
+
+        relations.forEach { relation ->
+            // toTagIdに関連付けを作成（重複は自動で無視される）
+            insertPostTagCrossRef(PostTagCrossRef(relation.postId, toTagId))
+        }
+
+        // 古い関連付けを削除
+        deleteTagRelations(fromTagId)
+    }
+
+    @Query("SELECT * FROM post_tag_cross_ref WHERE tagId = :tagId")
+    suspend fun getPostTagRelationsByTagId(tagId: Long): List<PostTagCrossRef>
+
+    @Query("DELETE FROM tags WHERE tagId = :tagId")
+    suspend fun deleteTagById(tagId: Long)
+
+    @Query("DELETE FROM post_tag_cross_ref WHERE tagId = :tagId")
+    suspend fun deleteTagRelations(tagId: Long)
+
     @Query("""
     DELETE FROM post_tag_cross_ref 
     WHERE tagId NOT IN (
@@ -444,8 +530,6 @@ interface PostDao {
 """)
     fun getFrequentlyUsedTagsWithTemp(): Flow<List<Tag>>
 
-
-    // 2. 一時表示タグのみ取得
     @Query("SELECT * FROM tags WHERE isFavorite = 0 AND isTemporaryShown = 1 ORDER BY tagName ASC")
     fun getTemporaryShownTags(): Flow<List<Tag>>
 }

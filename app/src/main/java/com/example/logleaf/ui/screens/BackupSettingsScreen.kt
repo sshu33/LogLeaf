@@ -103,6 +103,14 @@ fun BackupSettingsScreen(
         label = "RestoreProgress"
     )
 
+    val maintenanceState by mainViewModel.maintenanceState.collectAsState()
+
+    val animatedMaintenanceProgress by animateFloatAsState(
+        targetValue = maintenanceState.progress,
+        animationSpec = tween(durationMillis = 300),
+        label = "MaintenanceProgress"
+    )
+
     LaunchedEffect(Unit) {
         mainViewModel.calculateDataSize()
     }
@@ -760,35 +768,107 @@ fun BackupSettingsScreen(
                         )
                     }
 
+                    // タグ情報の再取得
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            //.clickable {
-                             //   mainViewModel.cleanupDuplicateTags()
-                             //   Toast.makeText(context, "重複タグを削除しました", Toast.LENGTH_SHORT).show()
-                            //}
+                            .clickable(enabled = !maintenanceState.isInProgress) {
+                                if (!maintenanceState.isInProgress) {
+                                    mainViewModel.performTagMaintenance()
+                                }
+                            }
                             .padding(vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            painter = painterResource(id = R.drawable.ic_delete), // 削除アイコン
+                            painter = painterResource(id = R.drawable.ic_tag),
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            tint = if (maintenanceState.isInProgress)
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                            else if (maintenanceState.isCompleted)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                             modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "重複タグ削除",
+                                text = "タグ情報の再取得",
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
+
+                            // 状態に応じた説明文
+                            val subtitleText = when {
+                                maintenanceState.isInProgress -> maintenanceState.statusText
+                                maintenanceState.isCompleted -> "再取得が完了しました"
+                                maintenanceState.statusText.startsWith("エラー") -> maintenanceState.statusText
+                                else -> "既存投稿からハッシュタグを再抽出"
+                            }
+
                             Text(
-                                text = "DBの重複タグを削除して最適化",
+                                text = subtitleText,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                color = when {
+                                    maintenanceState.isCompleted -> MaterialTheme.colorScheme.onSurface
+                                    maintenanceState.statusText.startsWith("エラー") -> MaterialTheme.colorScheme.error
+                                    else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                }
                             )
+
+                            // プログレスバー（進行中のみ表示）
+                            if (maintenanceState.isInProgress) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                LinearProgressIndicator(
+                                    progress = { animatedMaintenanceProgress },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(3.dp),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                )
+                            }
+                        }
+
+                        // 右側のアイコン
+                        Box(modifier = Modifier.size(24.dp)) {
+                            when {
+                                maintenanceState.isInProgress -> {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier
+                                            .size(20.dp)
+                                            .alpha(0.7f),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                maintenanceState.isCompleted -> {
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.ic_check),
+                                        contentDescription = "完了",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                maintenanceState.statusText.startsWith("エラー") -> {
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.ic_error),
+                                        contentDescription = "エラー",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                else -> {
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowRight,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
                         }
                     }
 

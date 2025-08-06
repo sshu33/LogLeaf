@@ -418,6 +418,7 @@ class MainViewModel(
                 )
             }
         }
+        debugTagDuplicates()
     }
 
     fun onCancel() {
@@ -1002,8 +1003,6 @@ class MainViewModel(
         }
     }
 
-// MainViewModel.kt の restoreFromBackup 関数を完全に置き換えてください
-
     fun restoreFromBackup(backupUri: Uri, onResult: (Boolean, String) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -1143,6 +1142,80 @@ class MainViewModel(
                         _restoreState.value = BackupState.Idle
                     }
                 }
+            }
+        }
+    }
+
+    private val _maintenanceState = MutableStateFlow(BackupState.Idle)
+    val maintenanceState = _maintenanceState.asStateFlow()
+
+    fun performTagMaintenance() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                _maintenanceState.value = BackupState.Starting.copy(statusText = "準備中...")
+
+                _maintenanceState.value = BackupState.Progress(0.3f, "投稿データを読み込み中...")
+
+                // タグ再取得（重複作らないように改良版）
+                val (postCount, tagCount) = postDao.applyHashtagExtractionToAllPosts()
+
+                _maintenanceState.value = BackupState.Progress(0.7f, "重複タグをクリーンアップ中...")
+
+                Log.d("TagMaintenance", "forceRemoveDuplicateTags開始")
+                // 最後に重複削除
+                postDao.forceRemoveDuplicateTags()
+                Log.d("TagMaintenance", "forceRemoveDuplicateTags完了")
+
+                _maintenanceState.value = BackupState.Progress(0.8f, "処理を完了中...")
+
+                _maintenanceState.value = BackupState.Progress(1.0f, "完了")
+
+                withContext(Dispatchers.Main) {
+                    launch {
+                        delay(1000)
+                        _maintenanceState.value = BackupState.Completed.copy(
+                            statusText = "再取得完了 (${postCount}件の投稿から${tagCount}個のタグを抽出)"
+                        )
+                        delay(3000)
+                        _maintenanceState.value = BackupState.Idle
+                    }
+                }
+
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    _maintenanceState.value = BackupState.Error(e.message ?: "再取得に失敗しました")
+                    launch {
+                        delay(3000)
+                        _maintenanceState.value = BackupState.Idle
+                    }
+                }
+            }
+        }
+    }
+
+    fun debugTagDuplicates() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val allTags = postDao.getAllTagsForDebug()
+                Log.d("TagDebug", "=== 全タグ一覧 ===")
+
+                // タグ名でグループ化して重複をチェック
+                val grouped = allTags.groupBy { it.tagName.lowercase().replace("#", "") }
+
+                grouped.forEach { (normalizedName, tags) ->
+                    if (tags.size > 1) {
+                        Log.d("TagDebug", "重複発見: $normalizedName")
+                        tags.forEach { tag ->
+                            Log.d("TagDebug", "  - ID:${tag.tagId}, 名前:'${tag.tagName}', お気に入り:${tag.isFavorite}")
+                        }
+                    } else {
+                        Log.d("TagDebug", "正常: $normalizedName (ID:${tags[0].tagId})")
+                    }
+                }
+
+                Log.d("TagDebug", "=== デバッグ完了 ===")
+            } catch (e: Exception) {
+                Log.e("TagDebug", "デバッグエラー: ${e.message}")
             }
         }
     }
