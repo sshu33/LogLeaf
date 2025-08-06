@@ -46,7 +46,19 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fcfefcaf-ff37-4bd5-aa0e-d28134bdfd73" name="Changes" comment="画像拡大表示の細かい調整" />
+    <list default="true" id="fcfefcaf-ff37-4bd5-aa0e-d28134bdfd73" name="Changes" comment="BlueskyAPIのセッション切れの際アカウントがリストから消去される問題を修正">
+      <change afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/search/SearchMode.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/8.13/executionHistory/executionHistory.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.13/executionHistory/executionHistory.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/8.13/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.13/executionHistory/executionHistory.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/8.13/fileHashes/fileHashes.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.13/fileHashes/fileHashes.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/8.13/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.13/fileHashes/fileHashes.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/8.13/fileHashes/resourceHashesCache.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.13/fileHashes/resourceHashesCache.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/db/PostDao.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/db/PostDao.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/screens/SearchScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/screens/SearchScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/screens/SearchViewModel.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/screens/SearchViewModel.kt" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -203,14 +215,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1752160736127</updated>
-    </task>
-    <task id="LOCAL-00044" summary="よく使うタグが追加できるように">
-      <option name="closed" value="true" />
-      <created>1753656571775</created>
-      <option name="number" value="00044" />
-      <option name="presentableId" value="LOCAL-00044" />
-      <option name="project" value="LOCAL" />
-      <updated>1753656571775</updated>
     </task>
     <task id="LOCAL-00045" summary="投稿(編集)画面の全体調整完了">
       <option name="closed" value="true" />
@@ -596,7 +600,15 @@
       <option name="project" value="LOCAL" />
       <updated>1754512921795</updated>
     </task>
-    <option name="localTasksCounter" value="93" />
+    <task id="LOCAL-00093" summary="BlueskyAPIのセッション切れの際アカウントがリストから消去される問題を修正">
+      <option name="closed" value="true" />
+      <created>1754514660269</created>
+      <option name="number" value="00093" />
+      <option name="presentableId" value="LOCAL-00093" />
+      <option name="project" value="LOCAL" />
+      <updated>1754514660269</updated>
+    </task>
+    <option name="localTasksCounter" value="94" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -611,7 +623,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="スワイプで月切り替え" />
     <MESSAGE value="タイムラインに画像表示" />
     <MESSAGE value="ウィジェットとりあえず追加" />
     <MESSAGE value="ウィジェットとりあえず使えるように調整" />
@@ -636,7 +647,8 @@
     <MESSAGE value="ポストタップ時のエフェクトを丸角に修正" />
     <MESSAGE value="タグ検索が部分マッチでもヒットするように修正" />
     <MESSAGE value="画像拡大表示の細かい調整" />
-    <option name="LAST_COMMIT_MESSAGE" value="画像拡大表示の細かい調整" />
+    <MESSAGE value="BlueskyAPIのセッション切れの際アカウントがリストから消去される問題を修正" />
+    <option name="LAST_COMMIT_MESSAGE" value="BlueskyAPIのセッション切れの際アカウントがリストから消去される問題を修正" />
   </component>
   <component name="play_dynamic_filters_status">
     <option name="appIdToCheckInfo">

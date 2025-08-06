@@ -21,12 +21,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -50,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import com.example.logleaf.Post
 import com.example.logleaf.R
 import com.example.logleaf.ui.components.HighlightedText
+import com.example.logleaf.ui.search.SearchMode
 import com.example.logleaf.ui.theme.SnsType
 import com.yourpackage.logleaf.ui.components.UserFontText
 import java.time.ZoneId
@@ -64,7 +67,8 @@ fun SearchScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedSns by viewModel.selectedSns.collectAsState()
     val searchResultPosts by viewModel.searchResultPosts.collectAsState()
-    val isTagOnlySearch by viewModel.isTagOnlySearch.collectAsState()
+    // ▼▼▼ 2. isTagOnlySearch を searchMode に置き換え ▼▼▼
+    val searchMode by viewModel.searchMode.collectAsState()
 
     Column(
         modifier = Modifier
@@ -79,8 +83,9 @@ fun SearchScreen(
                 onQueryChanged = viewModel::onQueryChanged,
                 selectedSns = selectedSns,
                 onSnsFilterChanged = viewModel::onSnsFilterChanged,
-                isTagOnlySearch = isTagOnlySearch,
-                onTagOnlySearchChanged = viewModel::onTagOnlySearchChanged,
+                // ▼▼▼ 3. 引数を searchMode と onSearchModeChanged に変更 ▼▼▼
+                searchMode = searchMode,
+                onSearchModeChanged = viewModel::onSearchModeChanged,
                 onReset = viewModel::onReset
             )
         }
@@ -107,7 +112,8 @@ fun SearchScreen(
                     SearchResultItem(
                         post = post,
                         searchQuery = searchQuery,
-                        isTagOnlySearch = isTagOnlySearch,
+                        // ▼▼▼ 4. isTagOnlySearch を searchMode に変更 ▼▼▼
+                        searchMode = searchMode,
                         viewModel = viewModel,
                         onClick = { onPostClick(post) }
                     )
@@ -124,8 +130,8 @@ fun SearchTopBar(
     onQueryChanged: (String) -> Unit,
     selectedSns: SnsType?,
     onSnsFilterChanged: (SnsType?) -> Unit,
-    isTagOnlySearch: Boolean,
-    onTagOnlySearchChanged: (Boolean) -> Unit,
+    searchMode: SearchMode,
+    onSearchModeChanged: (SearchMode) -> Unit,
     onReset: () -> Unit
 ) {
     var snsFilterMenuExpanded by remember { mutableStateOf(false) }
@@ -181,55 +187,86 @@ fun SearchTopBar(
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
-                // --- ドロップダウンメニュー ---
+
+                // ▼▼▼ 1. DropdownMenuコンテナで全体を囲む ▼▼▼
                 DropdownMenu(
                     expanded = snsFilterMenuExpanded,
                     onDismissRequest = { snsFilterMenuExpanded = false },
                     modifier = Modifier.background(Color.White)
                 ) {
 
-                    // --- 「タグのみで検索」のトグル項目 ---
+                    val menuItemModifier = Modifier.height(36.dp)
+
+                    // --- 「本文とタグで検索」 ---
                     DropdownMenuItem(
-                        // ▼▼▼ textプロパティの中を、Rowで再構築する ▼▼▼
-                        text = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                // 1. アイコン
-                                Icon(
-                                    painter = painterResource(
-                                        id = if (isTagOnlySearch) R.drawable.ic_toggle_on else R.drawable.ic_toggle_off
-                                    ),
-                                    contentDescription = "Toggle Tag Search",
-                                    modifier = Modifier.size(24.dp),
-                                    tint = if (isTagOnlySearch) MaterialTheme.colorScheme.primary else Color.Gray
-                                )
-                                // 2.余白を置く
-                                Spacer(modifier = Modifier.width(9.dp)) // ◀◀ この値を調整！
-                                // 3. テキスト
-                                UserFontText(text = "タグで検索")
-                            }
+                        text = { UserFontText(text = "本文とタグ") },
+                        onClick = { onSearchModeChanged(SearchMode.ALL) },
+                        leadingIcon = { // ◀◀◀ 1. leadingIconに変更
+                            val iconResId = if (searchMode == SearchMode.ALL) R.drawable.ic_toggle_on else R.drawable.ic_toggle_off
+                            Icon(
+                                painter = painterResource(id = iconResId),
+                                contentDescription = "本文とタグで検索",
+                                modifier = Modifier.size(24.dp),
+                                tint = if (searchMode == SearchMode.ALL) MaterialTheme.colorScheme.primary else Color.Gray
+                            )
                         },
-                        onClick = {
-                            onTagOnlySearchChanged(!isTagOnlySearch)
-                        }
+                        modifier = menuItemModifier
                     )
 
-                    // 「全て」のメニュー項目 (contentPaddingは削除)
+                    // --- 「本文のみで検索」 ---
+                    DropdownMenuItem(
+                        text = { UserFontText(text = "本文のみ") },
+                        onClick = { onSearchModeChanged(SearchMode.TEXT_ONLY) },
+                        leadingIcon = {
+                            val iconResId = if (searchMode == SearchMode.TEXT_ONLY) R.drawable.ic_toggle_on else R.drawable.ic_toggle_off
+                            Icon(
+                                painter = painterResource(id = iconResId),
+                                contentDescription = "本文のみで検索",
+                                modifier = Modifier.size(24.dp),
+                                tint = if (searchMode == SearchMode.TEXT_ONLY) MaterialTheme.colorScheme.primary else Color.Gray
+                            )
+                        },
+                        modifier = menuItemModifier
+                    )
+
+                    // --- 「タグのみで検索」 ---
+                    DropdownMenuItem(
+                        text = { UserFontText(text = "タグのみ") },
+                        onClick = { onSearchModeChanged(SearchMode.TAG_ONLY) },
+                        leadingIcon = {
+                            val iconResId = if (searchMode == SearchMode.TAG_ONLY) R.drawable.ic_toggle_on else R.drawable.ic_toggle_off
+                            Icon(
+                                painter = painterResource(id = iconResId),
+                                contentDescription = "タグのみで検索",
+                                modifier = Modifier.size(24.dp),
+                                tint = if (searchMode == SearchMode.TAG_ONLY) MaterialTheme.colorScheme.primary else Color.Gray
+                            )
+                        },
+                        modifier = menuItemModifier
+                    )
+
+                    // --- 「全て」のSNSフィルター項目 ---
                     DropdownMenuItem(
                         text = { UserFontText(text = "All") },
-                        leadingIcon = { /* アイコンなし */ },
                         onClick = {
                             onSnsFilterChanged(null)
                             snsFilterMenuExpanded = false
-                        }
+                        },
+                        leadingIcon = { // ◀◀◀ 2. アイコン用の空のスペースを確保
+                            // 他の項目とインデントを合わせるためのダミーアイコン
+                            Spacer(modifier = Modifier.size(24.dp))
+                        },
+                        modifier = menuItemModifier
                     )
 
+                    // --- 各SNSのフィルター項目 ---
                     SnsType.entries.forEach { sns ->
                         DropdownMenuItem(
                             text = {
                                 UserFontText(
-                                    text = sns.name.lowercase().replaceFirstChar { it.uppercase() })},
+                                    text = sns.name.lowercase().replaceFirstChar { it.uppercase() })
+                            },
                             leadingIcon = {
-                                // ★★★ アイコンとテキストの間を詰めるためのRow ★★★
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     val iconResId = when (sns) {
                                         SnsType.BLUESKY -> R.drawable.ic_bluesky
@@ -240,32 +277,29 @@ fun SearchTopBar(
                                         painter = painterResource(id = iconResId),
                                         contentDescription = sns.name,
                                         modifier = Modifier.size(24.dp),
-                                        // ★★★ ここ！SNSごとのテーマカラーを適用 ★★★
                                         tint = sns.brandColor
                                     )
-                                    // Spacerでアイコンとテキストの間の距離を調整
-                                    Spacer(modifier = Modifier.width(-20.dp))
                                 }
                             },
                             onClick = {
                                 onSnsFilterChanged(sns)
                                 snsFilterMenuExpanded = false
                             },
-                            // contentPaddingの指定は削除
+                            modifier = menuItemModifier
                         )
                     }
                 }
             }
+        }
 
-            // --- 一括リセットボタン ---
-            IconButton(onClick = onReset) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_cancel),
-                    contentDescription = "Reset Search",
-                    modifier = Modifier.size(28.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            }
+        // --- 一括リセットボタン ---
+        IconButton(onClick = onReset) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_cancel),
+                contentDescription = "Reset Search",
+                modifier = Modifier.size(28.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
         }
     }
 }
@@ -274,7 +308,8 @@ fun SearchTopBar(
 fun SearchResultItem(
     post: Post,
     searchQuery: String,
-    isTagOnlySearch: Boolean,
+    // ▼▼▼ 7. isTagOnlySearch を searchMode に置き換え ▼▼▼
+    searchMode: SearchMode,
     viewModel: SearchViewModel,
     onClick: () -> Unit
 ) {
@@ -312,21 +347,24 @@ fun SearchResultItem(
     // タグ検索の場合、該当するタグを取得
     var matchingTagName by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(searchQuery, post.id) {
+    LaunchedEffect(searchQuery, post.id, searchMode) { // ◀ searchModeをキーに追加
         if (keywords.isNotEmpty()) {
             val tags = viewModel.getTagsForPost(post.id)
-            // タグ検索ON: 検索したタグを表示
-            if (isTagOnlySearch) {
-                val searchTagName = keywords.first().removePrefix("#")
-                matchingTagName = tags.find { tag ->
-                    tag.tagName.contains(searchTagName, ignoreCase = true)
-                }?.tagName
-            } else {
-                // タグ検索OFF: 検索キーワードと一致するタグがあれば表示
-                matchingTagName = keywords.firstNotNullOfOrNull { keyword ->
+            // ▼▼▼ 8. isTagOnlySearch を when (searchMode) に変更 ▼▼▼
+            matchingTagName = when (searchMode) {
+                SearchMode.TAG_ONLY -> {
+                    val searchTagName = keywords.first().removePrefix("#")
                     tags.find { tag ->
-                        tag.tagName.contains(keyword, ignoreCase = true)
+                        tag.tagName.contains(searchTagName, ignoreCase = true)
                     }?.tagName
+                }
+                SearchMode.ALL, SearchMode.TEXT_ONLY -> {
+                    // 全文検索または本文検索の場合: 念のためキーワードに一致するタグも探す
+                    keywords.firstNotNullOfOrNull { keyword ->
+                        tags.find { tag ->
+                            tag.tagName.contains(keyword, ignoreCase = true)
+                        }?.tagName
+                    }
                 }
             }
         } else {
@@ -390,7 +428,10 @@ fun SearchResultItem(
                             ) {
                                 Text(
                                     text = "#$matchingTagName",
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp), // 縦のパディングを少し減らす
+                                    modifier = Modifier.padding(
+                                        horizontal = 8.dp,
+                                        vertical = 2.dp
+                                    ), // 縦のパディングを少し減らす
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Color.Gray
                                 )

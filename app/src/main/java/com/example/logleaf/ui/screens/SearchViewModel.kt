@@ -8,6 +8,7 @@ import com.example.logleaf.Post
 import com.example.logleaf.SessionManager
 import com.example.logleaf.db.PostDao
 import com.example.logleaf.ui.entry.Tag
+import com.example.logleaf.ui.search.SearchMode
 import com.example.logleaf.ui.theme.SnsType
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -29,6 +30,10 @@ class SearchViewModel(
     private val sessionManager: SessionManager
 ) : ViewModel() {
 
+    init {
+        Log.d("VM_LIFECYCLE", "SearchViewModel instance created: ${this.hashCode()}")
+    }
+
     // --- UIの状態 ---
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
@@ -36,8 +41,8 @@ class SearchViewModel(
     private val _selectedSns = MutableStateFlow<SnsType?>(null)
     val selectedSns = _selectedSns.asStateFlow()
 
-    private val _isTagOnlySearch = MutableStateFlow(false)
-    val isTagOnlySearch = _isTagOnlySearch.asStateFlow()
+    private val _searchMode = MutableStateFlow(SearchMode.ALL)
+    val searchMode = _searchMode.asStateFlow()
 
     private val searchKeywords = searchQuery.map { query ->
         query.split(" ", "　").filter { it.isNotBlank() }
@@ -49,30 +54,51 @@ class SearchViewModel(
             _searchQuery,
             _selectedSns,
             sessionManager.accountsFlow,
-            _isTagOnlySearch
-        ) { query, sns, accounts, isTagOnly ->
+            _searchMode // ◀◀◀ 正しい「_searchMode」に修正
+        ) { query, sns, accounts, mode -> // ◀ ラムダの引数名も「mode」に修正
             val keywords = query.split(" ", "　").filter { it.isNotBlank() }
-            Quadruple(keywords, sns, accounts, isTagOnly)
+            Quadruple(keywords, sns, accounts, mode) // ◀ Quadrupleに渡す変数も「mode」に修正
         }
             .debounce(300L)
-            .flatMapLatest { (keywords, sns, accounts, isTagOnly) ->
-                if (keywords.isEmpty()) {
-                    flowOf(emptyList())
-                } else {
-                    val visibleAccountIds = accounts.filter { it.isVisible }.map { it.userId }
-                    if (visibleAccountIds.isEmpty()) {
-                        flowOf(emptyList())
-                    } else {
-                        if (isTagOnly) {
+            .flatMapLatest { (keywords, sns, accounts, mode) ->
+                // アカウントIDの準備は先に行う
+                val allAccountIds = accounts.map { it.userId }
+                if (allAccountIds.isEmpty()) {
+                    return@flatMapLatest flowOf(emptyList())
+                }
+
+                // when式で、モードごとに必要な処理を行う
+                when (mode) {
+                    // タグ検索
+                    SearchMode.TAG_ONLY -> {
+                        if (keywords.isEmpty()) {
+                            flowOf(emptyList())
+                        } else {
                             val tagName = keywords.first().removePrefix("#")
-                            val allAccountIds = accounts.map { it.userId }
                             val tagNamePattern = "%$tagName%"
                             postDao.searchPostsByTag(tagNamePattern, allAccountIds)
+                        }
+                    }
+                    // 本文のみ検索
+                    SearchMode.TEXT_ONLY -> {
+                        if (keywords.isEmpty()) {
+                            flowOf(emptyList())
                         } else {
-                            val visibleAccountIds = accounts.filter { it.isVisible }.map { it.userId } + "LOGLEAF_INTERNAL_POST"
+                            postDao.searchPostsByTextOnly(
+                                keywords = keywords,
+                                visibleAccountIds = allAccountIds,
+                                includeHidden = 0
+                            )
+                        }
+                    }
+                    // 全文検索
+                    SearchMode.ALL -> {
+                        if (keywords.isEmpty()) {
+                            flowOf(emptyList())
+                        } else {
                             postDao.searchPostsWithAnd(
                                 keywords = keywords,
-                                visibleAccountIds = visibleAccountIds,
+                                visibleAccountIds = allAccountIds,
                                 includeHidden = 0
                             )
                         }
@@ -110,20 +136,21 @@ class SearchViewModel(
     }
 
     fun searchByTag(tagName: String) {
-        _isTagOnlySearch.value = true
+        _searchMode.value = SearchMode.TAG_ONLY // ◀◀◀ 1. 修正
         _searchQuery.value = tagName
         Log.d("TagSearch", "タグ検索実行: tagName=${tagName}")
     }
 
-    fun onTagOnlySearchChanged(isTagOnly: Boolean) {
-        _isTagOnlySearch.value = isTagOnly
+    fun onSearchModeChanged(mode: SearchMode) {
+        _searchMode.value = mode
     }
 
     fun onReset() {
         _searchQuery.value = ""
         _selectedSns.value = null
-        _isTagOnlySearch.value = false // ◀◀ リセット時にも状態を戻す
+        _searchMode.value = SearchMode.ALL // ◀ isTagOnlySearch から変更
     }
+
 
     data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 

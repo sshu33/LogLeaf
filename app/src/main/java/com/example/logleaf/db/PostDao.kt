@@ -132,6 +132,48 @@ interface PostDao {
     @RawQuery(observedEntities = [Post::class])
     fun searchPostsWithAndRaw(query: SimpleSQLiteQuery): Flow<List<Post>>
 
+    fun searchPostsByTextOnly(keywords: List<String>, visibleAccountIds: List<String>, includeHidden: Int): Flow<List<Post>> {
+        if (keywords.isEmpty()) {
+            return getAllPosts(visibleAccountIds, includeHidden)
+        }
+
+        val finalVisibleIds = visibleAccountIds + "LOGLEAF_INTERNAL_POST"
+        val queryBuilder = StringBuilder()
+        val args = mutableListOf<Any>()
+
+        queryBuilder.append("SELECT * FROM posts AS P ") // ◀ JOINは不要
+
+        val finalQuery = queryBuilder.toString()
+
+        // WHERE句：アカウントIDのフィルタ
+        queryBuilder.append("WHERE P.accountId IN (")
+        queryBuilder.append(finalVisibleIds.joinToString(",") { "?" })
+        queryBuilder.append(") ")
+        args.addAll(finalVisibleIds)
+
+        // WHERE句：キーワード条件（本文のみ）
+        queryBuilder.append("AND (")
+        queryBuilder.append(keywords.joinToString(separator = " AND ") {
+            "P.text LIKE ?" // ◀ T.tagName LIKE ? を削除
+        })
+        queryBuilder.append(") ")
+        keywords.forEach { keyword ->
+            args.add("%$keyword%")
+        }
+
+        // WHERE句：非表示条件
+        if (includeHidden == 0) {
+            queryBuilder.append("AND P.isHidden = 0 ")
+        }
+
+        queryBuilder.append("ORDER BY P.createdAt DESC")
+
+        return searchPostsByTextOnlyRaw(SimpleSQLiteQuery(queryBuilder.toString(), args.toTypedArray()))
+    }
+
+    @RawQuery(observedEntities = [Post::class])
+    fun searchPostsByTextOnlyRaw(query: SimpleSQLiteQuery): Flow<List<Post>>
+
 
     @Query("DELETE FROM posts WHERE accountId = :accountId")
     suspend fun deletePostsByAccountId(accountId: String)
