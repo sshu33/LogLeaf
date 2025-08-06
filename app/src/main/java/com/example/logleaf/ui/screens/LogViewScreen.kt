@@ -84,6 +84,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.logleaf.PostWithTagsAndImages
+import com.example.logleaf.UiPost
 import com.example.logleaf.ui.components.SmartTagDisplay
 import com.example.logleaf.ui.entry.PostImage
 import com.example.logleaf.ui.entry.Tag
@@ -109,13 +110,13 @@ import kotlin.math.abs
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun LogViewScreen(
-    posts: List<PostWithTagsAndImages>,
+    uiPosts: List<UiPost>,
     targetPostId: String,
     onDismiss: () -> Unit,
     navController: NavController,
     onStartEditingPost: (PostWithTagsAndImages) -> Unit,
     onSetPostHidden: (String, Boolean) -> Unit,
-    onDeletePost: (String) -> Unit
+    onDeletePost: (PostWithTagsAndImages) -> Unit,
 ) {
     val (enlargedImageState, setEnlargedImageState) = remember { mutableStateOf<EnlargedImageState?>(null) }
     val listState = rememberLazyListState()
@@ -140,9 +141,9 @@ fun LogViewScreen(
     }
 
     // スクロール処理
-    LaunchedEffect(posts, targetPostId) {
-        if (posts.isNotEmpty() && targetPostId.isNotEmpty()) {
-            val index = posts.indexOfFirst { it.post.id == targetPostId }
+    LaunchedEffect(uiPosts, targetPostId) {
+        if (uiPosts.isNotEmpty() && targetPostId.isNotEmpty()) {
+            val index = uiPosts.indexOfFirst { it.postWithTagsAndImages.post.id == targetPostId }
             if (index != -1) {
                 listState.animateScrollToItem(index)
             }
@@ -175,18 +176,18 @@ fun LogViewScreen(
                     .calculateBottomPadding() + 16.dp // ★★★ ナビゲーションバー + 余白
             )
         ) {
-            items(posts, key = { it.post.id }) { postWithTagsAndImages ->
+            items(uiPosts, key = { it.postWithTagsAndImages.post.id }) { uiPost ->
                 LogViewPostCard(
-                    postWithTagsAndImages = postWithTagsAndImages,
-                    scale = if (postWithTagsAndImages.post.id == targetPostId) scale.value else 1f,
+                    uiPost = uiPost, // ◀ ここを uiPost に変更
+                    scale = if (uiPost.postWithTagsAndImages.post.id == targetPostId) scale.value else 1f, // ◀ 参照方法を変更
                     onImageClick = { uri ->
-                        val clickedImageIndex = postWithTagsAndImages.images.indexOfFirst {
+                        val clickedImageIndex = uiPost.postWithTagsAndImages.images.indexOfFirst { // ◀ 参照方法を変更
                             it.imageUrl == uri.toString()
                         }
                         if (clickedImageIndex != -1) {
                             setEnlargedImageState(
                                 EnlargedImageState(
-                                    images = postWithTagsAndImages.images,
+                                    images = uiPost.postWithTagsAndImages.images, // ◀ 参照方法を変更
                                     initialIndex = clickedImageIndex
                                 )
                             )
@@ -201,17 +202,14 @@ fun LogViewScreen(
                     },
                     // ★★★ 追加：投稿操作のコールバック ★★★
                     onStartEditing = {
-                        // 編集の場合：ログビューを閉じてからカレンダー画面で編集開始
                         onDismiss()
-                        onStartEditingPost(postWithTagsAndImages)
+                        onStartEditingPost(uiPost.postWithTagsAndImages) // ◀ 元のデータを渡す
                     },
                     onSetHidden = { isHidden ->
-                        // 非表示切り替え：ログビュー上でそのまま実行
-                        onSetPostHidden(postWithTagsAndImages.post.id, isHidden)
+                        onSetPostHidden(uiPost.postWithTagsAndImages.post.id, isHidden) // ◀ 元のデータを渡す
                     },
                     onDelete = {
-                        // 削除：ログビュー上でそのまま実行
-                        postWithTagsAndImages
+                        onDeletePost(uiPost.postWithTagsAndImages) // ◀ 元のデータを渡す
                     },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
                 )
@@ -219,9 +217,9 @@ fun LogViewScreen(
         }
 
         // インデックスタブ
-        if (posts.isNotEmpty()) {
-            val firstPostDate = remember(posts) {
-                posts.first().post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
+        if (uiPosts.isNotEmpty()) {
+            val firstPostDate = remember(uiPosts) {
+            uiPosts.first().postWithTagsAndImages.post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
                     .toLocalDate()
             }
             IndexTab(
@@ -325,17 +323,17 @@ fun IndexTab(dateString: String, onClick: () -> Unit, modifier: Modifier = Modif
 
 @Composable
 fun LogViewPostCard(
-    postWithTagsAndImages: PostWithTagsAndImages,
+    uiPost: UiPost,
     scale: Float,
     onImageClick: (Uri) -> Unit,
     onTagClick: (String) -> Unit,
-    // ★★★ 追加：長押しメニュー用のコールバック ★★★
     onStartEditing: () -> Unit,
     onSetHidden: (Boolean) -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
 
+    val postWithTagsAndImages = uiPost.postWithTagsAndImages // ◀ 元データはここから取得
     val post = postWithTagsAndImages.post
     val localDateTime = post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
     val timeString = localDateTime.format(DateTimeFormatter.ofPattern("HH:mm"))
@@ -419,7 +417,7 @@ fun LogViewPostCard(
                         }
                     }
                     HyperlinkUserFontText(
-                        fullText = post.text,
+                        fullText = uiPost.displayText,
                         style = MaterialTheme.typography.bodyLarge
                     )
                     if (postWithTagsAndImages.images.isNotEmpty()) {

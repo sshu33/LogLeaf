@@ -70,7 +70,11 @@ data class UiState(
     val requestFocus: Boolean = false,
     val favoriteTags: List<Tag> = emptyList(),
     val frequentlyUsedTags: List<Tag> = emptyList()
-)
+) {
+    val displayPosts: List<UiPost> by lazy {
+        allPosts.map { UiPost(it) }
+    }
+}
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModel(

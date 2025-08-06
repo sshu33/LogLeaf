@@ -9,7 +9,15 @@ import java.util.regex.Pattern
  * 例: "#タグ のみ" -> "#タグ のみ" (文頭は削除しない)
  */
 fun String.removeTrailingHashtags(): String {
-    // パターン: (1つ以上の空白 + #で始まる単語)が1回以上続き、それが文字列の末尾にある
     val regex = """((?:\s*#\S+)+)$""".toRegex()
-    return this.replace(regex, "").trim()
+    val afterRemoval = this.replace(regex, "").trim()
+
+    // もし、ハッシュタグを削除した結果が空文字列になるなら、
+    // それは元々ハッシュタグのみの投稿だったということ。
+    // その場合は、元の文字列をそのまま返す。
+    return if (afterRemoval.isEmpty()) {
+        this.trim() // 元の文字列の前後の空白だけは除去して返す
+    } else {
+        afterRemoval
+    }
 }

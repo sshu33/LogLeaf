@@ -89,6 +89,7 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.logleaf.Post
 import com.example.logleaf.PostWithTagsAndImages
+import com.example.logleaf.UiPost
 import com.example.logleaf.UiState
 import com.example.logleaf.ui.entry.PostImage
 import com.example.logleaf.ui.theme.SettingsTheme
@@ -124,7 +125,7 @@ fun CalendarScreen(
     onToggleShowHidden: () -> Unit,
     onStartEditingPost: (PostWithTagsAndImages) -> Unit,
     onSetPostHidden: (String, Boolean) -> Unit,
-    onDeletePost: (String) -> Unit,
+    onDeletePost: (PostWithTagsAndImages) -> Unit,
     scrollToTopEvent: Boolean,
     onConsumeScrollToTopEvent: () -> Unit
 ) {
@@ -259,7 +260,7 @@ fun CalendarScreen(
                     ) {
                         items(postsForSelectedDay, key = { it.post.id }) { postWithTagsAndImages ->
                             CalendarPostCardItem(
-                                postWithTagsAndImages = postWithTagsAndImages, // 引数名変更
+                                uiPost = UiPost(postWithTagsAndImages), // ◀◀◀ ここを修正
                                 maxLines = 5,
                                 isFocused = (postWithTagsAndImages.post.id == focusedPostIdForRipple),
                                 onClick = { postForDetail = postWithTagsAndImages },
@@ -283,7 +284,7 @@ fun CalendarScreen(
                                         isHidden
                                     )
                                 },
-                                onDelete = { onDeletePost(postWithTagsAndImages.post.id) }
+                                onDelete = { onDeletePost(postWithTagsAndImages) }
                             )
                         }
                     }
@@ -300,7 +301,7 @@ fun CalendarScreen(
                 )
             ) {
                 LogViewScreen(
-                    posts = postsForSelectedDay,
+                    uiPosts = postsForSelectedDay.map { UiPost(it) },
                     targetPostId = postForDetail!!.post.id,
                     onDismiss = { postForDetail = null },
                     navController = navController,
@@ -649,7 +650,7 @@ fun DayCell(
 @OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun CalendarPostCardItem(
-    postWithTagsAndImages: PostWithTagsAndImages, // 引数変更
+    uiPost: UiPost,
     maxLines: Int,
     isFocused: Boolean,
     onStartEditing: () -> Unit,
@@ -659,6 +660,7 @@ fun CalendarPostCardItem(
     onImageClick: (Uri) -> Unit,
 ) {
     // 分解して従来通りに使用
+    val postWithTagsAndImages = uiPost.postWithTagsAndImages
     val post = postWithTagsAndImages.post
     val tags = postWithTagsAndImages.tags
     val images = postWithTagsAndImages.images
@@ -678,19 +680,22 @@ fun CalendarPostCardItem(
         }
     }
 
+    val cardShape = RoundedCornerShape(12.dp)
+
     Box {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .alpha(if (post.isHidden) 0.6f else 1.0f)
-                .combinedClickable(
+                .clip(cardShape) // ◀◀◀ 1. この形状でクリッピングする
+                .combinedClickable( // ◀◀◀ 2. その後でクリック可能にする
                     interactionSource = interactionSource,
                     indication = rememberRipple(),
                     onClick = onClick,
                     onLongClick = { isMenuExpanded = true }
                 ),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-            shape = RoundedCornerShape(12.dp),
+            shape = cardShape, // ◀◀◀ 定数を再利用
             colors = CardDefaults.cardColors(
                 containerColor = Color.White,
                 contentColor = MaterialTheme.colorScheme.onSurface
@@ -734,7 +739,7 @@ fun CalendarPostCardItem(
                         .padding(start = 12.dp)
                 ) {
                     Text(
-                        text = post.text,
+                        text = uiPost.displayText,
                         style = MaterialTheme.typography.bodyLarge,
                         maxLines = maxLines,
                         overflow = TextOverflow.Ellipsis
