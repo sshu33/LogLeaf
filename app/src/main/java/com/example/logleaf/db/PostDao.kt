@@ -416,5 +416,37 @@ interface PostDao {
 
     @Update
     suspend fun updateTags(tags: List<Tag>)
+
+    /**
+     * タグを一時表示状態に設定します
+     * @param tagName 一時表示にするタグ名
+     */
+    @Query("UPDATE tags SET isTemporaryShown = 1 WHERE tagName = :tagName")
+    suspend fun setTagTemporaryShown(tagName: String)
+
+    /**
+     * 全てのタグの一時表示状態をクリアします
+     */
+    @Query("UPDATE tags SET isTemporaryShown = 0")
+    suspend fun clearAllTemporaryShown()
+
+    /**
+     * よく使うタグ + 一時表示タグを取得します
+     * 一時表示タグは最下位に表示されます
+     */
+    @Query("""
+    SELECT T.* FROM tags AS T
+    INNER JOIN post_tag_cross_ref AS PTC ON T.tagId = PTC.tagId
+    WHERE T.isFavorite = 0 AND T.isTemporaryShown = 0
+    GROUP BY T.tagName
+    ORDER BY COUNT(PTC.tagId) DESC
+    LIMIT 10
+""")
+    fun getFrequentlyUsedTagsWithTemp(): Flow<List<Tag>>
+
+
+    // 2. 一時表示タグのみ取得
+    @Query("SELECT * FROM tags WHERE isFavorite = 0 AND isTemporaryShown = 1 ORDER BY tagName ASC")
+    fun getTemporaryShownTags(): Flow<List<Tag>>
 }
 

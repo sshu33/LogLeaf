@@ -120,7 +120,12 @@ class MainViewModel(
             posts.sortedByDescending { it.post.createdAt }
         }
     private val favoriteTagsFlow: Flow<List<Tag>> = postDao.getFavoriteTags()
-    private val frequentlyUsedTagsFlow: Flow<List<Tag>> = postDao.getFrequentlyUsedTags()
+    private val frequentlyUsedTagsFlow: Flow<List<Tag>> = combine(
+        postDao.getFrequentlyUsedTags(),
+        postDao.getTemporaryShownTags()
+    ) { frequentlyUsed, temporaryShown ->
+        frequentlyUsed + temporaryShown  // よく使うタグ + 一時表示タグ
+    }
 
     private val uniqueFrequentlyUsedTagsFlow: Flow<List<Tag>> = frequentlyUsedTagsFlow.map { tags ->
         tags.distinctBy { it.tagName }
@@ -259,6 +264,7 @@ class MainViewModel(
             fetchPosts(sessionManager.accountsFlow.first()).join()
         }
     }
+
 
     // ▼▼▼ [変更点4] fetchPostsはAPIからのデータ取得とDBへの保存だけに専念 ▼▼▼
     private fun fetchPosts(accounts: List<Account>): Job {
@@ -609,6 +615,7 @@ class MainViewModel(
             // 5. 下書きをクリアしてダイアログを閉じる
             withContext(Dispatchers.Main) {
                 clearDraftAndDismiss()
+                clearTemporaryTags()
 
                 if (isNewPost) {
                     // データ保存と同時にスクロール（即座に実行）
@@ -714,6 +721,8 @@ class MainViewModel(
         _postEntryState.update { it.copy(requestFocus = false) }
     }
 
+
+
     fun onAddTag(tagName: String) {
         val trimmed = tagName.trim()
         if (trimmed.isBlank()) return
@@ -721,19 +730,18 @@ class MainViewModel(
         _postEntryState.update { currentState ->
             if (currentState.currentTags.none { it.tagName.equals(trimmed, ignoreCase = true) }) {
 
-                // ★★★ 重複チェック追加 ★★★
+                // ★★★ 新規・既存問わず一時表示に設定 ★★★
                 viewModelScope.launch(Dispatchers.IO) {
                     val existingTagId = postDao.getTagIdByName(trimmed)
                     if (existingTagId == null) {
+                        // 新規タグの場合：作成 + 一時表示
                         postDao.insertTag(Tag(tagName = trimmed))
-                    }
-                }
-
-                // ★★★ 追加：タグをDBに即座に保存 ★★★
-                viewModelScope.launch(Dispatchers.IO) {
-                    val existingTagId = postDao.getTagIdByName(trimmed)
-                    if (existingTagId == null) {
-                        postDao.insertTag(Tag(tagName = trimmed))
+                        postDao.setTagTemporaryShown(trimmed)
+                        Log.d("TagDebug", "新規タグ '$trimmed' を作成 & 一時表示に設定")
+                    } else {
+                        // 既存タグの場合：一時表示のみ
+                        postDao.setTagTemporaryShown(trimmed)
+                        Log.d("TagDebug", "既存タグ '$trimmed' を一時表示に設定")
                     }
                 }
 
@@ -746,9 +754,12 @@ class MainViewModel(
                 currentState
             }
         }
+    }
+
+    private fun clearTemporaryTags() {
         viewModelScope.launch(Dispatchers.IO) {
-            val allTags = postDao.getAllTagsForDebug()
-            Log.d("TagDebug", "全タグ: ${allTags.map { "${it.tagName}(${it.tagId})" }}")
+            postDao.clearAllTemporaryShown()
+            Log.d("TagDebug", "一時表示タグをクリア")
         }
     }
 

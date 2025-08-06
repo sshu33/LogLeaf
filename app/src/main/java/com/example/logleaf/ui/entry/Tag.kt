@@ -9,5 +9,6 @@ data class Tag(
     val tagId: Long = 0,
     val tagName: String,
     val isFavorite: Boolean = false,
-    val favoriteOrder: Int = 0
+    val favoriteOrder: Int = 0,
+    val isTemporaryShown: Boolean = false  // ★ 追加：一時表示フラグ
 )
