@@ -326,19 +326,19 @@ interface PostDao {
 
     /**
      * 指定されたタグ名を持つ投稿を検索します。
-     * 内部的に、まずタグ名からタグIDを検索し、そのタグIDが付けられた投稿をすべて取得します。
+     * 部分マッチに対応し、「タグ」で検索すると「#タグ大量」なども含む投稿がヒットします。
      */
     @Transaction
     @Query("""
-        SELECT P.* FROM posts AS P
-        INNER JOIN post_tag_cross_ref AS PTC ON P.id = PTC.postId
-        INNER JOIN tags AS T ON PTC.tagId = T.tagId
-        WHERE T.tagName = :tagName
-        AND (P.accountId IN (:visibleAccountIds) OR P.accountId = 'LOGLEAF_INTERNAL_POST')
-        AND P.isHidden = 0
-        ORDER BY P.createdAt DESC
-    """)
-    fun searchPostsByTag(tagName: String, visibleAccountIds: List<String>): Flow<List<Post>>
+    SELECT P.* FROM posts AS P
+    INNER JOIN post_tag_cross_ref AS PTC ON P.id = PTC.postId
+    INNER JOIN tags AS T ON PTC.tagId = T.tagId
+    WHERE T.tagName LIKE :tagNamePattern
+    AND (P.accountId IN (:visibleAccountIds) OR P.accountId = 'LOGLEAF_INTERNAL_POST')
+    AND P.isHidden = 0
+    ORDER BY P.createdAt DESC
+""")
+    fun searchPostsByTag(tagNamePattern: String, visibleAccountIds: List<String>): Flow<List<Post>>
 
     /**
      * 投稿IDからタグ情報を取得する（検索結果用）

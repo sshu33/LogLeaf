@@ -66,7 +66,8 @@ class SearchViewModel(
                         if (isTagOnly) {
                             val tagName = keywords.first().removePrefix("#")
                             val allAccountIds = accounts.map { it.userId }
-                            postDao.searchPostsByTag(tagName, allAccountIds)
+                            val tagNamePattern = "%$tagName%"
+                            postDao.searchPostsByTag(tagNamePattern, allAccountIds)
                         } else {
                             val visibleAccountIds = accounts.filter { it.isVisible }.map { it.userId } + "LOGLEAF_INTERNAL_POST"
                             postDao.searchPostsWithAnd(

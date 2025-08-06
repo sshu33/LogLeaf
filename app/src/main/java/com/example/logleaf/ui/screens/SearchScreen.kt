@@ -318,11 +318,15 @@ fun SearchResultItem(
             // タグ検索ON: 検索したタグを表示
             if (isTagOnlySearch) {
                 val searchTagName = keywords.first().removePrefix("#")
-                matchingTagName = tags.find { it.tagName.equals(searchTagName, ignoreCase = true) }?.tagName
+                matchingTagName = tags.find { tag ->
+                    tag.tagName.contains(searchTagName, ignoreCase = true)
+                }?.tagName
             } else {
                 // タグ検索OFF: 検索キーワードと一致するタグがあれば表示
                 matchingTagName = keywords.firstNotNullOfOrNull { keyword ->
-                    tags.find { it.tagName.equals(keyword, ignoreCase = true) }?.tagName
+                    tags.find { tag ->
+                        tag.tagName.contains(keyword, ignoreCase = true)
+                    }?.tagName
                 }
             }
         } else {
