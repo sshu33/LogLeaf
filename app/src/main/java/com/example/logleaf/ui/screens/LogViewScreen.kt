@@ -6,6 +6,7 @@ import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -536,6 +537,13 @@ fun ZoomableImageDialog(
 
     var isFirstLoad by remember { mutableStateOf(true) }
 
+    var controlsVisible by remember { mutableStateOf(true) }
+    val controlsAlpha by animateFloatAsState(
+        targetValue = if (controlsVisible) 1f else 0.3f, // 薄くするだけ（非表示にはしない）
+        animationSpec = tween(durationMillis = 300),
+        label = "controls_alpha"
+    )
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -552,11 +560,20 @@ fun ZoomableImageDialog(
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = backgroundAlpha))
                     .pointerInput(Unit) {
-                        // ダブルタップ検出
                         detectTapGestures(
+                            onTap = { tapOffset ->
+                                // ●領域の範囲を計算
+                                val controlsHeight = 140.dp.toPx()
+                                val isInControlsArea = tapOffset.y > (size.height - controlsHeight)
+
+                                if (!isInControlsArea) {
+                                    // ●領域以外のタップで薄く/濃く切り替え
+                                    controlsVisible = !controlsVisible
+                                }
+                            },
                             onDoubleTap = {
-                                // 拡大されている時のみ元に戻す
-                                if (scale > 1f) {
+                                // 拡大されている時 OR 位置がずれている時に元に戻す
+                                if (scale > 1f || offset != Offset.Zero) {
                                     scope.launch {
                                         val scaleAnimation = async {
                                             Animatable(scale).animateTo(1f, tween(100))
@@ -567,12 +584,18 @@ fun ZoomableImageDialog(
                                                 tween(100)
                                             )
                                         }
+                                        val alphaAnimation = async {
+                                            Animatable(backgroundAlpha).animateTo(1f, tween(100))
+                                        }
 
                                         scaleAnimation.await()
                                         scale = 1f
 
                                         offsetAnimation.await()
                                         offset = Offset.Zero
+
+                                        alphaAnimation.await()
+                                        backgroundAlpha = 1f
                                     }
                                 }
                             }
@@ -604,10 +627,11 @@ fun ZoomableImageDialog(
                             if (!isZooming) {
                                 if (scale > 1f) {
                                     // 拡大中：制限付きパン操作
+                                    val margin = 50.dp.toPx() // ★ 周りの余裕
                                     val imageWidthScaled = screenWidthPx * scale
                                     val imageHeightScaled = screenHeightPx * scale
-                                    val maxX = maxOf(0f, (imageWidthScaled - screenWidthPx) / 2)
-                                    val maxY = maxOf(0f, (imageHeightScaled - screenHeightPx) / 2)
+                                    val maxX = maxOf(0f, (imageWidthScaled - screenWidthPx) / 2) + margin // ★ 余裕追加
+                                    val maxY = maxOf(0f, (imageHeightScaled - screenHeightPx) / 2) + margin // ★ 余裕追加
 
                                     val newOffset = offset + pan
                                     offset = Offset(
@@ -615,33 +639,30 @@ fun ZoomableImageDialog(
                                         y = newOffset.y.coerceIn(-maxY, maxY)
                                     )
                                 } else if (oldScale <= 1f) {
-                                    // 拡大されていない時：下方向スワイプのみ許可
+                                    // 拡大されていない時
                                     if (pan.y > 0) {
-                                        // 下スワイプ
+                                        // 下スワイプ（閉じる機能）
                                         offset = Offset(0f, maxOf(0f, offset.y + pan.y))
-
-                                        // 背景透明度の調整（同期処理）
-                                        backgroundAlpha =
-                                            (1f - offset.y / (screenHeightPx / 6f)).coerceIn(
-                                                0.2f,
-                                                1f
-                                            )
-                                    } else if (pan.y < 0 && offset.y > 0f) {
-                                        // 上スワイプで位置リセット（下にずれている場合のみ）
-                                        val newY = maxOf(0f, offset.y + pan.y)
+                                        backgroundAlpha = (1f - offset.y / (screenHeightPx / 6f)).coerceIn(0.2f, 1f)
+                                    } else if (pan.y < 0) {
+                                        // 上スワイプ（●領域を避けるため画像を上に移動）
+                                        val maxUpMove = 140.dp.toPx()
+                                        val newY = if (offset.y > 0f) {
+                                            // 既に下にずれている場合は元に戻す
+                                            maxOf(-maxUpMove, offset.y + pan.y)
+                                        } else {
+                                            // 通常位置から上に移動
+                                            (offset.y + pan.y).coerceIn(-maxUpMove, 0f)
+                                        }
                                         offset = Offset(0f, newY)
 
-                                        if (newY == 0f) {
-                                            backgroundAlpha = 1f
+                                        // 背景透明度も調整
+                                        if (newY >= 0f) {
+                                            backgroundAlpha = (1f - newY / (screenHeightPx / 6f)).coerceIn(0.2f, 1f)
                                         } else {
-                                            backgroundAlpha =
-                                                (1f - newY / (screenHeightPx / 6f)).coerceIn(
-                                                    0.2f,
-                                                    1f
-                                                )
+                                            backgroundAlpha = 1f // 上移動時は透明度は変えない
                                         }
                                     }
-                                    // 横スワイプは無視（offset.xは常に0のまま）
                                 }
                             }
                         }
@@ -747,7 +768,7 @@ fun ZoomableImageDialog(
                         contentDescription = "拡大画像 $currentImageIndex",
                         contentScale = ContentScale.Fit,
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .fillMaxSize()
                             .graphicsLayer {
                                 scaleX = scale
                                 scaleY = scale
@@ -763,9 +784,12 @@ fun ZoomableImageDialog(
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 60.dp)
+                    .padding(
+                        bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 20.dp
+                    )
                     .fillMaxWidth()
                     .height(60.dp)
+                    .alpha(controlsAlpha)
                     .background(Color.Black.copy(alpha = 0.7f))
                     .pointerInput(Unit) {
                         var isLongPress = false
