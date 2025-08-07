@@ -30,15 +30,11 @@ class SearchViewModel(
     private val sessionManager: SessionManager
 ) : ViewModel() {
 
-    init {
-        Log.d("VM_LIFECYCLE", "SearchViewModel instance created: ${this.hashCode()}")
-    }
-
     // --- UIの状態 ---
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
 
-    private val _selectedSns = MutableStateFlow<SnsType?>(null)
+    private val _selectedSns = MutableStateFlow(SnsType.entries.toSet())
     val selectedSns = _selectedSns.asStateFlow()
 
     private val _searchMode = MutableStateFlow(SearchMode.ALL)
@@ -52,15 +48,15 @@ class SearchViewModel(
     val searchResultPosts: StateFlow<List<Post>> =
         combine(
             _searchQuery,
-            _selectedSns,
+            _selectedSns, // ◀ 型は変わったが、監視対象であることは同じ
             sessionManager.accountsFlow,
-            _searchMode // ◀◀◀ 正しい「_searchMode」に修正
-        ) { query, sns, accounts, mode -> // ◀ ラムダの引数名も「mode」に修正
+            _searchMode
+        ) { query, selectedSnsSet, accounts, mode -> // ◀ 引数名を selectedSnsSet に変更
             val keywords = query.split(" ", "　").filter { it.isNotBlank() }
-            Quadruple(keywords, sns, accounts, mode) // ◀ Quadrupleに渡す変数も「mode」に修正
+            Quadruple(keywords, selectedSnsSet, accounts, mode) // ◀ Quadrupleに渡す
         }
             .debounce(300L)
-            .flatMapLatest { (keywords, sns, accounts, mode) ->
+            .flatMapLatest { (keywords, selectedSnsSet, accounts, mode) ->
                 // アカウントIDの準備は先に行う
                 val allAccountIds = accounts.map { it.userId }
                 if (allAccountIds.isEmpty()) {
@@ -106,11 +102,12 @@ class SearchViewModel(
                 }
             }
             .map { posts ->
-                val snsValue = selectedSns.value
-                if (snsValue != null) {
-                    posts.filter { it.source == snsValue }
+                val selectedSnsValue = selectedSns.value
+                // 選択されたSNSが空でなければ（=何かで絞り込まれていれば）フィルタリング
+                if (selectedSnsValue.isNotEmpty()) {
+                    posts.filter { it.source in selectedSnsValue }
                 } else {
-                    posts
+                    emptyList()
                 }
             }
             .stateIn(
@@ -131,8 +128,34 @@ class SearchViewModel(
         _searchQuery.value = query
     }
 
-    fun onSnsFilterChanged(snsType: SnsType?) {
-        _selectedSns.value = snsType
+    fun onSnsFilterChanged(snsType: SnsType) {
+        val currentSelection = _selectedSns.value.toMutableSet()
+        val isCurrentlyAllSelected = currentSelection.size == SnsType.entries.size
+
+        // ★★★ 仕様の核となるロジック ★★★
+        if (isCurrentlyAllSelected) {
+            // 現在が「全選択」の場合、タップされたSNS一つだけを選択状態にする
+            _selectedSns.value = setOf(snsType)
+        } else {
+            // それ以外の場合は、通常のトグル（追加/削除）を行う
+            if (currentSelection.contains(snsType)) {
+                currentSelection.remove(snsType)
+            } else {
+                currentSelection.add(snsType)
+            }
+            _selectedSns.value = currentSelection
+        }
+    }
+
+    fun onAllSnsToggled() {
+        val isCurrentlyAllSelected = _selectedSns.value.size == SnsType.entries.size
+
+        // 全選択状態であれば空に、そうでなければ全選択にする（ON/OFFトグル）
+        if (isCurrentlyAllSelected) {
+            _selectedSns.value = emptySet()
+        } else {
+            _selectedSns.value = SnsType.entries.toSet()
+        }
     }
 
     fun searchByTag(tagName: String) {
@@ -147,8 +170,8 @@ class SearchViewModel(
 
     fun onReset() {
         _searchQuery.value = ""
-        _selectedSns.value = null
-        _searchMode.value = SearchMode.ALL // ◀ isTagOnlySearch から変更
+        _selectedSns.value = SnsType.entries.toSet() // ◀ 全選択状態に戻す
+        _searchMode.value = SearchMode.ALL
     }
 
 

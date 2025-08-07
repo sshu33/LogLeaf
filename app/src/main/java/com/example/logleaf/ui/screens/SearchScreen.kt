@@ -81,9 +81,9 @@ fun SearchScreen(
             SearchTopBar(
                 query = searchQuery,
                 onQueryChanged = viewModel::onQueryChanged,
-                selectedSns = selectedSns,
+                selectedSns = selectedSns, // ◀ 型は変わったが、そのまま渡す
                 onSnsFilterChanged = viewModel::onSnsFilterChanged,
-                // ▼▼▼ 3. 引数を searchMode と onSearchModeChanged に変更 ▼▼▼
+                onAllSnsToggled = viewModel::onAllSnsToggled, // ◀ 新しい関数を渡す
                 searchMode = searchMode,
                 onSearchModeChanged = viewModel::onSearchModeChanged,
                 onReset = viewModel::onReset
@@ -128,8 +128,9 @@ fun SearchScreen(
 fun SearchTopBar(
     query: String,
     onQueryChanged: (String) -> Unit,
-    selectedSns: SnsType?,
-    onSnsFilterChanged: (SnsType?) -> Unit,
+    selectedSns: Set<SnsType>,
+    onSnsFilterChanged: (SnsType) -> Unit,
+    onAllSnsToggled: () -> Unit,
     searchMode: SearchMode,
     onSearchModeChanged: (SearchMode) -> Unit,
     onReset: () -> Unit
@@ -174,8 +175,7 @@ fun SearchTopBar(
         // --- フィルターとリセットのアイコンをグループ化 ---
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            // ★★★ 2. アイコン間のスペースを調整 ★★★
-            horizontalArrangement = Arrangement.spacedBy(0.dp) // 4.dpくらいに詰める
+            horizontalArrangement = Arrangement.spacedBy(0.dp)
         ) {
             // --- SNSフィルターボタン ---
             Box {
@@ -196,6 +196,14 @@ fun SearchTopBar(
                 ) {
 
                     val menuItemModifier = Modifier.height(36.dp)
+                    val indentedContentPadding = PaddingValues(horizontal = 24.dp, vertical = 0.dp)
+
+                    Text(
+                        text = "Search Mode",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp)
+                    )
 
                     // --- 「本文とタグで検索」 ---
                     DropdownMenuItem(
@@ -210,7 +218,8 @@ fun SearchTopBar(
                                 tint = if (searchMode == SearchMode.ALL) MaterialTheme.colorScheme.primary else Color.Gray
                             )
                         },
-                        modifier = menuItemModifier
+                        modifier = menuItemModifier,
+                        contentPadding = indentedContentPadding
                     )
 
                     // --- 「本文のみで検索」 ---
@@ -226,7 +235,8 @@ fun SearchTopBar(
                                 tint = if (searchMode == SearchMode.TEXT_ONLY) MaterialTheme.colorScheme.primary else Color.Gray
                             )
                         },
-                        modifier = menuItemModifier
+                        modifier = menuItemModifier,
+                        contentPadding = indentedContentPadding
                     )
 
                     // --- 「タグのみで検索」 ---
@@ -242,50 +252,59 @@ fun SearchTopBar(
                                 tint = if (searchMode == SearchMode.TAG_ONLY) MaterialTheme.colorScheme.primary else Color.Gray
                             )
                         },
-                        modifier = menuItemModifier
+                        modifier = menuItemModifier,
+                        contentPadding = indentedContentPadding
                     )
 
-                    // --- 「全て」のSNSフィルター項目 ---
+                    Text(
+                        text = "SNS Filter",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp) // 上の余白を少し広めに
+                    )
+
+                    // --- 「All」トグル ---
+                    val isAllSelected = selectedSns.size == SnsType.entries.size
                     DropdownMenuItem(
-                        text = { UserFontText(text = "All") },
-                        onClick = {
-                            onSnsFilterChanged(null)
-                            snsFilterMenuExpanded = false
+                        text = { UserFontText(text = "ALL") },
+                        onClick = onAllSnsToggled, // ◀ 新しい関数を呼び出す
+                        leadingIcon = {
+                            val iconResId = if (isAllSelected) R.drawable.ic_toggle_on else R.drawable.ic_toggle_off
+                            Icon(
+                                painter = painterResource(id = iconResId),
+                                contentDescription = "すべてのSNS",
+                                modifier = Modifier.size(24.dp),
+                                tint = if (isAllSelected) MaterialTheme.colorScheme.primary else Color.Gray
+                            )
                         },
-                        leadingIcon = { // ◀◀◀ 2. アイコン用の空のスペースを確保
-                            // 他の項目とインデントを合わせるためのダミーアイコン
-                            Spacer(modifier = Modifier.size(24.dp))
-                        },
-                        modifier = menuItemModifier
+                        modifier = menuItemModifier,
+                        contentPadding = indentedContentPadding
                     )
 
                     // --- 各SNSのフィルター項目 ---
                     SnsType.entries.forEach { sns ->
+                        val isSelected = sns in selectedSns // ◀ このSNSが選択されているか
                         DropdownMenuItem(
                             text = {
                                 UserFontText(
                                     text = sns.name.lowercase().replaceFirstChar { it.uppercase() })
                             },
                             leadingIcon = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    val iconResId = when (sns) {
-                                        SnsType.BLUESKY -> R.drawable.ic_bluesky
-                                        SnsType.MASTODON -> R.drawable.ic_mastodon
-                                        SnsType.LOGLEAF -> R.drawable.ic_logleaf
-                                    }
-                                    Icon(
-                                        painter = painterResource(id = iconResId),
-                                        contentDescription = sns.name,
-                                        modifier = Modifier.size(24.dp),
-                                        tint = sns.brandColor
-                                    )
+                                val iconResId = when (sns) {
+                                    SnsType.BLUESKY -> R.drawable.ic_bluesky
+                                    SnsType.MASTODON -> R.drawable.ic_mastodon
+                                    SnsType.LOGLEAF -> R.drawable.ic_logleaf
                                 }
+                                Icon(
+                                    painter = painterResource(id = iconResId),
+                                    contentDescription = sns.name,
+                                    modifier = Modifier.size(24.dp),
+                                    tint = if (isSelected) sns.brandColor else Color.Gray.copy(alpha = 0.6f) // ◀ 状態に応じて色を変更
+                                )
                             },
-                            onClick = {
-                                onSnsFilterChanged(sns)
-                                snsFilterMenuExpanded = false
-                            },
-                            modifier = menuItemModifier
+                            onClick = { onSnsFilterChanged(sns) }, // ◀ 修正済みの関数を呼び出す
+                            modifier = menuItemModifier,
+                            contentPadding = indentedContentPadding
                         )
                     }
                 }
