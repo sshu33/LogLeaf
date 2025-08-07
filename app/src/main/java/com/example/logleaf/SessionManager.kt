@@ -49,9 +49,11 @@ class SessionManager(context: Context) {
         // 新しいアカウント情報で上書きする際、古いアカウントの'needsReauthentication'状態を保持する
         val existingAccount = currentAccounts.find { it.userId == newAccount.userId && it.snsType == newAccount.snsType }
         val accountToSave = if (existingAccount != null && newAccount is Account.Mastodon) {
-            newAccount.copy(needsReauthentication = false) // 再認証成功時はフラグをリセット
+            newAccount.copy(needsReauthentication = false)
         } else if (existingAccount != null && newAccount is Account.Bluesky) {
-            newAccount.copy(needsReauthentication = false) // Blueskyも同様
+            newAccount.copy(needsReauthentication = false)
+        } else if (existingAccount != null && newAccount is Account.GitHub) {  // ← 追加
+            newAccount.copy(needsReauthentication = false)
         } else {
             newAccount
         }
@@ -94,6 +96,7 @@ class SessionManager(context: Context) {
             when (account) {
                 is Account.Bluesky -> account.copy(isVisible = !account.isVisible)
                 is Account.Mastodon -> account.copy(isVisible = !account.isVisible)
+                is Account.GitHub -> account.copy(isVisible = !account.isVisible) // ← 追加
             }
         }
         Log.d("SessionManager", "アカウント($accountId)の表示状態を切り替えました。")
@@ -104,6 +107,7 @@ class SessionManager(context: Context) {
             when (account) {
                 is Account.Bluesky -> account.copy(needsReauthentication = true)
                 is Account.Mastodon -> account.copy(needsReauthentication = true)
+                is Account.GitHub -> account.copy(needsReauthentication = true) // ← 追加
             }
         }
         println("【SessionManager】アカウント($accountId)を要再認証としてマークしました。")
@@ -138,6 +142,11 @@ class SessionManager(context: Context) {
                         Log.d("SessionManager", "Blueskyアカウント詳細:")
                         Log.d("SessionManager", "DID: ${account.did}")
                         Log.d("SessionManager", "ハンドル: ${account.handle}")
+                        Log.d("SessionManager", "アクセストークン長さ: ${account.accessToken.length}")
+                    }
+                    is Account.GitHub -> {
+                        Log.d("SessionManager", "GitHubアカウント詳細:")
+                        Log.d("SessionManager", "ユーザー名: ${account.username}")
                         Log.d("SessionManager", "アクセストークン長さ: ${account.accessToken.length}")
                     }
                 }
@@ -182,6 +191,8 @@ class SessionManager(context: Context) {
             emptyList()
         }
     }
+
+
 
     fun getVisibleAccountIds(): Flow<List<String>> {
         return accountsFlow.map { accounts ->

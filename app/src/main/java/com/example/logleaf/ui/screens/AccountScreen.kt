@@ -103,6 +103,7 @@ fun AccountScreen(
                                             SnsType.BLUESKY -> R.drawable.ic_bluesky
                                             SnsType.MASTODON -> R.drawable.ic_mastodon
                                             SnsType.LOGLEAF -> R.drawable.ic_logleaf
+                                            SnsType.GITHUB -> R.drawable.ic_github  // ← これを追加
                                         }
                                     ),
                                     contentDescription = account.snsType.name,

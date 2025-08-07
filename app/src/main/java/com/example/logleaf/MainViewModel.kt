@@ -81,6 +81,7 @@ class MainViewModel(
     application: Application,
     private val blueskyApi: BlueskyApi,
     private val mastodonApi: MastodonApi,
+    private val gitHubApi: GitHubApi, // ← 追加
     private val sessionManager: SessionManager,
     private val postDao: PostDao
 ) : AndroidViewModel(application) {
@@ -270,7 +271,6 @@ class MainViewModel(
     }
 
 
-    // ▼▼▼ [変更点4] fetchPostsはAPIからのデータ取得とDBへの保存だけに専念 ▼▼▼
     private fun fetchPosts(accounts: List<Account>): Job {
         return viewModelScope.launch(Dispatchers.IO) {
             val accountsToFetch = accounts.filter { !it.needsReauthentication }
@@ -286,16 +286,17 @@ class MainViewModel(
                                         sessionManager.markAccountForReauthentication(account.userId)
                                         emptyList()
                                     }
-
                                     is MastodonPostResult.Error -> {
                                         println("Mastodon API Error: ${result.message}")
                                         emptyList()
                                     }
                                 }
                             }
+                            is Account.GitHub -> gitHubApi.getPostsForAccount(account, "3ヶ月")
                         }
                     }
                 }
+
                 val allPostsWithImages = postLists.awaitAll().flatten()
                 val allNewPosts = allPostsWithImages.map { it.post }
                 if (allPostsWithImages.isNotEmpty()) {
@@ -852,6 +853,7 @@ class MainViewModel(
             application: Application,
             blueskyApi: BlueskyApi,
             mastodonApi: MastodonApi,
+            gitHubApi: GitHubApi, // ← 追加
             sessionManager: SessionManager,
             postDao: PostDao
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
@@ -861,6 +863,7 @@ class MainViewModel(
                     application,
                     blueskyApi,
                     mastodonApi,
+                    gitHubApi, // ← 追加
                     sessionManager,
                     postDao
                 ) as T
@@ -1325,6 +1328,7 @@ class MainViewModel(
                 val snsType = when (snsStr) {
                     "BLUESKY" -> SnsType.BLUESKY
                     "MASTODON" -> SnsType.MASTODON
+                    "GITHUB" -> SnsType.GITHUB // ← 追加
                     else -> SnsType.LOGLEAF
                 }
 

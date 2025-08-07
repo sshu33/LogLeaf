@@ -47,6 +47,7 @@ class WidgetPostActivity : ComponentActivity() {
                     application = application,
                     blueskyApi = BlueskyApi(sessionManager),
                     mastodonApi = MastodonApi(),
+                    gitHubApi = GitHubApi(sessionManager), // ← 追加
                     sessionManager = sessionManager,
                     postDao = postDao
                 )

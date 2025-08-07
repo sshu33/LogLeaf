@@ -10,7 +10,7 @@ sealed class Account {
     abstract val userId: String // 各SNSでのユニークなID（BlueskyならDID, Mastodonならacctなど）
     abstract val displayName: String // UIに表示するための名前（Blueskyならhandle, Mastodonならusername）
     abstract val needsReauthentication: Boolean
-    abstract val isVisible: Boolean // ◀️ 追加：アカウントの表示/非表示フラグ
+    abstract val isVisible: Boolean // 追加：アカウントの表示/非表示フラグ
 
     @Serializable
     data class Bluesky(
@@ -19,7 +19,7 @@ sealed class Account {
         val accessToken: String,
         val refreshToken: String,
         override val needsReauthentication: Boolean = false,
-        override val isVisible: Boolean = true // ◀️ 追加 (デフォルトは true)
+        override val isVisible: Boolean = true //  追加 (デフォルトは true)
     ) : Account() {
         override val snsType: SnsType get() = SnsType.BLUESKY
         override val userId: String get() = did
@@ -36,10 +36,22 @@ sealed class Account {
         val clientId: String = "",
         val clientSecret: String = "",
         override val needsReauthentication: Boolean = false,
-        override val isVisible: Boolean = true // ◀️ 追加 (デフォルトは true)
+        override val isVisible: Boolean = true //  追加 (デフォルトは true)
     ) : Account() {
         override val snsType: SnsType get() = SnsType.MASTODON
         override val userId: String get() = id
+        override val displayName: String get() = username
+    }
+
+    @Serializable
+    data class GitHub(
+        val username: String,
+        val accessToken: String,
+        override val needsReauthentication: Boolean = false,
+        override val isVisible: Boolean = true
+    ) : Account() {
+        override val snsType: SnsType get() = SnsType.GITHUB
+        override val userId: String get() = username
         override val displayName: String get() = username
     }
 }

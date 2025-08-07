@@ -45,6 +45,8 @@ import com.example.logleaf.ui.screens.BackupSettingsScreen
 import com.example.logleaf.ui.screens.BlueskyViewModelFactory
 import com.example.logleaf.ui.screens.CalendarScreen
 import com.example.logleaf.ui.screens.FontSettingsScreen
+import com.example.logleaf.ui.screens.GitHubLoginScreen
+import com.example.logleaf.ui.screens.GitHubLoginViewModel
 import com.example.logleaf.ui.screens.LoginScreen
 import com.example.logleaf.ui.screens.MastodonInstanceScreen
 import com.example.logleaf.ui.screens.SearchScreen
@@ -128,6 +130,7 @@ fun MainScreen(
             application = application,
             blueskyApi = BlueskyApi(sessionManager),
             mastodonApi = MastodonApi(),
+            gitHubApi = GitHubApi(sessionManager), // ← これを追加
             sessionManager = sessionManager,
             postDao = postDao
         )
@@ -298,6 +301,17 @@ fun MainScreen(
                 MastodonInstanceScreen(
                     navController = navController,
                     viewModel = mastodonViewModel
+                )
+            }
+
+            composable("github_login") {
+                val gitHubApi = GitHubApi(sessionManager)
+                val viewModel: GitHubLoginViewModel = viewModel(
+                    factory = GitHubLoginViewModel.provideFactory(gitHubApi)
+                )
+                GitHubLoginScreen(
+                    navController = navController,
+                    viewModel = viewModel
                 )
             }
 
