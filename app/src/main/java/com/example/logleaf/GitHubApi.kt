@@ -59,17 +59,18 @@ class GitHubApi(private val sessionManager: SessionManager) {
     }
 
     /**
-     * GitHubアカウントを保存する
+     * GitHubアカウントを保存する（期間付き）
      */
-    suspend fun saveAccount(user: GitHubUser, accessToken: String): Boolean {
+    suspend fun saveAccount(user: GitHubUser, accessToken: String, period: String = "3ヶ月"): Boolean {
         return try {
             val newAccount = Account.GitHub(
                 username = user.login,
-                accessToken = accessToken
+                accessToken = accessToken,
+                period = period // ← 追加！
             )
             sessionManager.saveAccount(newAccount)
 
-            Log.d("GitHubApi", "GitHubアカウント保存成功: ${user.login}")
+            Log.d("GitHubApi", "GitHubアカウント保存成功: ${user.login}, 期間: $period")
             true
         } catch (e: Exception) {
             Log.e("GitHubApi", "GitHubアカウント保存失敗: ${e.message}")
@@ -86,6 +87,7 @@ class GitHubApi(private val sessionManager: SessionManager) {
             "3ヶ月" -> 3
             "6ヶ月" -> 6
             "12ヶ月" -> 12
+            "24ヶ月" -> 24
             "全期間" -> null
             else -> 3
         }

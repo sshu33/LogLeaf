@@ -292,7 +292,7 @@ class MainViewModel(
                                     }
                                 }
                             }
-                            is Account.GitHub -> gitHubApi.getPostsForAccount(account, "3ヶ月")
+                            is Account.GitHub -> gitHubApi.getPostsForAccount(account, account.period) // ← 修正！
                         }
                     }
                 }

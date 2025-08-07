@@ -66,4 +66,11 @@ class AccountViewModel(
             }
         }
     }
+
+    /**
+     * GitHubアカウントの期間設定を変更する
+     */
+    fun updateGitHubAccountPeriod(username: String, newPeriod: String) {
+        sessionManager.updateGitHubAccountPeriod(username, newPeriod)
+    }
 }

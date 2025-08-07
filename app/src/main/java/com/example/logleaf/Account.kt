@@ -47,6 +47,7 @@ sealed class Account {
     data class GitHub(
         val username: String,
         val accessToken: String,
+        val period: String = "3ヶ月", // ← 追加！
         override val needsReauthentication: Boolean = false,
         override val isVisible: Boolean = true
     ) : Account() {

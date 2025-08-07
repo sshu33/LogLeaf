@@ -243,10 +243,14 @@ fun MainScreen(
                 val accountViewModel: AccountViewModel = viewModel(
                     factory = AccountViewModel.provideFactory(
                         sessionManager = sessionManager,
-                        postDao = postDao // ★ この行を追加するだけ！
+                        postDao = postDao
                     )
                 )
-                AccountScreen(viewModel = accountViewModel, navController = navController)
+                AccountScreen(
+                    viewModel = accountViewModel,
+                    navController = navController,
+                    mainViewModel = mainViewModel // ← この行を追加！
+                )
             }
 
             composable("settings",

@@ -48,7 +48,7 @@ class GitHubLoginViewModel(private val gitHubApi: GitHubApi) : ViewModel() {
                 val user = gitHubApi.validateToken(accessToken)
 
                 if (user != null) {
-                    val success = gitHubApi.saveAccount(user, accessToken)
+                    val success = gitHubApi.saveAccount(user, accessToken, period) // ← period追加！
                     if (success) {
                         _loginResult.value = "success"
                     } else {
@@ -136,106 +136,7 @@ fun GitHubLoginScreen(
                 color = MaterialTheme.colorScheme.onSurface
             )
 
-            // アクセストークン入力
-            OutlinedTextField(
-                value = accessToken,
-                onValueChange = { accessToken = it },
-                label = { Text("Personal Access Token") },
-                placeholder = { Text("github_pat_11A...") },
-                modifier = Modifier.fillMaxWidth(),
-                visualTransformation = if (isTokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                trailingIcon = {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        // 表示/非表示切り替えボタン
-                        IconButton(
-                            onClick = { isTokenVisible = !isTokenVisible },
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Icon(
-                                painter = painterResource(
-                                    id = if (isTokenVisible) R.drawable.ic_visibility_off else R.drawable.ic_visibility
-                                ),
-                                contentDescription = if (isTokenVisible) "非表示" else "表示",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-
-                        // ヒントボタン
-                        IconButton(
-                            onClick = { showBottomSheet = true },
-                            modifier = Modifier
-                                .size(40.dp)
-                                .padding(end = 10.dp) // 右側に余白を追加
-                        ) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.ic_help),
-                                contentDescription = "作成方法",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    }
-                },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(
-                    onDone = {
-                        keyboardController?.hide()
-                        if (accessToken.isNotEmpty()) {
-                            viewModel.login(accessToken)
-                        }
-                    }
-                ),
-                enabled = !isLoading,
-                isError = loginResult != null && loginResult != "success"
-            )
-
-            // エラーメッセージ
-            if (loginResult != null && loginResult != "success") {
-                Text(
-                    text = loginResult!!,
-                    color = MaterialTheme.colorScheme.error,
-                    fontSize = 14.sp,
-                    textAlign = TextAlign.Center
-                )
-            }
-
-            // ログインボタン
-            Button(
-                onClick = {
-                    keyboardController?.hide()
-                    viewModel.login(accessToken, selectedPeriod) // ← selectedPeriodを追加
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
-                enabled = accessToken.isNotEmpty() && !isLoading,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = SnsType.GITHUB.brandColor
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        color = Color.White,
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Text(
-                        text = "ログイン",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color.White
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // 期間選択を追加（ログインボタンの直後に）
+            // 期間選択（タイトル直後に移動）
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -272,6 +173,103 @@ fun GitHubLoginScreen(
                             )
                         }
                     }
+                }
+            }
+
+            // アクセストークン入力
+            OutlinedTextField(
+                value = accessToken,
+                onValueChange = { accessToken = it },
+                label = { Text("Personal Access Token") },
+                placeholder = { Text("github_pat_11A...") },
+                modifier = Modifier.fillMaxWidth(),
+                visualTransformation = if (isTokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        // 表示/非表示切り替えボタン
+                        IconButton(
+                            onClick = { isTokenVisible = !isTokenVisible },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(
+                                    id = if (isTokenVisible) R.drawable.ic_visibility_off else R.drawable.ic_visibility
+                                ),
+                                contentDescription = if (isTokenVisible) "非表示" else "表示",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+
+                        // ヒントボタン
+                        IconButton(
+                            onClick = { showBottomSheet = true },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .padding(end = 10.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_help),
+                                contentDescription = "作成方法",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        keyboardController?.hide()
+                        if (accessToken.isNotEmpty()) {
+                            viewModel.login(accessToken, selectedPeriod)
+                        }
+                    }
+                ),
+                enabled = !isLoading,
+                isError = loginResult != null && loginResult != "success"
+            )
+
+            // エラーメッセージ
+            if (loginResult != null && loginResult != "success") {
+                Text(
+                    text = loginResult!!,
+                    color = MaterialTheme.colorScheme.error,
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            // ログインボタン
+            Button(
+                onClick = {
+                    keyboardController?.hide()
+                    viewModel.login(accessToken, selectedPeriod)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                enabled = accessToken.isNotEmpty() && !isLoading,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SnsType.GITHUB.brandColor
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text(
+                        text = "ログイン",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White
+                    )
                 }
             }
 
