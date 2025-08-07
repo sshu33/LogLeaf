@@ -48,6 +48,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -76,6 +77,7 @@ import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Constraints
@@ -85,6 +87,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.logleaf.PostWithTagsAndImages
+import com.example.logleaf.R
 import com.example.logleaf.UiPost
 import com.example.logleaf.ui.components.SmartTagDisplay
 import com.example.logleaf.ui.entry.PostImage
@@ -534,6 +537,8 @@ fun ZoomableImageDialog(
     var backgroundAlpha by remember { mutableFloatStateOf(1f) }
     var lastPanVelocity by remember { mutableStateOf(Offset.Zero) }
     var currentImageIndex by remember { mutableIntStateOf(initialIndex) }
+    var showToast by remember { mutableStateOf(false) }
+    var showDetailToast by remember { mutableStateOf(false) }
 
     var isFirstLoad by remember { mutableStateOf(true) }
 
@@ -627,11 +632,11 @@ fun ZoomableImageDialog(
                             if (!isZooming) {
                                 if (scale > 1f) {
                                     // 拡大中：制限付きパン操作
-                                    val margin = 50.dp.toPx() // ★ 周りの余裕
+                                    val margin = 50.dp.toPx()
                                     val imageWidthScaled = screenWidthPx * scale
                                     val imageHeightScaled = screenHeightPx * scale
-                                    val maxX = maxOf(0f, (imageWidthScaled - screenWidthPx) / 2) + margin // ★ 余裕追加
-                                    val maxY = maxOf(0f, (imageHeightScaled - screenHeightPx) / 2) + margin // ★ 余裕追加
+                                    val maxX = maxOf(0f, (imageWidthScaled - screenWidthPx) / 2) + margin
+                                    val maxY = maxOf(0f, (imageHeightScaled - screenHeightPx) / 2) + margin
 
                                     val newOffset = offset + pan
                                     offset = Offset(
@@ -639,28 +644,33 @@ fun ZoomableImageDialog(
                                         y = newOffset.y.coerceIn(-maxY, maxY)
                                     )
                                 } else if (oldScale <= 1f) {
-                                    // 拡大されていない時
-                                    if (pan.y > 0) {
-                                        // 下スワイプ（閉じる機能）
-                                        offset = Offset(0f, maxOf(0f, offset.y + pan.y))
-                                        backgroundAlpha = (1f - offset.y / (screenHeightPx / 6f)).coerceIn(0.2f, 1f)
-                                    } else if (pan.y < 0) {
-                                        // 上スワイプ（●領域を避けるため画像を上に移動）
-                                        val maxUpMove = 140.dp.toPx()
-                                        val newY = if (offset.y > 0f) {
-                                            // 既に下にずれている場合は元に戻す
-                                            maxOf(-maxUpMove, offset.y + pan.y)
+                                    // ★★★ 修正：縦スワイプと横スワイプを分離 ★★★
+                                    if (abs(pan.y) > abs(pan.x) && abs(pan.y) > 5f) {
+                                        // 縦スワイプ処理
+                                        if (pan.y > 0) {
+                                            // 下スワイプ（閉じる機能）
+                                            offset = Offset(0f, maxOf(0f, offset.y + pan.y))
+                                            backgroundAlpha = (1f - offset.y / (screenHeightPx / 6f)).coerceIn(0.2f, 1f)
                                         } else {
-                                            // 通常位置から上に移動
-                                            (offset.y + pan.y).coerceIn(-maxUpMove, 0f)
+                                            // 上スワイプ
+                                            val maxUpMove = 150.dp.toPx()
+                                            val newY = if (offset.y + pan.y < -maxUpMove) {
+                                                offset.y + (pan.y * 0.3f)
+                                            } else {
+                                                offset.y + pan.y
+                                            }
+                                            offset = Offset(0f, newY)
+                                            backgroundAlpha = 1f
                                         }
-                                        offset = Offset(0f, newY)
-
-                                        // 背景透明度も調整
-                                        if (newY >= 0f) {
-                                            backgroundAlpha = (1f - newY / (screenHeightPx / 6f)).coerceIn(0.2f, 1f)
-                                        } else {
-                                            backgroundAlpha = 1f // 上移動時は透明度は変えない
+                                    } else if (abs(pan.x) > abs(pan.y) && abs(pan.x) > 30f) {
+                                        // ★★★ 横スワイプ処理（縦スワイプとは別条件） ★★★
+                                        if (images.size > 1 && !showToast) {
+                                            Log.d("SwipeDetect", "横スワイプ検知: pan.x=${pan.x}")
+                                            showToast = true
+                                            scope.launch {
+                                                delay(1000)
+                                                showToast = false
+                                            }
                                         }
                                     }
                                 }
@@ -780,7 +790,7 @@ fun ZoomableImageDialog(
             }
 
 
-            // ★追加：ドットを下端に配置
+            //  ●領域：ドットを下端に配置
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -861,10 +871,7 @@ fun ZoomableImageDialog(
                         modifier = Modifier
                             .size(24.dp) // タップエリアを大きく
                             .clickable {
-                                Log.d("DotTap", "Tapped dot $index")
-                                Log.d("DotTap", "Before: currentImageIndex = $currentImageIndex")
                                 currentImageIndex = index
-                                Log.d("DotTap", "After: currentImageIndex = $currentImageIndex")
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -879,6 +886,91 @@ fun ZoomableImageDialog(
                     }
                     if (index < images.size - 1) {
                         Spacer(modifier = Modifier.width(0.dp))
+                    }
+                }
+            }
+
+            // ヒントアイコン
+            if (images.size > 1) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(
+                            top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 16.dp,
+                            end = 16.dp
+                        )
+                        .alpha(controlsAlpha * 0.6f)
+                        .clickable {
+                            showDetailToast = true
+                            scope.launch {
+                                delay(3000) // 3秒後に消す
+                                showDetailToast = false
+                            }
+                        }
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_info),
+                        contentDescription = "操作ヒント",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            // 横スワイプトースト
+            if (showToast) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .background(
+                            Color.Black.copy(alpha = 0.8f),
+                            RoundedCornerShape(8.dp)
+                        )
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "下の●で画像切り替え",
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+
+// 詳細ヒントトースト
+            if (showDetailToast) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .background(
+                            Color.Black.copy(alpha = 0.8f),
+                            RoundedCornerShape(8.dp)
+                        )
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "画像切り替え方法",
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "●タップ：選択",
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Text(
+                            text = "●フリック：前後",
+
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Text(
+                            text = "●長押しドラッグ：連続切り替え",
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
                 }
             }
