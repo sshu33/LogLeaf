@@ -147,35 +147,40 @@ fun GitHubLoginScreen(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                 )
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    val periods = listOf("1ヶ月", "3ヶ月", "6ヶ月", "12ヶ月", "全期間")
-                    periods.forEach { period ->
-                        val isSelected = selectedPeriod == period
+                    // 1行目：1ヶ月、3ヶ月、6ヶ月
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("1ヶ月", "3ヶ月", "6ヶ月").forEach { period ->
+                            val isSelected = selectedPeriod == period
+                            PeriodChip(
+                                period = period,
+                                isSelected = isSelected,
+                                onClick = { selectedPeriod = period },
+                                brandColor = SnsType.GITHUB.brandColor
+                            )
+                        }
+                    }
 
-                        OutlinedButton(
-                            onClick = { selectedPeriod = period },
-                            modifier = Modifier.height(36.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = if (isSelected) MaterialTheme.colorScheme.onSurface else Color.Transparent,
-                                contentColor = if (isSelected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onSurface
-                            ),
-                            border = BorderStroke(
-                                1.dp,
-                                MaterialTheme.colorScheme.onSurface.copy(alpha = if (isSelected) 1f else 0.3f)
-                            ),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                        ) {
-                            Text(
-                                text = period,
-                                fontSize = 12.sp
+                    // 2行目：12ヶ月、24ヶ月、全期間
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("12ヶ月", "24ヶ月", "全期間").forEach { period ->
+                            val isSelected = selectedPeriod == period
+                            PeriodChip(
+                                period = period,
+                                isSelected = isSelected,
+                                onClick = { selectedPeriod = period },
+                                brandColor = SnsType.GITHUB.brandColor
                             )
                         }
                     }
                 }
             }
-
             // アクセストークン入力
             OutlinedTextField(
                 value = accessToken,
@@ -312,5 +317,36 @@ fun GitHubLoginScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun PeriodChip(
+    period: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    brandColor: Color
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier
+            .height(32.dp)
+            .width(72.dp),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = if (isSelected) brandColor else Color.Transparent,
+            contentColor = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+        ),
+        border = BorderStroke(
+            1.dp,
+            if (isSelected) brandColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+        ),
+        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Text(
+            text = period,
+            fontSize = 11.sp,
+            fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal
+        )
     }
 }

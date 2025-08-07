@@ -14,14 +14,15 @@ data class BlueskyLoginUiState(
     val handle: String = "",
     val password: String = "",
     val isLoading: Boolean = false,
+    val error: String? = null  // ← 追加！
 )
 
 // 一度きりのUIイベントを通知するためのクラス
 sealed class BlueskyLoginEvent {
     object LoginSuccess : BlueskyLoginEvent()
-    data class LoginFailed(val message: String) : BlueskyLoginEvent()
     object HideKeyboard : BlueskyLoginEvent()
 }
+
 
 // ViewModel本体
 class BlueskyLoginViewModel(
@@ -35,24 +36,25 @@ class BlueskyLoginViewModel(
     val eventFlow = _eventFlow.asSharedFlow()
 
     fun onHandleChange(newHandle: String) {
-        _uiState.update { it.copy(handle = newHandle) }
+        _uiState.update { it.copy(handle = newHandle, error = null) } // エラークリア
     }
 
     fun onPasswordChange(newPassword: String) {
-        _uiState.update { it.copy(password = newPassword) }
+        _uiState.update { it.copy(password = newPassword, error = null) } // エラークリア
     }
 
     // UIからの実行命令を受け取る司令塔となる関数
     fun onLoginSubmitted() {
-        // 入力が空の場合は何もしない
+        // 入力が空の場合はエラー表示
         if (_uiState.value.handle.isBlank() || _uiState.value.password.isBlank()) {
+            _uiState.update { it.copy(error = "ハンドル名とアプリパスワードを入力してください") }
             return
         }
 
         viewModelScope.launch {
             // 1. まずUIに「キーボードを隠せ」と命令する
             _eventFlow.emit(BlueskyLoginEvent.HideKeyboard)
-            _uiState.update { it.copy(isLoading = true) }
+            _uiState.update { it.copy(isLoading = true, error = null) }
 
             // 2. 実際のログイン処理を実行
             val success = blueskyApi.login(
@@ -60,11 +62,18 @@ class BlueskyLoginViewModel(
                 password = _uiState.value.password.trim()
             )
 
-            // 3. 結果に応じて適切なイベントを発行する
+            // 3. 結果に応じて適切な状態更新
             if (success) {
                 _eventFlow.emit(BlueskyLoginEvent.LoginSuccess)
             } else {
-                _eventFlow.emit(BlueskyLoginEvent.LoginFailed("ログインに失敗しました。ハンドル名とアプリパスワードを確認してください。"))
+                // ★ トーストの代わりにエラー状態を更新
+                _uiState.update {
+                    it.copy(
+                        error = "ログインに失敗しました。ハンドル名とアプリパスワードを確認してください。",
+                        isLoading = false
+                    )
+                }
+                return@launch
             }
             _uiState.update { it.copy(isLoading = false) }
         }

@@ -2,26 +2,33 @@ package com.example.logleaf.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -41,13 +48,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.logleaf.MastodonInstanceEvent
 import com.example.logleaf.MastodonInstanceViewModel
 import com.example.logleaf.R
+import com.example.logleaf.ui.theme.SnsType
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -60,17 +72,10 @@ fun MastodonInstanceScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
+    var selectedPeriod by remember { mutableStateOf("3ヶ月") }
+    val keyboardController = LocalSoftwareKeyboardController.current
 
-    fun startAuthentication(instanceUrl: String) {
-        if (instanceUrl.isNotBlank()) {
-            viewModel.onAppRegisterClicked()
-        }
-    }
-
-    val sheetState = rememberModalBottomSheetState()
-    val scope = rememberCoroutineScope()
-    var showBottomSheet by remember { mutableStateOf(false) }
-
+    // イベント処理（既存のまま）
     LaunchedEffect(Unit) {
         viewModel.eventFlow.collectLatest { event ->
             when (event) {
@@ -81,13 +86,17 @@ fun MastodonInstanceScreen(
                 is MastodonInstanceEvent.AuthenticationSuccess -> {
                     navController.popBackStack("accounts", inclusive = false)
                 }
-                // ★★★ 新しいイベントをここで処理する ★★★
                 is MastodonInstanceEvent.HideKeyboard -> {
                     focusManager.clearFocus()
                 }
             }
         }
     }
+
+    // ボトムシート（既存のまま）
+    val sheetState = rememberModalBottomSheetState()
+    val scope = rememberCoroutineScope()
+    var showBottomSheet by remember { mutableStateOf(false) }
 
     if (showBottomSheet) {
         ModalBottomSheet(
@@ -123,7 +132,7 @@ fun MastodonInstanceScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    val titleText = if (viewModel.isReAuthFlow) "再認証中..." else "Mastodonサーバーを選択"
+                    val titleText = if (viewModel.isReAuthFlow) "再認証中..." else "Mastodon ログイン"
                     Text(titleText)
                 },
                 navigationIcon = {
@@ -138,82 +147,187 @@ fun MastodonInstanceScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 32.dp),
+                .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Mastodonアイコン
             Icon(
                 painter = painterResource(id = R.drawable.ic_mastodon),
-                contentDescription = "Mastodon Logo",
-                tint = MaterialTheme.colorScheme.primary,
+                contentDescription = "Mastodon",
+                tint = SnsType.MASTODON.brandColor,
                 modifier = Modifier.size(80.dp)
             )
-            Spacer(Modifier.height(32.dp))
+
+            // タイトル
+            Text(
+                text = "Mastodon と連携",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
 
             if (viewModel.isReAuthFlow) {
                 Text("再認証を実行中です...")
                 Spacer(Modifier.height(16.dp))
                 CircularProgressIndicator()
             } else {
+                // 期間選択（GitHubスタイル）
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "取得期間",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        // 1行目：1ヶ月、3ヶ月、6ヶ月
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf("1ヶ月", "3ヶ月", "6ヶ月").forEach { period ->
+                                val isSelected = selectedPeriod == period
+                                PeriodChip(
+                                    period = period,
+                                    isSelected = isSelected,
+                                    onClick = { selectedPeriod = period },
+                                    brandColor = SnsType.MASTODON.brandColor
+                                )
+                            }
+                        }
+
+                        // 2行目：12ヶ月、24ヶ月、全期間
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf("12ヶ月", "24ヶ月", "全期間").forEach { period ->
+                                val isSelected = selectedPeriod == period
+                                PeriodChip(
+                                    period = period,
+                                    isSelected = isSelected,
+                                    onClick = { selectedPeriod = period },
+                                    brandColor = SnsType.MASTODON.brandColor
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // インスタンスURL入力
                 OutlinedTextField(
                     value = uiState.instanceUrl,
                     onValueChange = { viewModel.onInstanceUrlChange(it) },
                     label = { Text("インスタンスURL") },
-                    placeholder = {
-                        Text(
-                            text = "mstdn.jp",
-                            color = Color.LightGray  // ✅ お好みの色に変更
-                        )
-                    },
+                    placeholder = { Text("mstdn.jp") },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.large,
-                    singleLine = true,
-                    isError = uiState.error != null,
                     trailingIcon = {
-                        IconButton(onClick = { showBottomSheet = true }) {
+                        IconButton(
+                            onClick = { showBottomSheet = true },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .padding(end = 10.dp)
+                        ) {
                             Icon(
                                 imageVector = Icons.Outlined.HelpOutline,
-                                contentDescription = "インスタンスURLとは？"
+                                contentDescription = "インスタンスURLとは？",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp)
                             )
                         }
                     },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-                    // ★★★ ViewModelの新しい司令塔を呼び出すだけ ★★★
-                    keyboardActions = KeyboardActions(onGo = {
-                        viewModel.onInstanceSubmitted()
-                    })
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = {
+                        keyboardController?.hide()
+                        if (uiState.instanceUrl.isNotBlank()) {
+                            viewModel.onInstanceSubmitted()
+                        }
+                    }),
+                    enabled = !uiState.isLoading,
+                    isError = uiState.error != null,
+                    singleLine = true
                 )
 
-                val errorText = uiState.error
-                if (errorText != null) {
+                // エラーメッセージ（GitHubスタイル）
+                if (uiState.error != null) {
                     Text(
-                        text = errorText,
+                        text = uiState.error!!,
                         color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(start = 16.dp, top = 4.dp)
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center
                     )
                 }
 
-                Spacer(Modifier.height(24.dp))
-
-                if (uiState.isLoading) {
-                    CircularProgressIndicator()
-                } else {
-                    Button(
-                        // ★★★ こちらもViewModelの新しい司令塔を呼び出すだけ ★★★
-                        onClick = {
-                            viewModel.onInstanceSubmitted()
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp),
-                        shape = MaterialTheme.shapes.large,
-                        enabled = uiState.instanceUrl.isNotBlank()
-                    ) {
-                        Text("次へ", style = MaterialTheme.typography.bodyLarge)
+                // 次へボタン
+                Button(
+                    onClick = {
+                        keyboardController?.hide()
+                        viewModel.onInstanceSubmitted()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    enabled = uiState.instanceUrl.isNotBlank() && !uiState.isLoading,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = SnsType.MASTODON.brandColor
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    if (uiState.isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(
+                            text = "次へ",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White
+                        )
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.weight(1f))
         }
+    }
+}
+
+@Composable
+private fun PeriodChip(
+    period: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    brandColor: Color
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier
+            .height(32.dp)
+            .width(72.dp),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = if (isSelected) brandColor else Color.Transparent,
+            contentColor = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+        ),
+        border = BorderStroke(
+            1.dp,
+            if (isSelected) brandColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+        ),
+        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Text(
+            text = period,
+            fontSize = 11.sp,
+            fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal
+        )
     }
 }

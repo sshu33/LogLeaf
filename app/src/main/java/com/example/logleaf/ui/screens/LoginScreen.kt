@@ -28,11 +28,21 @@ import androidx.navigation.NavController
 import com.example.logleaf.BlueskyApi
 import com.example.logleaf.R
 import com.example.logleaf.BlueskyLoginEvent
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
+import com.example.logleaf.ui.theme.SnsType
 import com.example.logleaf.BlueskyLoginViewModel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
-// ViewModelを生成するためのFactoryクラスは変更なし
+
 class BlueskyViewModelFactory(private val blueskyApi: BlueskyApi) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(BlueskyLoginViewModel::class.java)) {
@@ -54,16 +64,15 @@ fun LoginScreen(
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     var passwordVisible by remember { mutableStateOf(false) }
+    var selectedPeriod by remember { mutableStateOf("3ヶ月") }
+    val keyboardController = LocalSoftwareKeyboardController.current
 
-    // (LaunchedEffectは変更なし)
+    // イベント処理（既存のまま）
     LaunchedEffect(Unit) {
         viewModel.eventFlow.collectLatest { event ->
             when (event) {
                 is BlueskyLoginEvent.LoginSuccess -> {
                     navController.popBackStack("accounts", inclusive = false)
-                }
-                is BlueskyLoginEvent.LoginFailed -> {
-                    Toast.makeText(context, event.message, Toast.LENGTH_LONG).show()
                 }
                 is BlueskyLoginEvent.HideKeyboard -> {
                     focusManager.clearFocus()
@@ -72,6 +81,7 @@ fun LoginScreen(
         }
     }
 
+    // ボトムシート（既存のまま）
     val sheetState = rememberModalBottomSheetState()
     var showBottomSheet by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -126,7 +136,7 @@ fun LoginScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(screenTitle) },
+                title = { Text("Bluesky ログイン") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "戻る")
@@ -139,83 +149,213 @@ fun LoginScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
+            Spacer(modifier = Modifier.height(32.dp))
 
-            // (IconやハンドルのTextFieldは変更なし)
-            Spacer(modifier = Modifier.weight(0.6f))
+            // Blueskyアイコン
             Icon(
                 painter = painterResource(id = R.drawable.ic_bluesky),
-                contentDescription = "Bluesky Logo",
-                tint = MaterialTheme.colorScheme.primary,
+                contentDescription = "Bluesky",
+                tint = SnsType.BLUESKY.brandColor,
                 modifier = Modifier.size(80.dp)
             )
-            Spacer(Modifier.height(32.dp))
+
+            // タイトル
+            Text(
+                text = "Bluesky と連携",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            // 期間選択（GitHubスタイル）
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "取得期間",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    // 1行目：1ヶ月、3ヶ月、6ヶ月
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("1ヶ月", "3ヶ月", "6ヶ月").forEach { period ->
+                            val isSelected = selectedPeriod == period
+                            PeriodChip(
+                                period = period,
+                                isSelected = isSelected,
+                                onClick = { selectedPeriod = period },
+                                brandColor = SnsType.BLUESKY.brandColor
+                            )
+                        }
+                    }
+
+                    // 2行目：12ヶ月、24ヶ月、全期間
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("12ヶ月", "24ヶ月", "全期間").forEach { period ->
+                            val isSelected = selectedPeriod == period
+                            PeriodChip(
+                                period = period,
+                                isSelected = isSelected,
+                                onClick = { selectedPeriod = period },
+                                brandColor = SnsType.BLUESKY.brandColor
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ハンドル名入力
             OutlinedTextField(
                 value = uiState.handle,
                 onValueChange = { viewModel.onHandleChange(it) },
                 label = { Text("ハンドル名") },
+                placeholder = { Text("example.bsky.social") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                 keyboardActions = KeyboardActions(onNext = {
                     focusManager.moveFocus(FocusDirection.Down)
-                })
+                }),
+                enabled = !uiState.isLoading
             )
-            Spacer(Modifier.height(16.dp))
 
+            // アプリパスワード入力
             OutlinedTextField(
                 value = uiState.password,
                 onValueChange = { viewModel.onPasswordChange(it) },
                 label = { Text("アプリパスワード") },
+                placeholder = { Text("xxxx-xxxx-xxxx-xxxx") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                // ★★★ ここを修正：2つのアイコンをRowで囲む ★★★
                 trailingIcon = {
-                    Row {
-                        // ヘルプアイコン
-                        IconButton(onClick = { showBottomSheet = true }) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        // 表示/非表示切り替えボタン
+                        IconButton(
+                            onClick = { passwordVisible = !passwordVisible },
+                            modifier = Modifier.size(40.dp)
+                        ) {
                             Icon(
-                                imageVector = Icons.Outlined.HelpOutline,
-                                contentDescription = "アプリパスワードとは？"
+                                imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                contentDescription = if (passwordVisible) "非表示" else "表示",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp)
                             )
                         }
-                        // パスワード表示切替アイコン
-                        val image = if (passwordVisible)
-                            Icons.Filled.Visibility
-                        else Icons.Filled.VisibilityOff
-                        val description = if (passwordVisible) "パスワードを非表示にする" else "パスワードを表示する"
-                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                            Icon(imageVector = image, description)
+
+                        // ヒントボタン
+                        IconButton(
+                            onClick = { showBottomSheet = true },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .padding(end = 10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.HelpOutline,
+                                contentDescription = "アプリパスワードとは？",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp)
+                            )
                         }
                     }
                 },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = {
-                    viewModel.onLoginSubmitted()
-                })
-            )
-            Spacer(Modifier.height(32.dp))
-
-            // (Button以下の部分は変更なし)
-            if (uiState.isLoading) {
-                CircularProgressIndicator()
-            } else {
-                Button(
-                    onClick = {
+                    keyboardController?.hide()
+                    if (uiState.handle.isNotBlank() && uiState.password.isNotBlank()) {
                         viewModel.onLoginSubmitted()
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp),
-                    enabled = uiState.handle.isNotBlank() && uiState.password.isNotBlank()
-                ) {
-                    Text("ログイン", style = MaterialTheme.typography.bodyLarge)
+                    }
+                }),
+                enabled = !uiState.isLoading
+            )
+
+            if (uiState.error != null) {
+                Text(
+                    text = uiState.error!!,
+                    color = MaterialTheme.colorScheme.error,
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            // ログインボタン
+            Button(
+                onClick = {
+                    keyboardController?.hide()
+                    viewModel.onLoginSubmitted()
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                enabled = uiState.handle.isNotBlank() && uiState.password.isNotBlank() && !uiState.isLoading,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SnsType.BLUESKY.brandColor
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                if (uiState.isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text(
+                        text = "ログイン",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White
+                    )
                 }
             }
-            Spacer(modifier = Modifier.weight(1.4f))
+
+            Spacer(modifier = Modifier.weight(1f))
         }
+    }
+}
+
+@Composable
+private fun PeriodChip(
+    period: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    brandColor: Color
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier
+            .height(32.dp)
+            .width(72.dp),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = if (isSelected) brandColor else Color.Transparent,
+            contentColor = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+        ),
+        border = BorderStroke(
+            1.dp,
+            if (isSelected) brandColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+        ),
+        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Text(
+            text = period,
+            fontSize = 11.sp,
+            fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal
+        )
     }
 }
