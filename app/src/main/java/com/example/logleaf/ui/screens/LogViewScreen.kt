@@ -691,9 +691,11 @@ fun ZoomableImageDialog(
                                     val dismissThreshold = screenHeightPx / 6f
                                     val velocityThreshold = 800f // 速度による閉じる判定
 
+                                    val basePosition = if (offset.y < 0f) offset.y else 0f // 上移動してるならその位置が基準
+                                    val relativeOffset = offset.y - basePosition // 基準点からの相対位置
+
                                     // 速度または位置による閉じる判定
-                                    val shouldDismiss =
-                                        offset.y > dismissThreshold || lastPanVelocity.y > velocityThreshold
+                                    val shouldDismiss = relativeOffset > dismissThreshold || lastPanVelocity.y > velocityThreshold
 
                                     if (shouldDismiss) {
                                         // 慣性を考慮した自然なスライドアウト
@@ -735,13 +737,10 @@ fun ZoomableImageDialog(
                                             onDismiss()
                                         }
                                     } else if (offset.y > 0f) {
-                                        // 不十分な場合は元の位置に戻す（拡大されていない時のみ）
+                                        // 下にずれている場合のみ元の位置に戻す
                                         scope.launch {
                                             val offsetAnimation = async {
-                                                Animatable(
-                                                    offset,
-                                                    Offset.VectorConverter
-                                                ).animateTo(
+                                                Animatable(offset, Offset.VectorConverter).animateTo(
                                                     Offset.Zero,
                                                     spring(
                                                         dampingRatio = Spring.DampingRatioMediumBouncy,
