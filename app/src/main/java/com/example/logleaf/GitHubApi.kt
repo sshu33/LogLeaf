@@ -59,7 +59,7 @@ class GitHubApi(private val sessionManager: SessionManager) {
     }
 
     /**
-     * GitHubアカウントを保存する（期間付き）
+     * GitHubアカウントを保存する（期間対応版）
      */
     suspend fun saveAccount(user: GitHubUser, accessToken: String, period: String = "3ヶ月"): Boolean {
         return try {
@@ -79,7 +79,7 @@ class GitHubApi(private val sessionManager: SessionManager) {
     }
 
     /**
-     * 期間文字列を月数に変換
+     * 期間文字列を月数に変換（24ヶ月対応版）
      */
     private fun periodToMonths(period: String): Int? {
         return when (period) {
@@ -87,14 +87,14 @@ class GitHubApi(private val sessionManager: SessionManager) {
             "3ヶ月" -> 3
             "6ヶ月" -> 6
             "12ヶ月" -> 12
-            "24ヶ月" -> 24
+            "24ヶ月" -> 24  // ← 追加！
             "全期間" -> null
             else -> 3
         }
     }
 
     /**
-     * GitHubアカウントの活動を取得（期間対応版）
+     * GitHubアカウントの活動を取得（軽量化版）
      */
     suspend fun getPostsForAccount(account: Account.GitHub, period: String = "3ヶ月"): List<PostWithImageUrls> {
         val months = periodToMonths(period)
@@ -114,17 +114,16 @@ class GitHubApi(private val sessionManager: SessionManager) {
 
             Log.d("GitHubApi", "期間: $period - イベント取得成功: ${events.size}件")
 
-            // 並列処理を制限（最大10件同時実行）
+            // 軽量化：個別API呼び出しを削除し、順次処理で安全に
             val allPosts = mutableListOf<PostWithImageUrls>()
-            events.take(5).forEach { event ->
+            events.forEach { event ->
                 when (event.type) {
                     "PushEvent" -> {
                         val commits = event.payload.commits ?: emptyList()
                         commits.take(2).forEach { commit ->
-                            val detail = getCommitDetails(account.accessToken, event.repo.name, commit.sha)
-                            if (detail != null) {
-                                allPosts.add(detail)
-                            }
+                            // 個別API呼び出しを削除し、イベント情報から直接作成
+                            val post = createSimpleCommitPost(event, commit, account.username)
+                            allPosts.add(post)
                         }
                     }
 
@@ -152,46 +151,29 @@ class GitHubApi(private val sessionManager: SessionManager) {
     }
 
     /**
-     * 個別コミットの詳細を取得
+     * 軽量版：イベント情報からコミット投稿を作成（個別API呼び出しなし）
      */
-    private suspend fun getCommitDetails(
-        accessToken: String,
-        repoFullName: String,
-        commitSha: String
-    ): PostWithImageUrls? {
-        return try {
-            val commitDetail: GitHubCommitDetail = client.get("https://api.github.com/repos/$repoFullName/commits/$commitSha") {
-                headers {
-                    append(HttpHeaders.Authorization, "token $accessToken")
-                    append(HttpHeaders.Accept, "application/vnd.github.v3+json")
-                }
-            }.body()
-
-            val repoName = repoFullName.substringAfter("/")
-            val text = buildString {
-                append("$repoName にコミット")
-                appendLine()
-                append("「${commitDetail.commit.message}」")
-            }
-
-            val post = Post(
-                id = "github_commit_$commitSha",
-                accountId = commitDetail.commit.author.name,
-                text = text,
-                createdAt = ZonedDateTime.parse(
-                    commitDetail.commit.author.date,
-                    DateTimeFormatter.ISO_OFFSET_DATE_TIME
-                ),
-                source = SnsType.GITHUB,
-                imageUrl = null
-            )
-
-            PostWithImageUrls(post = post, imageUrls = emptyList())
-
-        } catch (e: Exception) {
-            Log.e("GitHubApi", "コミット詳細取得失敗: $commitSha - ${e.message}")
-            null
+    private fun createSimpleCommitPost(event: GitHubEvent, commit: GitHubCommit, accountId: String): PostWithImageUrls {
+        val repoName = event.repo.name.substringAfter("/")
+        val text = buildString {
+            append("$repoName にコミット")
+            appendLine()
+            append("「${commit.message}」")
         }
+
+        val post = Post(
+            id = "github_commit_${commit.sha}",
+            accountId = accountId,
+            text = text,
+            createdAt = ZonedDateTime.parse(
+                event.createdAt, // イベント時刻を使用（個別取得不要）
+                DateTimeFormatter.ISO_OFFSET_DATE_TIME
+            ),
+            source = SnsType.GITHUB,
+            imageUrl = null
+        )
+
+        return PostWithImageUrls(post = post, imageUrls = emptyList())
     }
 
     /**

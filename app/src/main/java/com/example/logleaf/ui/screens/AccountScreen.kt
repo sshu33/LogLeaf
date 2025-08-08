@@ -101,8 +101,16 @@ fun AccountScreen(
                                             )
                                             navController.navigate("mastodon_instance?instanceUrl=$encodedUrl")
                                         }
+                                        account.needsReauthentication && account is Account.Bluesky -> {
+                                            // Bluesky再ログイン画面に遷移
+                                            navController.navigate("login")
+                                        }
+                                        account.needsReauthentication && account is Account.GitHub -> {
+                                            // GitHub再ログイン画面に遷移
+                                            navController.navigate("github_login")
+                                        }
                                         account is Account.GitHub -> {
-                                            // GitHubアカウントタップで期間変更ダイアログを表示
+                                            // 通常時：GitHubアカウントタップで期間変更ダイアログを表示
                                             githubAccountToEdit = account
                                         }
                                     }
