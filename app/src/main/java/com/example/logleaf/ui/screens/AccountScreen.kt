@@ -146,14 +146,18 @@ fun AccountScreen(
                                             checked = account.isVisible,
                                             onCheckedChange = { viewModel.toggleAccountVisibility(account.userId) }
                                         )
-                                        IconButton(onClick = { accountToDelete = account }) {
-                                            Icon(
-                                                painter = painterResource(id = R.drawable.ic_delete),
-                                                contentDescription = "削除",
-                                                tint = MaterialTheme.colorScheme.error,
-                                                modifier = Modifier.size(24.dp)
-                                            )
-                                        }
+
+                                        Spacer(Modifier.width(8.dp))
+
+                                        Icon(
+                                            painter = painterResource(id = R.drawable.ic_delete),
+                                            contentDescription = "削除",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .clickable { accountToDelete = account }
+                                                .padding(4.dp) // ← タップ領域確保のための最小padding
+                                        )
                                     }
                                 }
                             }

@@ -76,6 +76,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -89,6 +90,7 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.logleaf.Post
 import com.example.logleaf.PostWithTagsAndImages
+import com.example.logleaf.R
 import com.example.logleaf.UiPost
 import com.example.logleaf.UiState
 import com.example.logleaf.ui.entry.PostImage
@@ -383,9 +385,12 @@ fun CalendarHeader(
             // ▼▼▼ 変更点: 左端のスペーサーをアイコンボタンに置き換える ▼▼▼
             IconButton(onClick = onToggleShowHidden) {
                 Icon(
-                    imageVector = if (showHiddenPosts) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                    painter = painterResource(
+                        id = if (showHiddenPosts) R.drawable.ic_visibility_off else R.drawable.ic_visibility
+                    ),
                     contentDescription = if (showHiddenPosts) "非表示投稿を隠す" else "非表示投稿を表示",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp)
                 )
             }
 

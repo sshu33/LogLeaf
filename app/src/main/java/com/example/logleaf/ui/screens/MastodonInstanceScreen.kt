@@ -240,7 +240,7 @@ fun MastodonInstanceScreen(
                                 .padding(end = 10.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Outlined.HelpOutline,
+                                painter = painterResource(id = R.drawable.ic_help),
                                 contentDescription = "インスタンスURLとは？",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(24.dp)

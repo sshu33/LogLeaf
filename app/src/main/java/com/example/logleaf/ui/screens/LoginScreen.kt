@@ -256,7 +256,9 @@ fun LoginScreen(
                             modifier = Modifier.size(40.dp)
                         ) {
                             Icon(
-                                imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                painter = painterResource(
+                                    id = if (passwordVisible) R.drawable.ic_visibility_off else R.drawable.ic_visibility
+                                ),
                                 contentDescription = if (passwordVisible) "非表示" else "表示",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(24.dp)
@@ -271,7 +273,7 @@ fun LoginScreen(
                                 .padding(end = 10.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Outlined.HelpOutline,
+                                painter = painterResource(id = R.drawable.ic_help),
                                 contentDescription = "アプリパスワードとは？",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(24.dp)
