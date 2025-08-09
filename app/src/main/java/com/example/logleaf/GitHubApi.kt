@@ -94,9 +94,25 @@ class GitHubApi(private val sessionManager: SessionManager) {
     }
 
     /**
-     * GitHubアカウントの活動を取得（軽量化版）
+     * GitHubアカウントの活動を取得（選択リポジトリ対応版）
      */
     suspend fun getPostsForAccount(account: Account.GitHub, period: String = "3ヶ月"): List<PostWithImageUrls> {
+        return when (account.repositoryFetchMode) {
+            Account.RepositoryFetchMode.All -> {
+                // 従来の方法：全イベント取得
+                getPostsFromEvents(account, period)
+            }
+            Account.RepositoryFetchMode.Selected -> {
+                // 新しい方法：選択リポジトリから個別取得
+                getPostsFromSelectedRepositories(account, period)
+            }
+        }
+    }
+
+    /**
+     * 従来の方法：イベントAPIから全活動取得
+     */
+    private suspend fun getPostsFromEvents(account: Account.GitHub, period: String): List<PostWithImageUrls> {
         val months = periodToMonths(period)
         val sinceDate = months?.let {
             ZonedDateTime.now().minusMonths(it.toLong()).format(DateTimeFormatter.ISO_INSTANT)
@@ -108,32 +124,28 @@ class GitHubApi(private val sessionManager: SessionManager) {
                     append(HttpHeaders.Authorization, "token ${account.accessToken}")
                     append(HttpHeaders.Accept, "application/vnd.github.v3+json")
                 }
-                parameter("per_page", if (months == null) 100 else 50)
-                sinceDate?.let { parameter("since", it) } // 期間指定
+                parameter("per_page", 100)
+                // sinceは効かないので削除
             }.body()
 
             Log.d("GitHubApi", "期間: $period - イベント取得成功: ${events.size}件")
 
-            // 軽量化：個別API呼び出しを削除し、順次処理で安全に
             val allPosts = mutableListOf<PostWithImageUrls>()
             events.forEach { event ->
                 when (event.type) {
                     "PushEvent" -> {
                         val commits = event.payload.commits ?: emptyList()
                         commits.take(2).forEach { commit ->
-                            // 個別API呼び出しを削除し、イベント情報から直接作成
                             val post = createSimpleCommitPost(event, commit, account.username)
                             allPosts.add(post)
                         }
                     }
-
                     "ReleaseEvent" -> {
                         val release = event.payload.release
                         if (release != null) {
                             allPosts.add(createReleasePost(event, release, account.username))
                         }
                     }
-
                     "CreateEvent" -> {
                         if (event.payload.refType == "repository") {
                             allPosts.add(createRepoPost(event, account.username))
@@ -146,6 +158,43 @@ class GitHubApi(private val sessionManager: SessionManager) {
 
         } catch (e: Exception) {
             Log.e("GitHubApi", "GitHub活動取得失敗: ${e.message}")
+            emptyList()
+        }
+    }
+
+    /**
+     * 新しい方法：選択リポジトリから個別取得
+     */
+    private suspend fun getPostsFromSelectedRepositories(account: Account.GitHub, period: String): List<PostWithImageUrls> {
+        if (account.selectedRepositories.isEmpty()) {
+            Log.d("GitHubApi", "選択リポジトリが空のため、取得をスキップ")
+            return emptyList()
+        }
+
+        val months = periodToMonths(period)
+        val sinceDate = months?.let {
+            ZonedDateTime.now().minusMonths(it.toLong()).format(DateTimeFormatter.ISO_INSTANT)
+        }
+
+        return try {
+            val allPosts = mutableListOf<PostWithImageUrls>()
+
+            // 各選択リポジトリからコミット履歴を取得
+            account.selectedRepositories.forEach { repoFullName ->
+                try {
+                    val commits = getRepositoryCommits(account.accessToken, repoFullName, sinceDate)
+                    allPosts.addAll(commits)
+                    Log.d("GitHubApi", "$repoFullName から ${commits.size}件のコミットを取得")
+                } catch (e: Exception) {
+                    Log.e("GitHubApi", "$repoFullName の取得に失敗: ${e.message}")
+                }
+            }
+
+            Log.d("GitHubApi", "選択リポジトリから合計 ${allPosts.size}件の投稿を取得")
+            allPosts.sortedByDescending { it.post.createdAt }
+
+        } catch (e: Exception) {
+            Log.e("GitHubApi", "選択リポジトリからの取得失敗: ${e.message}")
             emptyList()
         }
     }
@@ -174,6 +223,112 @@ class GitHubApi(private val sessionManager: SessionManager) {
         )
 
         return PostWithImageUrls(post = post, imageUrls = emptyList())
+    }
+
+    /**
+     * ユーザーのリポジトリ一覧を取得
+     */
+    suspend fun getUserRepositories(accessToken: String): List<GitHubRepository> {
+        return try {
+            val repositories: List<GitHubRepository> = client.get("https://api.github.com/user/repos") {
+                headers {
+                    append(HttpHeaders.Authorization, "token $accessToken")
+                    append(HttpHeaders.Accept, "application/vnd.github.v3+json")
+                }
+                parameter("type", "all") // public, private, all
+                parameter("sort", "updated") // updated, created, pushed, full_name
+                parameter("per_page", 100)
+            }.body()
+
+            Log.d("GitHubApi", "リポジトリ取得成功: ${repositories.size}件")
+            repositories
+
+        } catch (e: Exception) {
+            Log.e("GitHubApi", "リポジトリ取得失敗: ${e.message}")
+            emptyList()
+        }
+    }
+
+    /**
+     * 指定リポジトリのコミット履歴を取得（ページネーション対応版）
+     */
+    suspend fun getRepositoryCommits(
+        accessToken: String,
+        repoFullName: String,
+        since: String? = null
+    ): List<PostWithImageUrls> {
+        return try {
+            Log.d("GitHubApi", "$repoFullName の取得パラメータ: since=$since, ページネーション有効")
+
+            val allCommits = mutableListOf<GitHubCommitDetail>()
+            var currentPage = 1
+            var hasNextPage = true
+
+            while (hasNextPage) {
+                Log.d("GitHubApi", "$repoFullName ページ $currentPage を取得中...")
+
+                val response = client.get("https://api.github.com/repos/$repoFullName/commits") {
+                    headers {
+                        append(HttpHeaders.Authorization, "token $accessToken")
+                        append(HttpHeaders.Accept, "application/vnd.github.v3+json")
+                    }
+                    parameter("per_page", 100)
+                    parameter("page", currentPage)
+                    since?.let { parameter("since", it) }
+                }
+
+                val commits: List<GitHubCommitDetail> = response.body()
+                allCommits.addAll(commits)
+
+                Log.d("GitHubApi", "$repoFullName ページ $currentPage: ${commits.size}件取得（累計: ${allCommits.size}件）")
+
+                // Linkヘッダーから次のページがあるかチェック
+                val linkHeader = response.headers["Link"]
+                hasNextPage = linkHeader?.contains("rel=\"next\"") == true
+
+                // 空のページまたは100件未満なら終了
+                if (commits.isEmpty() || commits.size < 100) {
+                    hasNextPage = false
+                }
+
+                currentPage++
+
+                // 安全装置：10ページ（1000件）で制限
+                if (currentPage > 10) {
+                    Log.w("GitHubApi", "$repoFullName: 10ページ制限に到達、取得を停止")
+                    break
+                }
+            }
+
+            Log.d("GitHubApi", "$repoFullName のコミット取得完了: 全${allCommits.size}件")
+
+            allCommits.map { commitDetail ->
+                val repoName = repoFullName.substringAfter("/")
+                val text = buildString {
+                    append("$repoName にコミット")
+                    appendLine()
+                    append("「${commitDetail.commit.message}」")
+                }
+
+                val post = Post(
+                    id = "github_commit_${commitDetail.sha}",
+                    accountId = repoFullName.substringBefore("/"),
+                    text = text,
+                    createdAt = ZonedDateTime.parse(
+                        commitDetail.commit.author.date,
+                        DateTimeFormatter.ISO_OFFSET_DATE_TIME
+                    ),
+                    source = SnsType.GITHUB,
+                    imageUrl = null
+                )
+
+                PostWithImageUrls(post = post, imageUrls = emptyList())
+            }
+
+        } catch (e: Exception) {
+            Log.e("GitHubApi", "$repoFullName のコミット取得失敗: ${e.message}")
+            emptyList()
+        }
     }
 
     /**

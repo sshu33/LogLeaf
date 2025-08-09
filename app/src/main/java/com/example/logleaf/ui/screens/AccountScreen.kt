@@ -1,59 +1,40 @@
 package com.example.logleaf.ui.screens
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import android.util.Log
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.FloatingActionButtonDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavController
 import com.example.logleaf.Account
+import com.example.logleaf.GitHubRepository
 import com.example.logleaf.MainViewModel
 import com.example.logleaf.R
 import com.example.logleaf.ui.components.CustomTopAppBar
 import com.example.logleaf.ui.components.ListCard
 import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
+import kotlinx.coroutines.launch
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
@@ -62,7 +43,7 @@ import java.nio.charset.StandardCharsets
 fun AccountScreen(
     viewModel: AccountViewModel,
     navController: NavController,
-    mainViewModel: MainViewModel // ← 追加
+    mainViewModel: MainViewModel
 ) {
     val accounts by viewModel.accounts.collectAsState()
     var accountToDelete by remember { mutableStateOf<Account?>(null) }
@@ -102,15 +83,12 @@ fun AccountScreen(
                                             navController.navigate("mastodon_instance?instanceUrl=$encodedUrl")
                                         }
                                         account.needsReauthentication && account is Account.Bluesky -> {
-                                            // Bluesky再ログイン画面に遷移
                                             navController.navigate("login")
                                         }
                                         account.needsReauthentication && account is Account.GitHub -> {
-                                            // GitHub再ログイン画面に遷移
                                             navController.navigate("github_login")
                                         }
                                         account is Account.GitHub -> {
-                                            // 通常時：GitHubアカウントタップで期間変更ダイアログを表示
                                             githubAccountToEdit = account
                                         }
                                     }
@@ -135,7 +113,6 @@ fun AccountScreen(
                                         text = account.displayName,
                                         style = MaterialTheme.typography.bodyLarge
                                     )
-                                    // GitHubアカウントの場合は期間を表示
                                     if (account is Account.GitHub) {
                                         Text(
                                             text = "取得期間: ${account.period}",
@@ -161,10 +138,20 @@ fun AccountScreen(
                                         )
                                     }
                                 } else {
-                                    Switch(
-                                        checked = account.isVisible,
-                                        onCheckedChange = { viewModel.toggleAccountVisibility(account.userId) }
-                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Switch(
+                                            checked = account.isVisible,
+                                            onCheckedChange = { viewModel.toggleAccountVisibility(account.userId) }
+                                        )
+                                        IconButton(onClick = { accountToDelete = account }) {
+                                            Icon(
+                                                painter = painterResource(id = R.drawable.ic_delete),
+                                                contentDescription = "削除",
+                                                tint = MaterialTheme.colorScheme.error,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -173,45 +160,55 @@ fun AccountScreen(
             }
         }
 
-        // FAB（Add Account）
+        // カスタムFAB
         FloatingActionButton(
             onClick = { navController.navigate("sns_select") },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(24.dp),
-            containerColor = MaterialTheme.colorScheme.primary,
+                .padding(end = 20.dp, bottom = 12.dp),
+            containerColor = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.onSurface,
             elevation = FloatingActionButtonDefaults.elevation(
-                defaultElevation = 12.dp,
-                pressedElevation = 16.dp
-            ),
-            shape = CircleShape
-        ) {
-            Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = "アカウントを追加",
-                tint = Color.White
+                defaultElevation = 0.dp,
+                pressedElevation = 0.dp
             )
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "アカウントの追加",
+                    tint = MaterialTheme.colorScheme.onPrimary
+                )
+            }
         }
     }
 
-    // GitHub期間変更ダイアログ
+    // GitHub設定変更ダイアログ
     githubAccountToEdit?.let { account ->
         GitHubPeriodDialog(
             account = account,
+            viewModel = viewModel,
             onDismiss = { githubAccountToEdit = null },
-            onPeriodChanged = { newPeriod ->
+            onSettingsChanged = { newPeriod, fetchMode, selectedRepos ->
                 viewModel.updateGitHubAccountPeriod(account.username, newPeriod)
-                mainViewModel.refreshPosts() // ← 自動更新！
+                viewModel.updateGitHubAccountRepositories(account.username, fetchMode, selectedRepos)
+                mainViewModel.refreshPosts()
             }
         )
     }
 
-    // 削除確認ダイアログ（既存のまま）
+    // 削除確認ダイアログ
     accountToDelete?.let { account ->
         AlertDialog(
             onDismissRequest = { accountToDelete = null },
-            title = { Text("アカウントを削除") },
-            text = { Text("${account.displayName} を削除しますか？関連する投稿もすべて削除されます。") },
+            title = { Text("アカウントの完全削除") },
+            text = { Text("${account.displayName} を削除しますか？\n\n注意：このアカウントの投稿もすべて削除され、元に戻すことはできません。") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -234,45 +231,68 @@ fun AccountScreen(
 @Composable
 fun GitHubPeriodDialog(
     account: Account.GitHub,
+    viewModel: AccountViewModel,
     onDismiss: () -> Unit,
-    onPeriodChanged: (String) -> Unit
+    onSettingsChanged: (period: String, fetchMode: Account.RepositoryFetchMode, selectedRepos: List<String>) -> Unit
 ) {
     var selectedPeriod by remember { mutableStateOf(account.period) }
+    var selectedFetchMode by remember { mutableStateOf(account.repositoryFetchMode) }
+    var selectedRepositories by remember { mutableStateOf(account.selectedRepositories.toSet()) }
+    var isLoadingRepos by remember { mutableStateOf(false) }
+    var repoLoadError by remember { mutableStateOf<String?>(null) }
+    var availableRepositories by remember { mutableStateOf<List<GitHubRepository>?>(null) }
+
+    val scope = rememberCoroutineScope()
+    val isCustomSelected = selectedFetchMode == Account.RepositoryFetchMode.Selected
+
+    val loadRepositories = {
+        scope.launch {
+            isLoadingRepos = true
+            repoLoadError = null
+            try {
+                val repos = viewModel.getGitHubRepositories(account.accessToken)
+                availableRepositories = repos
+                if (repos.isEmpty()) {
+                    repoLoadError = "リポジトリが見つかりません"
+                }
+            } catch (e: Exception) {
+                repoLoadError = "取得に失敗しました: ${e.message}"
+                Log.e("GitHubDialog", "リポジトリ取得失敗", e)
+            } finally {
+                isLoadingRepos = false
+            }
+        }
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier
+                .wrapContentHeight()
+                .widthIn(min = 300.dp, max = 400.dp),
+            shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // タイトル
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_github),
-                        contentDescription = "GitHub",
-                        tint = SnsType.GITHUB.brandColor,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text(
-                        text = account.username,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                Text(
+                    text = "GitHub設定",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
 
-                // 期間選択部分（既存のまま）
+                // 取得期間段落
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         text = "取得期間",
-                        fontSize = 13.sp,
+                        fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
+
+                    Spacer(Modifier.width(4.dp))
 
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -281,13 +301,165 @@ fun GitHubPeriodDialog(
                                 PeriodChip(period = period, isSelected = isSelected, onClick = { selectedPeriod = period })
                             }
                         }
-
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             listOf("12ヶ月", "24ヶ月", "全期間").forEach { period ->
                                 val isSelected = selectedPeriod == period
                                 PeriodChip(period = period, isSelected = isSelected, onClick = { selectedPeriod = period })
                             }
-                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+
+                // 取得対象段落
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "取得対象",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clickable { selectedFetchMode = Account.RepositoryFetchMode.All }
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(
+                                    id = if (selectedFetchMode == Account.RepositoryFetchMode.All)
+                                        R.drawable.ic_radio_button_on else R.drawable.ic_radio_button_off
+                                ),
+                                contentDescription = if (selectedFetchMode == Account.RepositoryFetchMode.All) "選択済み" else "未選択",
+                                tint = if (selectedFetchMode == Account.RepositoryFetchMode.All)
+                                    SnsType.GITHUB.brandColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "全リポジトリ",
+                                modifier = Modifier.padding(start = 8.dp),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clickable {
+                                    selectedFetchMode = Account.RepositoryFetchMode.Selected
+                                    if (availableRepositories?.isEmpty() != false && !isLoadingRepos) {
+                                        loadRepositories()
+                                    }
+                                }
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(
+                                    id = if (selectedFetchMode == Account.RepositoryFetchMode.Selected)
+                                        R.drawable.ic_radio_button_on else R.drawable.ic_radio_button_off
+                                ),
+                                contentDescription = if (selectedFetchMode == Account.RepositoryFetchMode.Selected) "選択済み" else "未選択",
+                                tint = if (selectedFetchMode == Account.RepositoryFetchMode.Selected)
+                                    SnsType.GITHUB.brandColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "カスタム選択",
+                                modifier = Modifier.padding(start = 8.dp),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.width(4.dp))
+
+                    AnimatedVisibility(
+                        visible = isCustomSelected && (isLoadingRepos || availableRepositories != null || repoLoadError != null),
+                    ) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 200.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                            ),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                when {
+                                    isLoadingRepos -> {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(60.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(24.dp),
+                                                color = SnsType.GITHUB.brandColor,
+                                                strokeWidth = 2.dp
+                                            )
+                                        }
+                                    }
+                                    repoLoadError != null -> {
+                                        Text(
+                                            text = "リポジトリの取得に失敗しました",
+                                            color = MaterialTheme.colorScheme.error,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            modifier = Modifier.padding(8.dp)
+                                        )
+                                    }
+                                    availableRepositories?.isEmpty() == true -> {
+                                        Text(
+                                            text = "リポジトリが見つかりません",
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            modifier = Modifier.padding(8.dp)
+                                        )
+                                    }
+                                    else -> {
+                                        LazyColumn(
+                                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                                        ) {
+                                            items(availableRepositories ?: emptyList()) { repo ->
+                                                val isSelected = selectedRepositories.contains(repo.fullName)
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable {
+                                                            selectedRepositories = if (isSelected) {
+                                                                selectedRepositories - repo.fullName
+                                                            } else {
+                                                                selectedRepositories + repo.fullName
+                                                            }
+                                                        }
+                                                        .padding(vertical = 2.dp, horizontal = 4.dp)
+                                                ) {
+                                                    Icon(
+                                                        painter = painterResource(
+                                                            id = if (isSelected) R.drawable.ic_toggle_on else R.drawable.ic_toggle_off
+                                                        ),
+                                                        contentDescription = if (isSelected) "選択済み" else "未選択",
+                                                        tint = if (isSelected) SnsType.GITHUB.brandColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                    Column(
+                                                        modifier = Modifier.padding(start = 8.dp),
+                                                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = repo.name,
+                                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+                                                            fontWeight = FontWeight.Medium
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -300,7 +472,12 @@ fun GitHubPeriodDialog(
                     TextButton(onClick = onDismiss) {
                         Text("キャンセル", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                     }
-                    TextButton(onClick = { onPeriodChanged(selectedPeriod); onDismiss() }) {
+                    TextButton(
+                        onClick = {
+                            onSettingsChanged(selectedPeriod, selectedFetchMode, selectedRepositories.toList())
+                            onDismiss()
+                        }
+                    ) {
                         Text("変更", color = SnsType.GITHUB.brandColor, fontWeight = FontWeight.Medium)
                     }
                 }

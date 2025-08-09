@@ -96,3 +96,18 @@ data class GitHubCommitAuthor(
     @SerialName("login") val login: String,
     @SerialName("id") val id: Long
 )
+
+/**
+ * GitHubのリポジトリ情報
+ */
+@Serializable
+data class GitHubRepository(
+    @SerialName("id") val id: Long,
+    @SerialName("name") val name: String,
+    @SerialName("full_name") val fullName: String, // "username/repository"
+    @SerialName("description") val description: String?,
+    @SerialName("private") val isPrivate: Boolean,
+    @SerialName("updated_at") val updatedAt: String,
+    @SerialName("pushed_at") val pushedAt: String?,
+    @SerialName("default_branch") val defaultBranch: String
+)

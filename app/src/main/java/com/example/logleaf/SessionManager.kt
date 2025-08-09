@@ -199,10 +199,30 @@ class SessionManager(context: Context) {
         updateAccountState(username) { account ->
             when (account) {
                 is Account.GitHub -> account.copy(period = newPeriod)
-                else -> account // GitHubアカウント以外は変更しない
+                else -> account
             }
         }
         Log.d("SessionManager", "GitHubアカウント($username)の期間を${newPeriod}に変更しました。")
+    }
+
+    /**
+     * GitHubアカウントのリポジトリ選択を更新する
+     */
+    fun updateGitHubAccountRepositories(
+        username: String,
+        fetchMode: Account.RepositoryFetchMode,
+        selectedRepos: List<String> = emptyList()
+    ) {
+        updateAccountState(username) { account ->
+            when (account) {
+                is Account.GitHub -> account.copy(
+                    repositoryFetchMode = fetchMode,
+                    selectedRepositories = selectedRepos
+                )
+                else -> account
+            }
+        }
+        Log.d("SessionManager", "GitHubアカウント($username)のリポジトリ設定を更新: $fetchMode, 選択数: ${selectedRepos.size}")
     }
 
 

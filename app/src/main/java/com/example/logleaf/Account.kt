@@ -47,12 +47,23 @@ sealed class Account {
     data class GitHub(
         val username: String,
         val accessToken: String,
-        val period: String = "3ヶ月", // ← 追加！
+        val period: String = "3ヶ月",
+        val repositoryFetchMode: RepositoryFetchMode = RepositoryFetchMode.All, // 追加
+        val selectedRepositories: List<String> = emptyList(), // 追加："owner/repo"形式のリスト
         override val needsReauthentication: Boolean = false,
         override val isVisible: Boolean = true
     ) : Account() {
         override val snsType: SnsType get() = SnsType.GITHUB
         override val userId: String get() = username
         override val displayName: String get() = username
+    }
+
+    /**
+     * リポジトリ取得モード
+     */
+    @Serializable
+    enum class RepositoryFetchMode {
+        All,    // 全リポジトリから取得
+        Selected // 選択したリポジトリのみ取得
     }
 }

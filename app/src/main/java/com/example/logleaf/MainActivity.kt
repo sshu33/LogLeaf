@@ -240,16 +240,18 @@ fun MainScreen(
             }
 
             composable("accounts") {
+                val gitHubApi = GitHubApi(sessionManager) // ← 追加！
                 val accountViewModel: AccountViewModel = viewModel(
                     factory = AccountViewModel.provideFactory(
                         sessionManager = sessionManager,
-                        postDao = postDao
+                        postDao = postDao,
+                        gitHubApi = gitHubApi // ← 修正！
                     )
                 )
                 AccountScreen(
                     viewModel = accountViewModel,
                     navController = navController,
-                    mainViewModel = mainViewModel // ← この行を追加！
+                    mainViewModel = mainViewModel
                 )
             }
 
