@@ -45,6 +45,20 @@ class AccountViewModel(
     }
 
     /**
+     * Blueskyアカウントの期間設定を更新する
+     */
+    fun updateBlueskyAccountPeriod(handle: String, newPeriod: String) {
+        sessionManager.updateBlueskyAccountPeriod(handle, newPeriod)
+    }
+
+    /**
+     * Mastodonアカウントの期間設定を更新する
+     */
+    fun updateMastodonAccountPeriod(acct: String, newPeriod: String) {
+        sessionManager.updateMastodonAccountPeriod(acct, newPeriod)
+    }
+
+    /**
      * GitHubアカウントのリポジトリ設定を更新
      */
     fun updateGitHubAccountRepositories(

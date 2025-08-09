@@ -64,7 +64,7 @@ fun LoginScreen(
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     var passwordVisible by remember { mutableStateOf(false) }
-    var selectedPeriod by remember { mutableStateOf("3ヶ月") }
+    val selectedPeriod by viewModel.selectedPeriod.collectAsState()
     val keyboardController = LocalSoftwareKeyboardController.current
 
     // イベント処理（既存のまま）
@@ -194,7 +194,7 @@ fun LoginScreen(
                             PeriodChip(
                                 period = period,
                                 isSelected = isSelected,
-                                onClick = { selectedPeriod = period },
+                                onClick = { viewModel.onPeriodChanged(period) },
                                 brandColor = SnsType.BLUESKY.brandColor
                             )
                         }
@@ -209,7 +209,7 @@ fun LoginScreen(
                             PeriodChip(
                                 period = period,
                                 isSelected = isSelected,
-                                onClick = { selectedPeriod = period },
+                                onClick = { viewModel.onPeriodChanged(period) },
                                 brandColor = SnsType.BLUESKY.brandColor
                             )
                         }
@@ -237,7 +237,12 @@ fun LoginScreen(
                 value = uiState.password,
                 onValueChange = { viewModel.onPasswordChange(it) },
                 label = { Text("アプリパスワード") },
-                placeholder = { Text("xxxx-xxxx-xxxx-xxxx") },
+                placeholder = {
+                    Text(
+                        text = "xxxx-xxxx-xxxx-xxxx",
+                        color = Color.LightGray
+                    )
+                },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),

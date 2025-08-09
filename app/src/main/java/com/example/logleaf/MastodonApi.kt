@@ -252,7 +252,7 @@ class MastodonApi(private val sessionManager: SessionManager) {
     }
 
     /**
-     * 差分取得のためのsince日時を決定
+     * 差分取得のためのsince日時を決定（期間対応版）
      */
     private fun determineSinceDate(account: Account.Mastodon): String? {
         return when {
@@ -261,11 +261,20 @@ class MastodonApi(private val sessionManager: SessionManager) {
                 Log.d("MastodonApi", "前回同期時刻を使用: ${account.lastSyncedAt}")
                 account.lastSyncedAt
             }
-            // 初回同期の場合：最近2週間分を取得
+            // 初回同期の場合：期間設定に従って取得
             else -> {
-                val twoWeeksAgo = ZonedDateTime.now().minusWeeks(2).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
-                Log.d("MastodonApi", "初回同期のため2週間前から取得: $twoWeeksAgo")
-                twoWeeksAgo
+                val sinceDate = when (account.period) {
+                    "1ヶ月" -> ZonedDateTime.now().minusMonths(1)
+                    "3ヶ月" -> ZonedDateTime.now().minusMonths(3)
+                    "6ヶ月" -> ZonedDateTime.now().minusMonths(6)
+                    "12ヶ月" -> ZonedDateTime.now().minusMonths(12)
+                    "24ヶ月" -> ZonedDateTime.now().minusMonths(24)
+                    "全期間" -> null // 全期間の場合は制限なし
+                    else -> ZonedDateTime.now().minusMonths(3) // デフォルト3ヶ月
+                }?.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+
+                Log.d("MastodonApi", "初回同期のため期間設定(${account.period})を使用: $sinceDate")
+                sinceDate
             }
         }
     }

@@ -72,7 +72,7 @@ fun MastodonInstanceScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
-    var selectedPeriod by remember { mutableStateOf("3ヶ月") }
+    val selectedPeriod by viewModel.selectedPeriod.collectAsState()
     val keyboardController = LocalSoftwareKeyboardController.current
 
     // イベント処理（既存のまま）
@@ -197,7 +197,7 @@ fun MastodonInstanceScreen(
                                 PeriodChip(
                                     period = period,
                                     isSelected = isSelected,
-                                    onClick = { selectedPeriod = period },
+                                    onClick = { viewModel.onPeriodChanged(period) },
                                     brandColor = SnsType.MASTODON.brandColor
                                 )
                             }
@@ -212,7 +212,7 @@ fun MastodonInstanceScreen(
                                 PeriodChip(
                                     period = period,
                                     isSelected = isSelected,
-                                    onClick = { selectedPeriod = period },
+                                    onClick = { viewModel.onPeriodChanged(period) },
                                     brandColor = SnsType.MASTODON.brandColor
                                 )
                             }
@@ -225,7 +225,12 @@ fun MastodonInstanceScreen(
                     value = uiState.instanceUrl,
                     onValueChange = { viewModel.onInstanceUrlChange(it) },
                     label = { Text("インスタンスURL") },
-                    placeholder = { Text("mstdn.jp") },
+                    placeholder = {
+                        Text(
+                            text = "mstdn.jp",
+                            color = Color.LightGray
+                        )
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     trailingIcon = {
                         IconButton(

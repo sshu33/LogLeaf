@@ -1,5 +1,6 @@
 package com.example.logleaf
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -32,6 +33,14 @@ class MastodonInstanceViewModel(
     private val initialInstanceUrl: String?
 ) : ViewModel() {
 
+    private val _selectedPeriod = MutableStateFlow("3ヶ月")
+    val selectedPeriod = _selectedPeriod.asStateFlow()
+
+    // 期間変更メソッド追加
+    fun onPeriodChanged(newPeriod: String) {
+        _selectedPeriod.value = newPeriod
+    }
+
     private val _uiState = MutableStateFlow(
         MastodonInstanceUiState(instanceUrl = initialInstanceUrl ?: "")
     )
@@ -43,14 +52,13 @@ class MastodonInstanceViewModel(
     val isReAuthFlow: Boolean = initialInstanceUrl != null
 
     init {
-        if (isReAuthFlow) {
-            println("再認証フローを自動開始します: $initialInstanceUrl")
-            onAppRegisterClicked()
-        }
+        Log.d("MastodonDebug", "ViewModel初期化")
 
         viewModelScope.launch {
             MastodonAuthHolder.uriFlow.collect { uri ->
+                Log.d("MastodonDebug", "URI受信: $uri")
                 val code = uri.getQueryParameter("code")
+                Log.d("MastodonDebug", "認証コード: $code")
                 if (code != null) {
                     handleMastodonAuth(code)
                 }
@@ -113,15 +121,15 @@ class MastodonInstanceViewModel(
                     val verifiedAccount = mastodonApi.verifyCredentials(instanceUrl, tokenResponse.accessToken)
 
                     if (verifiedAccount != null) {
-                        // ★★★ 正しいパラメータでアカウントを生成する ★★★
                         val newAccount = Account.Mastodon(
                             instanceUrl = instanceUrl,
                             id = verifiedAccount.id,
                             acct = verifiedAccount.acct,
                             username = verifiedAccount.username,
                             accessToken = tokenResponse.accessToken,
-                            clientId = clientId,        // ← 追加
-                            clientSecret = clientSecret // ← 追加
+                            clientId = clientId,
+                            clientSecret = clientSecret,
+                            period = _selectedPeriod.value
                         )
 
                         sessionManager.saveAccount(newAccount)

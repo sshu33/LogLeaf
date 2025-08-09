@@ -195,6 +195,58 @@ class SessionManager(context: Context) {
     }
 
     /**
+     * Blueskyアカウントの期間設定を更新する
+     */
+    fun updateBlueskyAccountPeriod(handle: String, newPeriod: String) {
+        Log.d("SessionManager", "updateBlueskyAccountPeriod呼び出し: handle=$handle, newPeriod=$newPeriod")
+
+        // ★ handleではなくdidで検索する必要がある
+        val account = getAccounts().find { it is Account.Bluesky && it.handle == handle } as? Account.Bluesky
+        if (account != null) {
+            updateAccountState(account.did) { acc -> // ← didを使用
+                Log.d("SessionManager", "アカウント発見: ${acc.displayName}")
+                when (acc) {
+                    is Account.Bluesky -> {
+                        Log.d("SessionManager", "Blueskyアカウント更新中...")
+                        acc.copy(period = newPeriod, lastSyncedAt = null)
+                    }
+                    else -> acc
+                }
+            }
+        } else {
+            Log.e("SessionManager", "handleに対応するBlueskyアカウントが見つかりません: $handle")
+        }
+
+        Log.d("SessionManager", "Blueskyアカウント($handle)の期間を${newPeriod}に変更し、同期時刻をリセットしました。")
+    }
+
+    /**
+     * Mastodonアカウントの期間設定を更新する
+     */
+    fun updateMastodonAccountPeriod(acct: String, newPeriod: String) {
+        Log.d("SessionManager", "updateMastodonAccountPeriod呼び出し: acct=$acct, newPeriod=$newPeriod")
+
+        // ★ acctではなくidで検索する必要がある
+        val account = getAccounts().find { it is Account.Mastodon && it.acct == acct } as? Account.Mastodon
+        if (account != null) {
+            updateAccountState(account.id) { acc -> // ← idを使用
+                Log.d("SessionManager", "アカウント発見: ${acc.displayName}")
+                when (acc) {
+                    is Account.Mastodon -> {
+                        Log.d("SessionManager", "Mastodonアカウント更新中...")
+                        acc.copy(period = newPeriod, lastSyncedAt = null)
+                    }
+                    else -> acc
+                }
+            }
+        } else {
+            Log.e("SessionManager", "acctに対応するMastodonアカウントが見つかりません: $acct")
+        }
+
+        Log.d("SessionManager", "Mastodonアカウント($acct)の期間を${newPeriod}に変更し、同期時刻をリセットしました。")
+    }
+
+    /**
      * GitHubアカウントの期間設定を更新する
      */
     fun updateGitHubAccountPeriod(username: String, newPeriod: String) {

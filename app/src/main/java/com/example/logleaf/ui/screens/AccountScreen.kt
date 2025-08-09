@@ -46,8 +46,12 @@ fun AccountScreen(
     mainViewModel: MainViewModel
 ) {
     val accounts by viewModel.accounts.collectAsState()
+
     var accountToDelete by remember { mutableStateOf<Account?>(null) }
+    var blueskyAccountToEdit by remember { mutableStateOf<Account.Bluesky?>(null) }
+    var mastodonAccountToEdit by remember { mutableStateOf<Account.Mastodon?>(null) }
     var githubAccountToEdit by remember { mutableStateOf<Account.GitHub?>(null) }
+
 
     Box(modifier = Modifier.fillMaxSize()) {
 
@@ -91,6 +95,12 @@ fun AccountScreen(
                                         account is Account.GitHub -> {
                                             githubAccountToEdit = account
                                         }
+                                        account is Account.Bluesky -> {
+                                            blueskyAccountToEdit = account
+                                        }
+                                        account is Account.Mastodon -> {
+                                            mastodonAccountToEdit = account
+                                        }
                                     }
                                 }
                             ) {
@@ -113,13 +123,6 @@ fun AccountScreen(
                                         text = account.displayName,
                                         style = MaterialTheme.typography.bodyLarge
                                     )
-                                    if (account is Account.GitHub) {
-                                        Text(
-                                            text = "取得期間: ${account.period}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                        )
-                                    }
                                 }
 
                                 if (account.needsReauthentication) {
@@ -189,6 +192,30 @@ fun AccountScreen(
         }
     }
 
+    // Bluesky期間変更ダイアログ
+    blueskyAccountToEdit?.let { account ->
+        BlueskyPeriodDialog(
+            account = account,
+            onDismiss = { blueskyAccountToEdit = null },
+            onPeriodChanged = { newPeriod ->
+                viewModel.updateBlueskyAccountPeriod(account.handle, newPeriod)
+                mainViewModel.refreshPosts()
+            }
+        )
+    }
+
+// Mastodon期間変更ダイアログ
+    mastodonAccountToEdit?.let { account ->
+        MastodonPeriodDialog(
+            account = account,
+            onDismiss = { mastodonAccountToEdit = null },
+            onPeriodChanged = { newPeriod ->
+                viewModel.updateMastodonAccountPeriod(account.acct, newPeriod)
+                mainViewModel.refreshPosts()
+            }
+        )
+    }
+
     // GitHub設定変更ダイアログ
     githubAccountToEdit?.let { account ->
         GitHubPeriodDialog(
@@ -225,6 +252,179 @@ fun AccountScreen(
                 }
             }
         )
+    }
+}
+
+// AccountScreen.kt に追加するダイアログコンポーネント
+@Composable
+fun BlueskyPeriodDialog(
+    account: Account.Bluesky,
+    onDismiss: () -> Unit,
+    onPeriodChanged: (String) -> Unit
+) {
+    var selectedPeriod by remember { mutableStateOf(account.period) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .wrapContentHeight()
+                .widthIn(min = 300.dp, max = 400.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // タイトル
+                Text(
+                    text = "Bluesky設定",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                // 取得期間段落
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "取得期間",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+
+                    Spacer(Modifier.width(4.dp))
+
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("1ヶ月", "3ヶ月", "6ヶ月").forEach { period ->
+                                val isSelected = selectedPeriod == period
+                                PeriodChip(
+                                    period = period,
+                                    isSelected = isSelected,
+                                    onClick = { selectedPeriod = period },
+                                    brandColor = SnsType.BLUESKY.brandColor
+                                )
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("12ヶ月", "24ヶ月", "全期間").forEach { period ->
+                                val isSelected = selectedPeriod == period
+                                PeriodChip(
+                                    period = period,
+                                    isSelected = isSelected,
+                                    onClick = { selectedPeriod = period },
+                                    brandColor = SnsType.BLUESKY.brandColor
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // ボタン
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("キャンセル", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                    }
+                    TextButton(
+                        onClick = {
+                            onPeriodChanged(selectedPeriod)
+                            onDismiss()
+                        }
+                    ) {
+                        Text("変更", color = SnsType.BLUESKY.brandColor, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MastodonPeriodDialog(
+    account: Account.Mastodon,
+    onDismiss: () -> Unit,
+    onPeriodChanged: (String) -> Unit
+) {
+    var selectedPeriod by remember { mutableStateOf(account.period) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .wrapContentHeight()
+                .widthIn(min = 300.dp, max = 400.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // タイトル
+                Text(
+                    text = "Mastodon設定",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                // 取得期間段落
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "取得期間",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+
+                    Spacer(Modifier.width(4.dp))
+
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("1ヶ月", "3ヶ月", "6ヶ月").forEach { period ->
+                                val isSelected = selectedPeriod == period
+                                PeriodChip(
+                                    period = period,
+                                    isSelected = isSelected,
+                                    onClick = { selectedPeriod = period },
+                                    brandColor = SnsType.MASTODON.brandColor
+                                )
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("12ヶ月", "24ヶ月", "全期間").forEach { period ->
+                                val isSelected = selectedPeriod == period
+                                PeriodChip(
+                                    period = period,
+                                    isSelected = isSelected,
+                                    onClick = { selectedPeriod = period },
+                                    brandColor = SnsType.MASTODON.brandColor
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // ボタン
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("キャンセル", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                    }
+                    TextButton(
+                        onClick = {
+                            onPeriodChanged(selectedPeriod)
+                            onDismiss()
+                        }
+                    ) {
+                        Text("変更", color = SnsType.MASTODON.brandColor, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -490,7 +690,8 @@ fun GitHubPeriodDialog(
 private fun PeriodChip(
     period: String,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    brandColor: Color = MaterialTheme.colorScheme.onSurface // ← 追加
 ) {
     OutlinedButton(
         onClick = onClick,
@@ -498,12 +699,12 @@ private fun PeriodChip(
             .height(32.dp)
             .width(72.dp),
         colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = if (isSelected) MaterialTheme.colorScheme.onSurface else Color.Transparent,
+            containerColor = if (isSelected) brandColor else Color.Transparent, // ← 修正
             contentColor = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
         ),
         border = BorderStroke(
             1.dp,
-            MaterialTheme.colorScheme.onSurface.copy(alpha = if (isSelected) 1f else 0.3f)
+            if (isSelected) brandColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f) // ← 修正
         ),
         contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
         shape = RoundedCornerShape(8.dp)

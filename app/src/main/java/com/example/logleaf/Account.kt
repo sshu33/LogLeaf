@@ -18,6 +18,7 @@ sealed class Account {
         val handle: String,
         val accessToken: String,
         val refreshToken: String,
+        val period: String = "3ヶ月",
         override val needsReauthentication: Boolean = false,
         override val isVisible: Boolean = true,
         override val lastSyncedAt: String? = null // ← 追加
@@ -36,6 +37,7 @@ sealed class Account {
         val accessToken: String,
         val clientId: String = "",
         val clientSecret: String = "",
+        val period: String = "3ヶ月",
         override val needsReauthentication: Boolean = false,
         override val isVisible: Boolean = true,
         override val lastSyncedAt: String? = null // ← 追加

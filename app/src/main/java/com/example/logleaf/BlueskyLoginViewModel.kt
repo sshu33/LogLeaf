@@ -25,9 +25,16 @@ sealed class BlueskyLoginEvent {
 
 
 // ViewModel本体
-class BlueskyLoginViewModel(
-    private val blueskyApi: BlueskyApi
-) : ViewModel() {
+class BlueskyLoginViewModel(private val blueskyApi: BlueskyApi) : ViewModel() {
+
+    // 期間選択状態を追加
+    private val _selectedPeriod = MutableStateFlow("3ヶ月")
+    val selectedPeriod = _selectedPeriod.asStateFlow()
+
+    // 期間変更メソッド追加
+    fun onPeriodChanged(newPeriod: String) {
+        _selectedPeriod.value = newPeriod
+    }
 
     private val _uiState = MutableStateFlow(BlueskyLoginUiState())
     val uiState = _uiState.asStateFlow()
@@ -59,7 +66,8 @@ class BlueskyLoginViewModel(
             // 2. 実際のログイン処理を実行
             val success = blueskyApi.login(
                 handle = _uiState.value.handle.trim(),
-                password = _uiState.value.password.trim()
+                password = _uiState.value.password.trim(),
+                period = _selectedPeriod.value // ← 期間を追加
             )
 
             // 3. 結果に応じて適切な状態更新

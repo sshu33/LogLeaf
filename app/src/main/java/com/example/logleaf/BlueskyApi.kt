@@ -68,27 +68,27 @@ class BlueskyApi(private val sessionManager: SessionManager) {
         }
     }
 
-    // ★ 変更：loginメソッド
-    suspend fun login(handle: String, password: String): Boolean {
+    suspend fun login(handle: String, password: String, period: String = "3ヶ月"): Boolean {
         return try {
             val response: LoginResponse = client.post("https://bsky.social/xrpc/com.atproto.server.createSession") {
                 contentType(ContentType.Application.Json)
                 setBody(LoginRequest(identifier = handle, password = password))
             }.body()
 
-            // ★ 変更：取得した情報からAccount.Blueskyオブジェクトを作成して保存する
+            // 取得した情報からAccount.Blueskyオブジェクトを作成して保存する
             val newAccount = Account.Bluesky(
                 did = response.did,
-                handle = response.handle, // ★ APIレスポンスからhandleを取得
+                handle = response.handle,
                 accessToken = response.accessJwt,
-                refreshToken = response.refreshJwt
+                refreshToken = response.refreshJwt,
+                period = period // ← 期間を追加
             )
             sessionManager.saveAccount(newAccount)
 
-            println("セッションの作成と保存に成功！")
+            Log.d("BlueskyApi", "Blueskyアカウント保存成功: ${response.handle}, 期間: $period")
             true
         } catch (e: Exception) {
-            println("ログインエラー: ${e.message}")
+            Log.e("BlueskyApi", "ログインエラー: ${e.message}")
             false
         }
     }
@@ -181,7 +181,7 @@ class BlueskyApi(private val sessionManager: SessionManager) {
     }
 
     /**
-     * 差分取得のためのsince日時を決定
+     * 差分取得のためのsince日時を決定（期間対応版）
      */
     private fun determineSinceDate(account: Account.Bluesky): String? {
         return when {
@@ -190,11 +190,20 @@ class BlueskyApi(private val sessionManager: SessionManager) {
                 Log.d("BlueskyApi", "前回同期時刻を使用: ${account.lastSyncedAt}")
                 account.lastSyncedAt
             }
-            // 初回同期の場合：最近1週間分を取得（Blueskyは高頻度投稿が多いため）
+            // 初回同期の場合：期間設定に従って取得
             else -> {
-                val oneWeekAgo = ZonedDateTime.now().minusWeeks(1).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
-                Log.d("BlueskyApi", "初回同期のため1週間前から取得: $oneWeekAgo")
-                oneWeekAgo
+                val sinceDate = when (account.period) {
+                    "1ヶ月" -> ZonedDateTime.now().minusMonths(1)
+                    "3ヶ月" -> ZonedDateTime.now().minusMonths(3)
+                    "6ヶ月" -> ZonedDateTime.now().minusMonths(6)
+                    "12ヶ月" -> ZonedDateTime.now().minusMonths(12)
+                    "24ヶ月" -> ZonedDateTime.now().minusMonths(24)
+                    "全期間" -> null // 全期間の場合は制限なし
+                    else -> ZonedDateTime.now().minusMonths(3) // デフォルト3ヶ月
+                }?.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+
+                Log.d("BlueskyApi", "初回同期のため期間設定(${account.period})を使用: $sinceDate")
+                sinceDate
             }
         }
     }

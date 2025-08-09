@@ -57,13 +57,26 @@ import com.example.logleaf.ui.screens.TimelineScreen
 import com.example.logleaf.ui.theme.LogLeafTheme
 import com.example.logleaf.ui.widget.PostWidgetProvider
 import com.leaf.logleaf.ui.entry.PostEntryDialog
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import java.time.ZoneId
+
+
 
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
-
         super.onCreate(savedInstanceState)
+
+        addOnNewIntentListener { intent ->
+
+            if (intent.action == Intent.ACTION_VIEW && intent.data != null) {
+                GlobalScope.launch {
+                    MastodonAuthHolder.postUri(intent.data!!)
+                    Log.d("MastodonDebug", "URI送信完了: ${intent.data}")
+                }
+            }
+        }
 
         setContent {
 
