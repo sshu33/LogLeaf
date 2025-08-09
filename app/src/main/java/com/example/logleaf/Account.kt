@@ -5,12 +5,12 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 sealed class Account {
-    // すべてのアカウントが共通して持つプロパティ
     abstract val snsType: SnsType
-    abstract val userId: String // 各SNSでのユニークなID（BlueskyならDID, Mastodonならacctなど）
-    abstract val displayName: String // UIに表示するための名前（Blueskyならhandle, Mastodonならusername）
+    abstract val userId: String
+    abstract val displayName: String
     abstract val needsReauthentication: Boolean
-    abstract val isVisible: Boolean // 追加：アカウントの表示/非表示フラグ
+    abstract val isVisible: Boolean
+    abstract val lastSyncedAt: String? // ← 全Accountの共通プロパティとして追加
 
     @Serializable
     data class Bluesky(
@@ -19,7 +19,8 @@ sealed class Account {
         val accessToken: String,
         val refreshToken: String,
         override val needsReauthentication: Boolean = false,
-        override val isVisible: Boolean = true //  追加 (デフォルトは true)
+        override val isVisible: Boolean = true,
+        override val lastSyncedAt: String? = null // ← 追加
     ) : Account() {
         override val snsType: SnsType get() = SnsType.BLUESKY
         override val userId: String get() = did
@@ -36,7 +37,8 @@ sealed class Account {
         val clientId: String = "",
         val clientSecret: String = "",
         override val needsReauthentication: Boolean = false,
-        override val isVisible: Boolean = true //  追加 (デフォルトは true)
+        override val isVisible: Boolean = true,
+        override val lastSyncedAt: String? = null // ← 追加
     ) : Account() {
         override val snsType: SnsType get() = SnsType.MASTODON
         override val userId: String get() = id
@@ -48,10 +50,11 @@ sealed class Account {
         val username: String,
         val accessToken: String,
         val period: String = "3ヶ月",
-        val repositoryFetchMode: RepositoryFetchMode = RepositoryFetchMode.All, // 追加
-        val selectedRepositories: List<String> = emptyList(), // 追加："owner/repo"形式のリスト
+        val repositoryFetchMode: RepositoryFetchMode = RepositoryFetchMode.All,
+        val selectedRepositories: List<String> = emptyList(),
         override val needsReauthentication: Boolean = false,
-        override val isVisible: Boolean = true
+        override val isVisible: Boolean = true,
+        override val lastSyncedAt: String? = null // ← 追加
     ) : Account() {
         override val snsType: SnsType get() = SnsType.GITHUB
         override val userId: String get() = username

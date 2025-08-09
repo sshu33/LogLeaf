@@ -18,6 +18,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 
 @Serializable
 data class AppRegistrationResponse(
@@ -40,7 +41,7 @@ sealed class MastodonPostResult {
     data class Error(val message: String) : MastodonPostResult()
 }
 
-class MastodonApi {
+class MastodonApi(private val sessionManager: SessionManager) {
 
     private val client = HttpClient(CIO) {
         install(ContentNegotiation) {
@@ -133,25 +134,28 @@ class MastodonApi {
 
 
     /**
-     * 特定のMastodonアカウントの投稿を取得する汎用的なメソッド
+     * 特定のMastodonアカウントの投稿を取得する汎用的なメソッド（差分取得対応版）
      */
     suspend fun getPosts(account: Account.Mastodon): MastodonPostResult {
-        // 最初に取得するURL
-        var url: String? = "https://${account.instanceUrl}/api/v1/accounts/${account.userId}/statuses?limit=40"
+        // 差分取得のためのsince日時を決定
+        val sinceDate = determineSinceDate(account)
+        Log.d("MastodonApi", "Mastodonアカウント(${account.username})の差分取得開始: since=$sinceDate")
+
+        // 最初に取得するURL（差分取得パラメータ付き）
+        var url: String? = buildInitialUrl(account, sinceDate)
         val allPosts = mutableListOf<PostWithImageUrls>()
         var pageCount = 1
 
         try {
             // urlがnullになるまで（=次のページがなくなるまで）ループ
             while (url != null) {
-                Log.d("PAGINATION_DEBUG", "Fetching page $pageCount from: $url")
+                Log.d("MastodonApi", "Fetching page $pageCount from: ${url.take(100)}...")
 
                 val httpResponse: io.ktor.client.statement.HttpResponse = client.get(url) {
                     headers { append(HttpHeaders.Authorization, "Bearer ${account.accessToken}") }
                 }
 
                 if (!httpResponse.status.isSuccess()) {
-                    // 途中でエラーが起きたら、それまでの結果を返すか、エラーとして処理するか
                     return when (httpResponse.status.value) {
                         401 -> MastodonPostResult.TokenInvalid
                         else -> MastodonPostResult.Error("HTTP ${httpResponse.status.value}")
@@ -181,10 +185,20 @@ class MastodonApi {
 
                     PostWithImageUrls(post = post, imageUrls = imageUrls)
                 }
+
                 allPosts.addAll(postsWithImages)
 
+                // 差分取得時の早期終了：since日時よりも古い投稿に達したら停止
+                if (sinceDate != null) {
+                    val sinceDateTime = ZonedDateTime.parse(sinceDate)
+                    val oldestPostInPage = postsWithImages.minByOrNull { it.post.createdAt }
+                    if (oldestPostInPage != null && oldestPostInPage.post.createdAt.isBefore(sinceDateTime)) {
+                        Log.d("MastodonApi", "差分取得完了: since日時より古い投稿に到達")
+                        break
+                    }
+                }
+
                 // --- 次のページのURLを取得 ---
-                // 'Link'ヘッダーを解析 (例: <...>; rel="next", <...>; rel="prev")
                 val linkHeader = httpResponse.headers["Link"]
                 val nextUrlMatch = linkHeader?.split(",")?.find { it.contains("rel=\"next\"") }
                 url = nextUrlMatch?.substringAfter("<")?.substringBefore(">")
@@ -192,17 +206,67 @@ class MastodonApi {
                 pageCount++
                 // 念のため、無限ループを防ぐ
                 if (pageCount > 25) { // 40件 * 25ページ = 1000件
-                    Log.w("PAGINATION_DEBUG", "Reached page limit (25). Stopping.")
+                    Log.w("MastodonApi", "Reached page limit (25). Stopping.")
                     break
                 }
             }
 
-            Log.d("PAGINATION_DEBUG", "Total ${allPosts.size} posts fetched for ${account.displayName}.")
-            return MastodonPostResult.Success(allPosts)
+            // 差分取得：since日時以降の投稿のみフィルタリング
+            val filteredPosts = if (sinceDate != null) {
+                val sinceDateTime = ZonedDateTime.parse(sinceDate)
+                val filtered = allPosts.filter { it.post.createdAt.isAfter(sinceDateTime) }
+                Log.d("MastodonApi", "差分フィルタリング後: ${filtered.size}件（${allPosts.size}件から絞り込み）")
+                filtered
+            } else {
+                Log.d("MastodonApi", "初回取得: ${allPosts.size}件")
+                allPosts
+            }
+
+            // 取得成功後、最終同期時刻を更新
+            if (filteredPosts.isNotEmpty()) {
+                sessionManager.updateLastSyncedAt(account.userId, ZonedDateTime.now())
+            } else {
+            }
+
+            Log.d("MastodonApi", "Total ${filteredPosts.size} posts fetched for ${account.displayName}.")
+            return MastodonPostResult.Success(filteredPosts)
 
         } catch (e: Exception) {
             e.printStackTrace()
             return MastodonPostResult.Error(e.message ?: "不明なネットワークエラー")
+        }
+    }
+
+    /**
+     * 初期取得URLを構築（差分取得パラメータ付き）
+     */
+    private fun buildInitialUrl(account: Account.Mastodon, sinceDate: String?): String {
+        val baseUrl = "https://${account.instanceUrl}/api/v1/accounts/${account.userId}/statuses"
+        return if (sinceDate != null) {
+            // Mastodon APIでは since_id パラメータが使用可能
+            // ただし、ここでは時刻ベースの簡略実装として min_id を使わずにクライアント側フィルタリング
+            "$baseUrl?limit=40"
+        } else {
+            "$baseUrl?limit=40"
+        }
+    }
+
+    /**
+     * 差分取得のためのsince日時を決定
+     */
+    private fun determineSinceDate(account: Account.Mastodon): String? {
+        return when {
+            // 前回同期時刻がある場合：それ以降を取得
+            account.lastSyncedAt != null -> {
+                Log.d("MastodonApi", "前回同期時刻を使用: ${account.lastSyncedAt}")
+                account.lastSyncedAt
+            }
+            // 初回同期の場合：最近2週間分を取得
+            else -> {
+                val twoWeeksAgo = ZonedDateTime.now().minusWeeks(2).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+                Log.d("MastodonApi", "初回同期のため2週間前から取得: $twoWeeksAgo")
+                twoWeeksAgo
+            }
         }
     }
 }

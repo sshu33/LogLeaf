@@ -46,7 +46,7 @@ class WidgetPostActivity : ComponentActivity() {
                 factory = MainViewModel.provideFactory(
                     application = application,
                     blueskyApi = BlueskyApi(sessionManager),
-                    mastodonApi = MastodonApi(),
+                    mastodonApi = MastodonApi(sessionManager),
                     gitHubApi = GitHubApi(sessionManager), // ← 追加
                     sessionManager = sessionManager,
                     postDao = postDao

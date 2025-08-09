@@ -94,17 +94,23 @@ class GitHubApi(private val sessionManager: SessionManager) {
     }
 
     /**
-     * GitHubアカウントの活動を取得（選択リポジトリ対応版）
+     * GitHubアカウントの活動を取得（差分取得対応版）
      */
     suspend fun getPostsForAccount(account: Account.GitHub, period: String = "3ヶ月"): List<PostWithImageUrls> {
         return when (account.repositoryFetchMode) {
             Account.RepositoryFetchMode.All -> {
-                // 従来の方法：全イベント取得
                 getPostsFromEvents(account, period)
             }
             Account.RepositoryFetchMode.Selected -> {
-                // 新しい方法：選択リポジトリから個別取得
-                getPostsFromSelectedRepositories(account, period)
+                val posts = getPostsFromSelectedRepositories(account, period)
+
+                // 取得成功後、最終同期時刻を更新
+                if (posts.isNotEmpty()) {
+                    sessionManager.updateLastSyncedAt(account.userId, ZonedDateTime.now())
+                    Log.d("GitHubApi", "GitHubアカウント(${account.username})の同期時刻を更新")
+                }
+
+                posts
             }
         }
     }
@@ -163,7 +169,7 @@ class GitHubApi(private val sessionManager: SessionManager) {
     }
 
     /**
-     * 新しい方法：選択リポジトリから個別取得
+     * 新しい方法：選択リポジトリから差分取得
      */
     private suspend fun getPostsFromSelectedRepositories(account: Account.GitHub, period: String): List<PostWithImageUrls> {
         if (account.selectedRepositories.isEmpty()) {
@@ -171,15 +177,14 @@ class GitHubApi(private val sessionManager: SessionManager) {
             return emptyList()
         }
 
-        val months = periodToMonths(period)
-        val sinceDate = months?.let {
-            ZonedDateTime.now().minusMonths(it.toLong()).format(DateTimeFormatter.ISO_INSTANT)
-        }
+        // 差分取得のためのsince日時を決定
+        val sinceDate = determineSinceDate(account, period)
+
+        Log.d("GitHubApi", "GitHubアカウント(${account.username})の差分取得開始: since=$sinceDate")
 
         return try {
             val allPosts = mutableListOf<PostWithImageUrls>()
 
-            // 各選択リポジトリからコミット履歴を取得
             account.selectedRepositories.forEach { repoFullName ->
                 try {
                     val commits = getRepositoryCommits(account.accessToken, repoFullName, sinceDate)
@@ -196,6 +201,28 @@ class GitHubApi(private val sessionManager: SessionManager) {
         } catch (e: Exception) {
             Log.e("GitHubApi", "選択リポジトリからの取得失敗: ${e.message}")
             emptyList()
+        }
+    }
+
+    /**
+     * 差分取得のためのsince日時を決定
+     */
+    private fun determineSinceDate(account: Account.GitHub, period: String): String? {
+        return when {
+            // 前回同期時刻がある場合：それ以降を取得
+            account.lastSyncedAt != null -> {
+                Log.d("GitHubApi", "前回同期時刻を使用: ${account.lastSyncedAt}")
+                account.lastSyncedAt
+            }
+            // 初回同期の場合：期間指定を使用
+            else -> {
+                val months = periodToMonths(period)
+                val sinceDate = months?.let {
+                    ZonedDateTime.now().minusMonths(it.toLong()).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+                }
+                Log.d("GitHubApi", "初回同期のため期間指定を使用: $period -> since=$sinceDate")
+                sinceDate
+            }
         }
     }
 

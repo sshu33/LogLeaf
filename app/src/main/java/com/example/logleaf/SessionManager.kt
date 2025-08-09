@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -206,12 +208,12 @@ class SessionManager(context: Context) {
     }
 
     /**
-     * GitHubアカウントのリポジトリ選択を更新する
+     * GitHubアカウントのリポジトリ設定を更新する
      */
     fun updateGitHubAccountRepositories(
         username: String,
         fetchMode: Account.RepositoryFetchMode,
-        selectedRepos: List<String> = emptyList()
+        selectedRepos: List<String>
     ) {
         updateAccountState(username) { account ->
             when (account) {
@@ -223,6 +225,22 @@ class SessionManager(context: Context) {
             }
         }
         Log.d("SessionManager", "GitHubアカウント($username)のリポジトリ設定を更新: $fetchMode, 選択数: ${selectedRepos.size}")
+    }
+
+    /**
+     * アカウントの最終同期時刻を更新する
+     */
+    fun updateLastSyncedAt(userId: String, syncTime: ZonedDateTime) {
+        val syncTimeString = syncTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+        updateAccountState(userId) { account ->
+            when (account) {
+                is Account.GitHub -> account.copy(lastSyncedAt = syncTimeString)
+                is Account.Bluesky -> account.copy(lastSyncedAt = syncTimeString)
+                is Account.Mastodon -> account.copy(lastSyncedAt = syncTimeString)
+                else -> account
+            }
+        }
+        Log.d("SessionManager", "アカウント($userId)の最終同期時刻を更新: $syncTimeString")
     }
 
 

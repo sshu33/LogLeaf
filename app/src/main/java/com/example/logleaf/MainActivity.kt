@@ -129,7 +129,7 @@ fun MainScreen(
         factory = MainViewModel.provideFactory(
             application = application,
             blueskyApi = BlueskyApi(sessionManager),
-            mastodonApi = MastodonApi(),
+            mastodonApi = MastodonApi(sessionManager),
             gitHubApi = GitHubApi(sessionManager), // ← これを追加
             sessionManager = sessionManager,
             postDao = postDao
@@ -299,7 +299,7 @@ fun MainScreen(
                 val instanceUrl = backStackEntry.arguments?.getString("instanceUrl")
                 val mastodonViewModel: MastodonInstanceViewModel = viewModel(
                     factory = MastodonInstanceViewModel.provideFactory(
-                        mastodonApi = MastodonApi(),
+                        mastodonApi = MastodonApi(sessionManager),
                         sessionManager = sessionManager,
                         initialInstanceUrl = instanceUrl
                     )
