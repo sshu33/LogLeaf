@@ -64,6 +64,7 @@ import com.example.logleaf.ui.main.TimelineScreen
 import com.example.logleaf.ui.theme.LogLeafTheme
 import com.example.logleaf.ui.widget.PostWidgetProvider
 import com.example.logleaf.ui.font.FontSettingsViewModel
+import com.example.logleaf.ui.settings.BasicSettingsScreen
 import com.leaf.logleaf.ui.entry.PostEntryDialog
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -372,6 +373,13 @@ fun MainScreen(
             }
             composable("backup_settings") {
                 BackupSettingsScreen(
+                    navController = navController,
+                    mainViewModel = mainViewModel
+                )
+            }
+
+            composable("basic_settings") {
+                BasicSettingsScreen(
                     navController = navController,
                     mainViewModel = mainViewModel
                 )

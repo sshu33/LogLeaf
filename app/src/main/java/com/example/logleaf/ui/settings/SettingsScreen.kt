@@ -97,7 +97,7 @@ fun SettingsScreen(
                         StyledSettingsItem(
                             icon = painterResource(id = R.drawable.ic_setting),
                             title = "基本の設定",
-                            onClick = { Toast.makeText(context, "「基本の設定」は開発中です", Toast.LENGTH_SHORT).show() }
+                            onClick = { navController.navigate("basic_settings") }
                         )
                         StyledSettingsItem(
                             icon = painterResource(id = R.drawable.ic_font),
