@@ -3,15 +3,13 @@ package com.example.logleaf.db
 import android.util.Log
 import androidx.room.*
 import androidx.sqlite.db.SimpleSQLiteQuery
-import com.example.logleaf.HashtagExtractor
-import com.example.logleaf.Post
-import com.example.logleaf.PostWithImageUrls
-import com.example.logleaf.PostWithTags
-import com.example.logleaf.PostWithTagsAndImages
+import com.example.logleaf.utils.HashtagExtractor
+import com.example.logleaf.data.model.Post
+import com.example.logleaf.data.model.PostWithTags
+import com.example.logleaf.data.model.PostWithTagsAndImages
 import com.example.logleaf.ui.entry.PostImage
 import com.example.logleaf.ui.entry.PostTagCrossRef
 import com.example.logleaf.ui.entry.Tag
-import com.example.logleaf.ui.theme.SnsType
 import kotlinx.coroutines.flow.Flow
 
 @Dao

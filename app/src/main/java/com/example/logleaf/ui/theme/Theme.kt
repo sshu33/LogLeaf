@@ -17,7 +17,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.sp
-import com.example.logleaf.FontSettingsUiState
+import com.example.logleaf.ui.font.FontSettingsUiState
 
 private val DarkColorScheme = darkColorScheme(
     primary = LimeGreen,

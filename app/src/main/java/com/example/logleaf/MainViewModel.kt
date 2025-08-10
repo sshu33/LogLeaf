@@ -12,6 +12,15 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.logleaf.api.bluesky.BlueskyApi
+import com.example.logleaf.api.github.GitHubApi
+import com.example.logleaf.api.mastodon.MastodonApi
+import com.example.logleaf.api.mastodon.MastodonPostResult
+import com.example.logleaf.data.model.Account
+import com.example.logleaf.data.model.Post
+import com.example.logleaf.data.model.PostWithTagsAndImages
+import com.example.logleaf.data.model.UiPost
+import com.example.logleaf.data.session.SessionManager
 import com.example.logleaf.db.PostDao
 import com.example.logleaf.ui.entry.PostImage
 import com.example.logleaf.ui.entry.PostTagCrossRef
@@ -358,9 +367,15 @@ class MainViewModel(
             if (_isRefreshing.value) return@launch
             _isRefreshing.value = true
             try {
+                // === デバッグ: 同期前のlastSyncedAt確認 ===
+                sessionManager.debugLastSyncedAt()
+
                 // データ取得開始と同時にスクロール（即座に実行）
                 _scrollToTopEvent.value = true
                 fetchPosts(sessionManager.accountsFlow.first()).join()
+
+                // === デバッグ: 同期後のlastSyncedAt確認 ===
+                sessionManager.debugLastSyncedAt()
             } finally {
                 _isRefreshing.value = false
             }

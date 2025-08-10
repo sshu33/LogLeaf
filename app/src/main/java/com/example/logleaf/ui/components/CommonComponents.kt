@@ -41,9 +41,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
-import com.example.logleaf.Post
+import com.example.logleaf.data.model.Post
 import com.example.logleaf.R
-import com.example.logleaf.ui.screens.Screen
 import com.example.logleaf.ui.theme.NoticeGreen
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter

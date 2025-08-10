@@ -1,7 +1,6 @@
 package com.example.logleaf
 
 import android.os.Bundle
-import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -13,10 +12,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.logleaf.data.font.FontSettingsManager
+import com.example.logleaf.api.bluesky.BlueskyApi
+import com.example.logleaf.api.github.GitHubApi
+import com.example.logleaf.api.mastodon.MastodonApi
+import com.example.logleaf.data.session.SessionManager
+import com.example.logleaf.ui.font.FontSettingsManager
 import com.example.logleaf.db.AppDatabase
 import com.example.logleaf.ui.theme.LogLeafTheme
 import com.example.logleaf.ui.widget.WidgetPostDialog
+import com.example.logleaf.ui.font.FontSettingsViewModel
 import kotlinx.coroutines.delay
 
 class WidgetPostActivity : ComponentActivity() {
