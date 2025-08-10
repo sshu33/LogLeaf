@@ -1450,7 +1450,9 @@ class MainViewModel(
     }
 
     fun updateWeekStartDay(dayOfWeek: java.time.DayOfWeek) {
+        Log.d("Debug", "updateWeekStartDay called with: $dayOfWeek")
         timeSettingsRepository.updateWeekStartDay(dayOfWeek)
+        Log.d("Debug", "repository.updateWeekStartDay完了")
     }
 
     fun updateTimeFormat(format: com.example.logleaf.data.settings.TimeFormat) {

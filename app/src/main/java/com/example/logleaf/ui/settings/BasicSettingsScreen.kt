@@ -351,8 +351,8 @@ fun BasicSettingsScreen(
     if (showTimeDialog) {
         Dialog(onDismissRequest = { showTimeDialog = false }) {
 
-            var localHour by remember { mutableIntStateOf(timeSettings.dayStartHour) }
-            var localMinute by remember { mutableIntStateOf(timeSettings.dayStartMinute) }
+            var localHour by remember(timeSettings.dayStartHour) { mutableIntStateOf(timeSettings.dayStartHour) }
+            var localMinute by remember(timeSettings.dayStartMinute) { mutableIntStateOf(timeSettings.dayStartMinute) }
 
 
             Card(
@@ -433,12 +433,15 @@ fun BasicSettingsScreen(
                         DayOfWeek.SUNDAY, DayOfWeek.MONDAY, DayOfWeek.TUESDAY,
                         DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY
                     )
-                    var localWeekStart by remember { mutableStateOf(timeSettings.weekStartDay) }
+                    var localWeekStart by remember(timeSettings.weekStartDay) { mutableStateOf(timeSettings.weekStartDay) }
 
                     StringDrumRollPicker(
                         items = weekDays,
                         selectedIndex = weekDaysEnum.indexOf(localWeekStart).let { if (it == -1) 0 else it },
-                        onSelectionChanged = { localWeekStart = weekDaysEnum[it] },
+                        onSelectionChanged = {
+                            Log.d("Debug", "StringDrumRollPicker onSelectionChanged: $it -> ${weekDaysEnum[it]}")
+                            localWeekStart = weekDaysEnum[it]
+                        },
                         modifier = Modifier.height(120.dp)
                     )
 
@@ -452,7 +455,9 @@ fun BasicSettingsScreen(
                             Text("Cancel")
                         }
                         TextButton(onClick = {
+                            Log.d("Debug", "OKボタン押下: localWeekStart = $localWeekStart")
                             mainViewModel.updateWeekStartDay(localWeekStart)
+                            Log.d("Debug", "updateWeekStartDay呼び出し完了")
                             showWeekDialog = false
                         }) {
                             Text("OK")
@@ -584,8 +589,12 @@ fun StringDrumRollPicker(
     }
 
     LaunchedEffect(centerItemIndex) {
-        if (centerItemIndex != selectedIndex && !listState.isScrollInProgress) {
+        Log.d("Debug", "LaunchedEffect: centerItemIndex=$centerItemIndex, selectedIndex=$selectedIndex")
+        if (centerItemIndex != selectedIndex) {
+            Log.d("Debug", "onSelectionChangedを呼び出します")
             onSelectionChanged(centerItemIndex)
+        } else {
+            Log.d("Debug", "onSelectionChangedをスキップ")
         }
     }
 

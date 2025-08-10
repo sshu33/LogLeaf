@@ -100,6 +100,7 @@ import com.example.logleaf.ui.theme.SnsType
 import com.yourpackage.logleaf.ui.components.AutoSizeUserFontText
 import com.yourpackage.logleaf.ui.components.UserFontText
 import kotlinx.coroutines.delay
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.Month
 import java.time.YearMonth
@@ -147,6 +148,7 @@ fun CalendarScreen(
     val showDetailDialog = postForDetail != null
 
     val timeSettings by mainViewModel.timeSettings.collectAsState()
+    Log.d("CalendarDebug", "週の始まり: ${timeSettings.weekStartDay}")
 
     val (enlargedImageState, setEnlargedImageState) = remember { mutableStateOf<EnlargedImageState?>(null) }
 
@@ -491,7 +493,8 @@ fun CalendarGrid(
     BoxWithConstraints(modifier = modifier) {
         val currentYearMonth = YearMonth.from(selectedDate)
         val daysInMonth = currentYearMonth.lengthOfMonth()
-        val firstDayOfMonth = currentYearMonth.atDay(1).dayOfWeek.value % 7
+        val firstDayOfMonth = currentYearMonth.atDay(1).dayOfWeek
+        val adjustedFirstDay = (firstDayOfMonth.value - timeSettings.weekStartDay.value + 7) % 7
         val postsByDay =
             posts.filter {
                 val adjustedDate = it.createdAt.withZoneSameInstant(ZoneId.systemDefault())
@@ -507,7 +510,7 @@ fun CalendarGrid(
                 }
 
         val dayCells = mutableListOf<LocalDate?>()
-        repeat(firstDayOfMonth) { dayCells.add(null) }
+        repeat(adjustedFirstDay) { dayCells.add(null) }
         for (day in 1..daysInMonth) {
             dayCells.add(currentYearMonth.atDay(day))
         }
@@ -517,6 +520,20 @@ fun CalendarGrid(
         val weeks = dayCells.chunked(7)
         val totalRows = 1 + weeks.size
         val rowHeight = this.maxHeight / totalRows
+
+        // 週のヘッダーを設定に合わせて動的に生成
+        val weekDays = listOf("SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT")
+        val startDayIndex = when (timeSettings.weekStartDay) {
+            DayOfWeek.SUNDAY -> 0
+            DayOfWeek.MONDAY -> 1
+            DayOfWeek.TUESDAY -> 2
+            DayOfWeek.WEDNESDAY -> 3
+            DayOfWeek.THURSDAY -> 4
+            DayOfWeek.FRIDAY -> 5
+            DayOfWeek.SATURDAY -> 6
+        }
+        val reorderedWeekDays = weekDays.drop(startDayIndex) + weekDays.take(startDayIndex)
+
 
         Column(
             modifier = Modifier
@@ -554,7 +571,7 @@ fun CalendarGrid(
                     .height(rowHeight),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                listOf("SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT").forEach { day ->
+                reorderedWeekDays.forEach { day ->
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                         UserFontText(
                             text = day,
