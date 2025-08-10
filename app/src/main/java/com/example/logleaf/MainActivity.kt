@@ -241,7 +241,8 @@ fun MainScreen(
                         mainViewModel.deletePost(postWithTagsAndImages.post.id)
                     },
                     scrollToTopEvent = mainViewModel.scrollToTopEvent.collectAsState().value,
-                    onConsumeScrollToTopEvent = { mainViewModel.consumeScrollToTopEvent() }
+                    onConsumeScrollToTopEvent = { mainViewModel.consumeScrollToTopEvent() },
+                    mainViewModel = mainViewModel
                 )
             }
 
@@ -362,10 +363,12 @@ fun MainScreen(
                 SearchScreen(
                     viewModel = searchViewModel,
                     onPostClick = { post ->
-                        val localDate =
-                            post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
-                                .toLocalDate()
-                        val date = localDate.toString()
+                        val timeSettingsValue = mainViewModel.timeSettings.value
+                        val adjustedDate = post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
+                            .minusHours(timeSettingsValue.dayStartHour.toLong())
+                            .minusMinutes(timeSettingsValue.dayStartMinute.toLong())
+                            .toLocalDate()
+                        val date = adjustedDate.toString()
                         val postId = post.id
                         navController.navigate("calendar?date=$date&postId=$postId")
                     },

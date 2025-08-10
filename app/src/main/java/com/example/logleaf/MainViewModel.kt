@@ -21,6 +21,7 @@ import com.example.logleaf.data.model.Post
 import com.example.logleaf.data.model.PostWithTagsAndImages
 import com.example.logleaf.data.model.UiPost
 import com.example.logleaf.data.session.SessionManager
+import com.example.logleaf.data.settings.TimeSettingsRepository
 import com.example.logleaf.db.PostDao
 import com.example.logleaf.ui.entry.PostImage
 import com.example.logleaf.ui.entry.PostTagCrossRef
@@ -198,6 +199,9 @@ class MainViewModel(
             fun Error(message: String) = BackupState(statusText = "エラー: $message")
         }
     }
+
+    private val timeSettingsRepository = TimeSettingsRepository(getApplication())
+    val timeSettings = timeSettingsRepository.timeSettings
 
     private val _dataSize = MutableStateFlow<String>("計算中...")
     val dataSize = _dataSize.asStateFlow()
@@ -828,12 +832,19 @@ class MainViewModel(
         }
     }
 
+    private fun adjustDateByDayStart(dateTime: ZonedDateTime): LocalDate {
+        val settings = timeSettings.value
+        val adjustedDateTime = dateTime.minusHours(settings.dayStartHour.toLong())
+            .minusMinutes(settings.dayStartMinute.toLong())
+        return adjustedDateTime.toLocalDate()
+    }
+
     private fun groupPostsByDay(posts: List<PostWithTagsAndImages>): List<DayLog> {
         if (posts.isEmpty()) {
             return emptyList()
         }
         val groupedByDate: Map<LocalDate, List<PostWithTagsAndImages>> = posts.groupBy {
-            it.post.createdAt.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate()
+            adjustDateByDayStart(it.post.createdAt.withZoneSameInstant(ZoneId.systemDefault()))
         }
         return groupedByDate.map { (date, postList) ->
             val sortedPostList = postList.sortedBy { it.post.createdAt }
@@ -1432,6 +1443,18 @@ class MainViewModel(
                 _dataSizeDetails.value = "計算エラー"
             }
         }
+    }
+
+    fun updateDayStartTime(hour: Int, minute: Int) {
+        timeSettingsRepository.updateDayStartTime(hour, minute)
+    }
+
+    fun updateWeekStartDay(dayOfWeek: java.time.DayOfWeek) {
+        timeSettingsRepository.updateWeekStartDay(dayOfWeek)
+    }
+
+    fun updateTimeFormat(format: com.example.logleaf.data.settings.TimeFormat) {
+        timeSettingsRepository.updateTimeFormat(format)
     }
 
     fun cleanupDuplicateTags() {

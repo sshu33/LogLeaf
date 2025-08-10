@@ -57,6 +57,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -86,11 +87,13 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.example.logleaf.MainViewModel
+import com.example.logleaf.R
+import com.example.logleaf.UiState
 import com.example.logleaf.data.model.Post
 import com.example.logleaf.data.model.PostWithTagsAndImages
-import com.example.logleaf.R
 import com.example.logleaf.data.model.UiPost
-import com.example.logleaf.UiState
+import com.example.logleaf.data.settings.TimeSettings
 import com.example.logleaf.ui.entry.PostImage
 import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
@@ -101,6 +104,7 @@ import java.time.LocalDate
 import java.time.Month
 import java.time.YearMonth
 import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.abs
@@ -110,6 +114,13 @@ data class EnlargedImageState(
     val images: List<PostImage>,
     val initialIndex: Int
 )
+
+@Composable
+private fun adjustDateByDayStart(dateTime: ZonedDateTime, timeSettings: TimeSettings): LocalDate {
+    val adjustedDateTime = dateTime.minusHours(timeSettings.dayStartHour.toLong())
+        .minusMinutes(timeSettings.dayStartMinute.toLong())
+    return adjustedDateTime.toLocalDate()
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -127,13 +138,15 @@ fun CalendarScreen(
     onSetPostHidden: (String, Boolean) -> Unit,
     onDeletePost: (PostWithTagsAndImages) -> Unit,
     scrollToTopEvent: Boolean,
-    onConsumeScrollToTopEvent: () -> Unit
+    onConsumeScrollToTopEvent: () -> Unit,
+    mainViewModel: MainViewModel
 ) {
 
     val pullToRefreshState = rememberPullToRefreshState()
     var postForDetail by remember { mutableStateOf<PostWithTagsAndImages?>(null) }
     val showDetailDialog = postForDetail != null
 
+    val timeSettings by mainViewModel.timeSettings.collectAsState()
 
     val (enlargedImageState, setEnlargedImageState) = remember { mutableStateOf<EnlargedImageState?>(null) }
 
@@ -181,11 +194,12 @@ fun CalendarScreen(
         selectedDate = initialDate
         if (targetPostId != null) {
             val postsForDay = uiState.allPosts.filter {
-                // ▼▼▼ 変更点：.post を経由 ▼▼▼
-                it.post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
-                    .toLocalDate() == initialDate
+                val adjustedDate = it.post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
+                    .minusHours(timeSettings.dayStartHour.toLong())
+                    .minusMinutes(timeSettings.dayStartMinute.toLong())
+                    .toLocalDate()
+                adjustedDate == initialDate
             }
-            // ▼▼▼ 変更点：.post を経由 ▼▼▼
             val index = postsForDay.indexOfFirst { it.post.id == targetPostId }
             if (index != -1) {
                 listState.animateScrollToItem(index)
@@ -195,8 +209,11 @@ fun CalendarScreen(
     }
     val postsForSelectedDay = uiState.allPosts
         .filter {
-            it.post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
-                .toLocalDate() == selectedDate
+            val adjustedDate = it.post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
+                .minusHours(timeSettings.dayStartHour.toLong())
+                .minusMinutes(timeSettings.dayStartMinute.toLong())
+                .toLocalDate()
+            adjustedDate == selectedDate
         }
 
     Box(
@@ -228,7 +245,8 @@ fun CalendarScreen(
                     posts = uiState.allPosts.map { it.post },
                     selectedDate = selectedDate,
                     onDateSelected = { newDate -> selectedDate = newDate },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    timeSettings = timeSettings
                 )
             }
             Surface(
@@ -464,7 +482,8 @@ fun CalendarGrid(
     posts: List<Post>,
     selectedDate: LocalDate,
     onDateSelected: (LocalDate) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    timeSettings: TimeSettings
 ) {
     var dragOffset by remember { mutableStateOf(0f) }
     var isDragging by remember { mutableStateOf(false) }
@@ -474,11 +493,17 @@ fun CalendarGrid(
         val daysInMonth = currentYearMonth.lengthOfMonth()
         val firstDayOfMonth = currentYearMonth.atDay(1).dayOfWeek.value % 7
         val postsByDay =
-            posts.filter { YearMonth.from(it.createdAt.withZoneSameInstant(ZoneId.systemDefault())) == currentYearMonth }
+            posts.filter {
+                val adjustedDate = it.createdAt.withZoneSameInstant(ZoneId.systemDefault())
+                    .minusHours(timeSettings.dayStartHour.toLong())
+                    .minusMinutes(timeSettings.dayStartMinute.toLong())
+                YearMonth.from(adjustedDate) == currentYearMonth
+            }
                 .groupBy {
-                    it.createdAt.withZoneSameInstant(
-                        ZoneId.systemDefault()
-                    ).dayOfMonth
+                    val adjustedDate = it.createdAt.withZoneSameInstant(ZoneId.systemDefault())
+                        .minusHours(timeSettings.dayStartHour.toLong())
+                        .minusMinutes(timeSettings.dayStartMinute.toLong())
+                    adjustedDate.dayOfMonth
                 }
 
         val dayCells = mutableListOf<LocalDate?>()

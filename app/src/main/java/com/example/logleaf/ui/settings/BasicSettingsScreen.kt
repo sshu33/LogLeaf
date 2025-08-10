@@ -1,15 +1,13 @@
 package com.example.logleaf.ui.settings
 
+// imports に追加
 import android.util.Log
-import android.widget.Toast
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,7 +18,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -31,9 +28,11 @@ import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavController
 import com.example.logleaf.MainViewModel
 import com.example.logleaf.R
+import com.example.logleaf.data.settings.TimeFormat
+import com.example.logleaf.data.settings.displayName
 import com.example.logleaf.ui.components.CustomTopAppBar
 import com.yourpackage.logleaf.ui.components.UserFontText
-import kotlinx.coroutines.launch
+import java.time.DayOfWeek
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,12 +43,10 @@ fun BasicSettingsScreen(
     val context = LocalContext.current
 
     // 設定項目の状態
-    var dayStartHour by remember { mutableIntStateOf(0) } // 日の変わり目時刻（デフォルト: 0時）
-    var weekStartDay by remember { mutableStateOf("日曜日") } // 週の始まり（デフォルト: 月曜日）
-    var timeFormat by remember { mutableStateOf("24時間") } // 時間表示形式（デフォルト: 24時間）
+    val timeSettings by mainViewModel.timeSettings.collectAsState()
+
     var autoTagging by remember { mutableStateOf(true) } // 自動タグ付け（デフォルト: ON）
     var fetchReplies by remember { mutableStateOf(false) } // 返信取得（デフォルト: OFF）
-    var dayStartMinute by remember { mutableIntStateOf(0) }
 
 
     // ダイアログ表示制御
@@ -125,7 +122,7 @@ fun BasicSettingsScreen(
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "日の変わり目",
+                                text = "日の変わりめ",
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -133,9 +130,7 @@ fun BasicSettingsScreen(
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "${dayStartHour}:${
-                                    dayStartMinute.toString().padStart(2, '0')
-                                }",
+                                text = "${timeSettings.dayStartHour}:${timeSettings.dayStartMinute.toString().padStart(2, '0')}",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             )
@@ -154,7 +149,6 @@ fun BasicSettingsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                Log.d("Debug", "週の始まりクリック、現在のweekStartDay: $weekStartDay")
                                 showWeekDialog = true
                             }
                             .padding(vertical = 14.dp),
@@ -169,7 +163,7 @@ fun BasicSettingsScreen(
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "週の始まり",
+                                text = "週のはじまり",
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -177,7 +171,7 @@ fun BasicSettingsScreen(
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = weekStartDay,
+                                text = timeSettings.weekStartDay.displayName,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             )
@@ -196,7 +190,12 @@ fun BasicSettingsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                timeFormat = if (timeFormat == "24時間") "12時間" else "24時間"
+                                val newFormat = if (timeSettings.timeFormat == TimeFormat.TWENTY_FOUR_HOUR) {
+                                    TimeFormat.TWELVE_HOUR
+                                } else {
+                                    TimeFormat.TWENTY_FOUR_HOUR
+                                }
+                                mainViewModel.updateTimeFormat(newFormat)
                             }
                             .padding(vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -218,7 +217,7 @@ fun BasicSettingsScreen(
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = timeFormat,
+                                text = timeSettings.timeFormat.displayName,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             )
@@ -352,8 +351,9 @@ fun BasicSettingsScreen(
     if (showTimeDialog) {
         Dialog(onDismissRequest = { showTimeDialog = false }) {
 
-            var localHour by remember { mutableIntStateOf(dayStartHour) }
-            var localMinute by remember { mutableIntStateOf(dayStartMinute) }
+            var localHour by remember { mutableIntStateOf(timeSettings.dayStartHour) }
+            var localMinute by remember { mutableIntStateOf(timeSettings.dayStartMinute) }
+
 
             Card(
                 modifier = Modifier
@@ -402,8 +402,7 @@ fun BasicSettingsScreen(
                             Text("Cancel")
                         }
                         TextButton(onClick = {
-                            dayStartHour = localHour
-                            dayStartMinute = localMinute
+                            mainViewModel.updateDayStartTime(localHour, localMinute)
                             showTimeDialog = false
                         }) {
                             Text("OK")
@@ -416,7 +415,6 @@ fun BasicSettingsScreen(
 
     // 週の始まり選択ダイアログ
     if (showWeekDialog) {
-        Log.d("Debug", "ダイアログ表示、weekStartDay: $weekStartDay")
         Dialog(onDismissRequest = { showWeekDialog = false }) {
             Card(
                 modifier = Modifier
@@ -429,20 +427,18 @@ fun BasicSettingsScreen(
                     modifier = Modifier.padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    val weekDays = listOf("日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日")
-                    Log.d("Debug", "weekStartDay: $weekStartDay")
 
-                    var localWeekStart by remember { mutableStateOf(weekStartDay) }
-                    Log.d("Debug", "localWeekStart: $localWeekStart")
-                    Log.d("Debug", "indexOf: ${weekDays.indexOf(localWeekStart)}")
+                    val weekDays = listOf("日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日")
+                    val weekDaysEnum = listOf(
+                        DayOfWeek.SUNDAY, DayOfWeek.MONDAY, DayOfWeek.TUESDAY,
+                        DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY
+                    )
+                    var localWeekStart by remember { mutableStateOf(timeSettings.weekStartDay) }
 
                     StringDrumRollPicker(
                         items = weekDays,
-                        selectedIndex = weekDays.indexOf(localWeekStart).let { if (it == -1) 0 else it },
-                        onSelectionChanged = {
-                            Log.d("Debug", "onSelectionChanged called: $it -> ${weekDays[it]}")
-                            localWeekStart = weekDays[it]
-                        },
+                        selectedIndex = weekDaysEnum.indexOf(localWeekStart).let { if (it == -1) 0 else it },
+                        onSelectionChanged = { localWeekStart = weekDaysEnum[it] },
                         modifier = Modifier.height(120.dp)
                     )
 
@@ -456,7 +452,7 @@ fun BasicSettingsScreen(
                             Text("Cancel")
                         }
                         TextButton(onClick = {
-                            weekStartDay = localWeekStart
+                            mainViewModel.updateWeekStartDay(localWeekStart)
                             showWeekDialog = false
                         }) {
                             Text("OK")
