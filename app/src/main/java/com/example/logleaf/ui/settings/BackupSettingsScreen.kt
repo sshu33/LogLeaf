@@ -1,5 +1,6 @@
 package com.example.logleaf.ui.settings
 
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -26,6 +27,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
@@ -53,6 +55,11 @@ fun BackupSettingsScreen(
     val backupProgress by mainViewModel.backupProgress.collectAsState()
     val restoreProgress by mainViewModel.restoreProgress.collectAsState()
 
+    // Zeppインポート用の変数
+    var showPasswordDialog by remember { mutableStateOf(false) }
+    var selectedZipUri by remember { mutableStateOf<Uri?>(null) }
+    var zipPassword by remember { mutableStateOf("") }
+
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
         onResult = { uri ->
@@ -72,12 +79,9 @@ fun BackupSettingsScreen(
         contract = ActivityResultContracts.GetContent(),
         onResult = { uri ->
             if (uri != null) {
-                // TODO: ZeppのZIPファイルからMibandデータをインポート
-                Toast.makeText(
-                    context,
-                    "Zeppの健康データインポート機能は開発中です\n対応予定: SLEEP.csv, SPORT.csv, HEARTRATE.csv",
-                    Toast.LENGTH_LONG
-                ).show()
+                // パスワード入力ダイアログを表示
+                showPasswordDialog = true
+                selectedZipUri = uri
             }
         }
     )
@@ -99,6 +103,14 @@ fun BackupSettingsScreen(
     var isQualityMenuExpanded by remember { mutableStateOf(false) }
 
     val backupState by mainViewModel.backupState.collectAsState()
+
+    val zeppImportState by mainViewModel.zeppImportState.collectAsState()
+
+    val animatedZeppImportProgress by animateFloatAsState(
+        targetValue = zeppImportState.progress,
+        animationSpec = tween(durationMillis = 300),
+        label = "ZeppImportProgress"
+    )
 
     val animatedProgress by animateFloatAsState(
         targetValue = backupState.progress,
@@ -471,6 +483,7 @@ fun BackupSettingsScreen(
                                         color = MaterialTheme.colorScheme.primary
                                     )
                                 }
+
                                 backupState.isCompleted -> {
                                     Icon(
                                         painter = painterResource(id = R.drawable.ic_check), // チェックマークアイコン
@@ -479,6 +492,7 @@ fun BackupSettingsScreen(
                                         modifier = Modifier.size(24.dp)
                                     )
                                 }
+
                                 backupState.statusText.startsWith("エラー") -> {
                                     Icon(
                                         painter = painterResource(id = R.drawable.ic_error), // エラーアイコン
@@ -487,6 +501,7 @@ fun BackupSettingsScreen(
                                         modifier = Modifier.size(24.dp)
                                     )
                                 }
+
                                 else -> {
                                     Icon(
                                         imageVector = Icons.Default.KeyboardArrowRight,
@@ -575,6 +590,7 @@ fun BackupSettingsScreen(
                                         color = MaterialTheme.colorScheme.primary
                                     )
                                 }
+
                                 restoreState.isCompleted -> {
                                     Icon(
                                         painter = painterResource(id = R.drawable.ic_check),
@@ -583,6 +599,7 @@ fun BackupSettingsScreen(
                                         modifier = Modifier.size(24.dp)
                                     )
                                 }
+
                                 restoreState.statusText.startsWith("エラー") -> {
                                     Icon(
                                         painter = painterResource(id = R.drawable.ic_error),
@@ -591,6 +608,7 @@ fun BackupSettingsScreen(
                                         modifier = Modifier.size(24.dp)
                                     )
                                 }
+
                                 else -> {
                                     Icon(
                                         imageVector = Icons.Default.KeyboardArrowRight,
@@ -627,7 +645,7 @@ fun BackupSettingsScreen(
                 Box(
                     modifier = Modifier
                         .width(4.dp)
-                        .height(240.dp)
+                        .height(400.dp)
                         .background(
                             MaterialTheme.colorScheme.primary,
                             RoundedCornerShape(2.dp)
@@ -688,95 +706,6 @@ fun BackupSettingsScreen(
                             )
                         }
                     }
-
-                    //健康データインポート
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                mainViewModel.createTestHealthData()
-                                Toast.makeText(
-                                    context,
-                                    "テスト用健康データを作成しました",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_analytics),
-                            contentDescription = null,
-                            tint = Color(0xFF4285F4), // Google Fitのブランドカラー
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            UserFontText(
-                                text = "テスト用健康データ作成",
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            UserFontText(
-                                text = "睡眠・運動・仮眠・デイリーサマリーのサンプル",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            )
-                        }
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-
-// Zeppデータインポート
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                zeppZipPickerLauncher.launch("application/zip")
-                            }
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_upload),
-                            contentDescription = null,
-                            tint = Color(0xFF4285F4), // Google Fitのブランドカラー
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            UserFontText(
-                                text = "Zepp健康データインポート",
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            UserFontText(
-                                text = "ZeppアプリからエクスポートしたZIPファイル",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            )
-                        }
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-
-// 対応ファイル形式の説明
-                    UserFontText(
-                        text = "📁 対応フォルダ: SLEEP/, SPORT/, HEARTRATE/, ACTIVITY/",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                        modifier = Modifier.padding(top = 8.dp, start = 40.dp)
-                    )
 
 
                     // 自動バックアップ
@@ -945,6 +874,7 @@ fun BackupSettingsScreen(
                                         color = MaterialTheme.colorScheme.primary
                                     )
                                 }
+
                                 maintenanceState.isCompleted -> {
                                     Icon(
                                         painter = painterResource(id = R.drawable.ic_check),
@@ -953,7 +883,113 @@ fun BackupSettingsScreen(
                                         modifier = Modifier.size(24.dp)
                                     )
                                 }
+
                                 maintenanceState.statusText.startsWith("エラー") -> {
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.ic_error),
+                                        contentDescription = "エラー",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+
+                                else -> {
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowRight,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Zeppデータインポート
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = !zeppImportState.isInProgress) {
+                                if (!zeppImportState.isInProgress) {
+                                    zeppZipPickerLauncher.launch("application/zip")
+                                }
+                            }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_upload),
+                            contentDescription = null,
+                            tint = if (zeppImportState.isInProgress)
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                            else if (zeppImportState.isCompleted)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Zepp健康データインポート",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+
+                            // 状態に応じた説明文
+                            val subtitleText = when {
+                                zeppImportState.isInProgress -> zeppImportState.statusText
+                                zeppImportState.isCompleted -> "インポートが完了しました"
+                                zeppImportState.statusText.startsWith("エラー") -> zeppImportState.statusText
+                                else -> "ZeppアプリからエクスポートしたZIPファイル"
+                            }
+
+                            Text(
+                                text = subtitleText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = when {
+                                    zeppImportState.isCompleted -> MaterialTheme.colorScheme.onSurface
+                                    zeppImportState.statusText.startsWith("エラー") -> MaterialTheme.colorScheme.error
+                                    else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                }
+                            )
+
+                            // プログレスバー（進行中のみ表示）
+                            if (zeppImportState.isInProgress) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                LinearProgressIndicator(
+                                    progress = { animatedZeppImportProgress },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(3.dp),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                )
+                            }
+                        }
+
+                        // 右側のアイコン
+                        Box(modifier = Modifier.size(24.dp)) {
+                            when {
+                                zeppImportState.isInProgress -> {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier
+                                            .size(20.dp)
+                                            .alpha(0.7f),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                zeppImportState.isCompleted -> {
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.ic_check),
+                                        contentDescription = "完了",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                zeppImportState.statusText.startsWith("エラー") -> {
                                     Icon(
                                         painter = painterResource(id = R.drawable.ic_error),
                                         contentDescription = "エラー",
@@ -972,9 +1008,8 @@ fun BackupSettingsScreen(
                             }
                         }
                     }
-
-
                 }
+
                 Spacer(modifier = Modifier.height(32.dp))
             }
         }
@@ -992,6 +1027,85 @@ fun BackupSettingsScreen(
                     CircularProgressIndicator()
                     Spacer(Modifier.height(16.dp))
                     Text(backupProgress!!)
+                }
+            }
+        }
+    }
+
+    // Zeppデータインポート用パスワードダイアログ
+    if (showPasswordDialog) {
+        Dialog(
+            onDismissRequest = {
+                showPasswordDialog = false
+                zipPassword = ""
+            }
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.White
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // 説明文のみ
+                    Text(
+                        text = "解凍パスワードを入力",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    // パスワード入力
+                    OutlinedTextField(
+                        value = zipPassword,
+                        onValueChange = { zipPassword = it },
+                        label = { Text("パスワード") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // テキストボタン
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        TextButton(
+                            onClick = {
+                                showPasswordDialog = false
+                                zipPassword = ""
+                            }
+                        ) {
+                            Text("キャンセル")
+                        }
+
+                        TextButton(
+                            onClick = {
+                                if (zipPassword.isNotEmpty() && selectedZipUri != null) {
+                                    mainViewModel.importZeppHealthData(
+                                        selectedZipUri!!,
+                                        zipPassword
+                                    )
+                                    showPasswordDialog = false
+                                    zipPassword = ""
+                                }
+                            },
+                            enabled = zipPassword.isNotEmpty()
+                        ) {
+                            Text("インポート")
+                        }
+                    }
                 }
             }
         }

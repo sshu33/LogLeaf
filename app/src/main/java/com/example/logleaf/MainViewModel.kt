@@ -52,6 +52,7 @@ import java.io.InputStream
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
@@ -208,6 +209,10 @@ class MainViewModel(
 
     private val _backupState = MutableStateFlow(BackupState.Idle)
     val backupState = _backupState.asStateFlow()
+
+    // Zeppインポート用の状態管理
+    private val _zeppImportState = MutableStateFlow(BackupState.Idle)
+    val zeppImportState = _zeppImportState.asStateFlow()
 
     private val _restoreState = MutableStateFlow(BackupState.Idle)
     val restoreState = _restoreState.asStateFlow()
@@ -1484,133 +1489,195 @@ class MainViewModel(
         }
     }
 
-// MainViewModel.ktに追加するテスト用健康データ生成メソッド
-
     /**
-     * テスト用の健康データ投稿を生成する
+     * Zeppの健康データ（パスワード付きZIP）をインポートする
      */
-    fun createTestHealthData() {
+    fun importZeppHealthData(zipUri: Uri, password: String) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                Log.d("HealthTest", "=== テスト用健康データ生成開始 ===")
+                _zeppImportState.value = BackupState.Starting.copy(statusText = "インポート準備中...")
 
-                // 登録済みアカウントを取得
-                val accounts = sessionManager.accountsFlow.first()
-                if (accounts.isEmpty()) {
-                    Log.e("HealthTest", "登録済みアカウントがありません")
-                    return@launch
+                Log.d("ZeppImport", "=== Zeppデータインポート開始 ===")
+                val context = getApplication<Application>().applicationContext
+
+                _zeppImportState.value = BackupState.Progress(0.2f, "ZIPファイルを解凍中...")
+
+                // 1. ZIPファイルを一時ディレクトリに展開
+                val tempDir = File(context.cacheDir, "zepp_import_${System.currentTimeMillis()}")
+                tempDir.mkdirs()
+
+                // 2. zip4jでパスワード付きZIPを解凍
+                val inputStream = context.contentResolver.openInputStream(zipUri)
+                val tempZipFile = File(tempDir, "zepp_data.zip")
+                inputStream?.use { input ->
+                    tempZipFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
                 }
 
-                // 最初のアカウントのIDを使用（既存アカウントとして）
-                val existingAccountId = accounts.first().userId
-                Log.d("HealthTest", "使用するアカウントID: $existingAccountId")
+                // 3. zip4jで解凍
+                val zipFile = net.lingala.zip4j.ZipFile(tempZipFile)
+                if (zipFile.isEncrypted) {
+                    zipFile.setPassword(password.toCharArray())
+                }
+                zipFile.extractAll(tempDir.absolutePath)
 
-                val now = ZonedDateTime.now()
+                // 4. CSVファイルを探して解析
+                val sleepCsv = tempDir.walkTopDown().find { it.name.contains("SLEEP") && it.extension == "csv" }
+                val sportCsv = tempDir.walkTopDown().find { it.name.contains("SPORT") && it.extension == "csv" }
 
-                // 日本時間に変換して今日の日付で作成
-                val japanTime = now.withZoneSameInstant(ZoneId.of("Asia/Tokyo"))
-                val todayInJapan = japanTime.toLocalDate()
+                Log.d("ZeppImport", "SLEEP.csv: ${sleepCsv?.exists()}")
+                Log.d("ZeppImport", "SPORT.csv: ${sportCsv?.exists()}")
 
-                Log.d("HealthTest", "現在時刻（日本時間）: $japanTime")
-                Log.d("HealthTest", "今日の日付（日本）: $todayInJapan")
+                _zeppImportState.value = BackupState.Progress(0.4f, "CSVファイルを解析中...")
 
-                // 設定された日切り替え時間を取得
+                // 5. CSV解析して投稿生成
+                val posts = mutableListOf<Post>()
                 val timeSettings = timeSettingsRepository.timeSettings.first()
-                val dayStartTime = japanTime.withHour(timeSettings.dayStartHour)
-                    .withMinute(timeSettings.dayStartMinute)
-                    .withSecond(0)
-                    .withNano(0)
 
-                Log.d(
-                    "HealthTest",
-                    "日切り替え時間設定: ${timeSettings.dayStartHour}:${timeSettings.dayStartMinute}"
-                )
-                Log.d("HealthTest", "睡眠投稿予定時刻: $dayStartTime")
+                // 睡眠データ解析
+                sleepCsv?.let { csvFile ->
+                    val lines = csvFile.readLines().drop(1) // ヘッダー行をスキップ
+                    lines.forEach { line ->
+                        if (line.isNotBlank()) {
+                            val columns = line.split(",")
+                            if (columns.size >= 7) {
+                                try {
+                                    val date = columns[0]
+                                    val deepSleep = columns[1].toIntOrNull() ?: 0 // 分
+                                    val shallowSleep = columns[2].toIntOrNull() ?: 0 // 分
+                                    val startTime = columns[4] // "2022-10-20 21:06:00+0000"
+                                    val stopTime = columns[5] // "2022-10-21 05:25:00+0000"
+                                    val remSleep = columns[6].toIntOrNull() ?: 0 // 分
 
-                val testPosts = mutableListOf<Post>()
+                                    // 時刻解析
+                                    val startDateTime = ZonedDateTime.parse(startTime.replace(" ", "T").replace("+0000", "Z"))
+                                    val stopDateTime = ZonedDateTime.parse(stopTime.replace(" ", "T").replace("+0000", "Z"))
 
-                // 1. 昨夜の睡眠データ（今日の日切り替え時間に投稿）
-                val sleepPost = Post(
-                    id = "test_sleep_${System.currentTimeMillis()}",
-                    accountId = existingAccountId, // 既存アカウントIDを使用
-                    text = "🌙 22:30 → 06:45 (8h15m)\n深い睡眠: 1h57m (22%)\n浅い睡眠: 6h23m (73%)\nレム睡眠: 28m (5%)",
-                    createdAt = dayStartTime,
-                    source = SnsType.GOOGLEFIT,
-                    imageUrl = null
-                )
-                testPosts.add(sleepPost)
-                Log.d(
-                    "HealthTest",
-                    "睡眠投稿作成: ${sleepPost.id} (account: ${sleepPost.accountId})"
-                )
+                                    // 日本時間に変換
+                                    val startJST = startDateTime.withZoneSameInstant(ZoneId.of("Asia/Tokyo"))
+                                    val stopJST = stopDateTime.withZoneSameInstant(ZoneId.of("Asia/Tokyo"))
 
-                // 2. 今日の運動データ（現在時刻の少し前）
-                val workoutPost = Post(
-                    id = "test_workout_${System.currentTimeMillis() + 1}",
-                    accountId = existingAccountId,
-                    text = "🏃‍♂️ ランニング 30分\n距離: 2.5km\n平均ペース: 6:00/km\nカロリー: 180kcal",
-                    createdAt = japanTime.minusHours(2), // 2時間前に設定
-                    source = SnsType.GOOGLEFIT,
-                    imageUrl = null
-                )
-                testPosts.add(workoutPost)
-                Log.d(
-                    "HealthTest",
-                    "運動投稿作成: ${workoutPost.id} 時刻: ${workoutPost.createdAt}"
-                )
+                                    // 総睡眠時間計算
+                                    val totalMinutes = deepSleep + shallowSleep + remSleep
+                                    val totalHours = totalMinutes / 60
+                                    val remainingMinutes = totalMinutes % 60
 
-                // 3. 仮眠データ（昼寝）
-                val napPost = Post(
-                    id = "test_nap_${System.currentTimeMillis() + 2}",
-                    accountId = existingAccountId,
-                    text = "💤 仮眠 12:15 → 13:12 (57分)",
-                    createdAt = japanTime.withHour(13).withMinute(12),
-                    source = SnsType.GOOGLEFIT,
-                    imageUrl = null
-                )
-                testPosts.add(napPost)
-                Log.d("HealthTest", "仮眠投稿作成: ${napPost.id} 時刻: ${napPost.createdAt}")
+                                    // 投稿時刻は起床日の日切り替え時間
+                                    val sleepDate = stopJST.toLocalDate()
+                                    val postTime = sleepDate.atTime(timeSettings.dayStartHour, timeSettings.dayStartMinute)
+                                        .atZone(ZoneId.of("Asia/Tokyo"))
 
-                // 4. 現在時刻に近いテスト投稿
-                val recentPost = Post(
-                    id = "test_recent_${System.currentTimeMillis() + 3}",
-                    accountId = existingAccountId,
-                    text = "📊 健康データテスト\n👟 歩数: 8,542歩\n❤️ 平均心拍数: 72bpm\n🔥 消費カロリー: 1,850kcal",
-                    createdAt = japanTime.minusMinutes(10), // 10分前
-                    source = SnsType.GOOGLEFIT,
-                    imageUrl = null
-                )
-                testPosts.add(recentPost)
-                Log.d(
-                    "HealthTest",
-                    "最新テスト投稿作成: ${recentPost.id} 時刻: ${recentPost.createdAt}"
-                )
+                                    // 投稿テキスト生成
+                                    val sleepText = """
+                        🛏️ ${startJST.format(DateTimeFormatter.ofPattern("HH:mm"))} → ${stopJST.format(DateTimeFormatter.ofPattern("HH:mm"))} (${totalHours}h${remainingMinutes}m)
+                        深い睡眠: ${deepSleep}分
+                        浅い睡眠: ${shallowSleep}分
+                        レム睡眠: ${remSleep}分
+                    """.trimIndent()
 
-                Log.d("HealthTest", "合計 ${testPosts.size} 件の投稿を保存開始")
+                                    val sleepPost = Post(
+                                        id = "zepp_sleep_${date.replace("-", "")}",
+                                        accountId = sessionManager.accountsFlow.first().first().userId,
+                                        text = sleepText,
+                                        createdAt = postTime,
+                                        source = SnsType.GOOGLEFIT,
+                                        imageUrl = null
+                                    )
+
+                                    posts.add(sleepPost)
+                                    Log.d("ZeppImport", "睡眠投稿生成: $date")
+
+                                } catch (e: Exception) {
+                                    Log.e("ZeppImport", "睡眠データ解析エラー: $line", e)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 運動データ解析
+                sportCsv?.let { csvFile ->
+                    val lines = csvFile.readLines().drop(1) // ヘッダー行をスキップ
+                    lines.forEach { line ->
+                        if (line.isNotBlank()) {
+                            val columns = line.split(",")
+                            if (columns.size >= 8) {
+                                try {
+                                    val type = columns[0] // 運動タイプ
+                                    val startTime = columns[1] // "2022-10-23 13:27:52+0000"
+                                    val sportTimeSeconds = columns[2].toIntOrNull() ?: 0
+                                    val distanceMeters = columns[5].toDoubleOrNull() ?: 0.0
+                                    val calories = columns[7].toDoubleOrNull() ?: 0.0
+
+                                    // 時刻解析・日本時間変換
+                                    val startDateTime = ZonedDateTime.parse(startTime.replace(" ", "T").replace("+0000", "Z"))
+                                    val startJST = startDateTime.withZoneSameInstant(ZoneId.of("Asia/Tokyo"))
+
+                                    // 運動時間・距離変換
+                                    val sportMinutes = sportTimeSeconds / 60
+                                    val distanceKm = distanceMeters / 1000.0
+
+                                    // 運動タイプ判定（とりあえず1=ランニング）
+                                    val sportTypeName = when (type) {
+                                        "1" -> "ランニング"
+                                        else -> "運動"
+                                    }
+
+                                    // 投稿テキスト生成
+                                    val sportText = """
+                        🏃‍♂️ $sportTypeName ${sportMinutes}分
+                        距離: ${String.format("%.1f", distanceKm)}km
+                        カロリー: ${calories.toInt()}kcal
+                    """.trimIndent()
+
+                                    val sportPost = Post(
+                                        id = "zepp_sport_${startTime.replace(":", "").replace("-", "").replace(" ", "_")}",
+                                        accountId = sessionManager.accountsFlow.first().first().userId,
+                                        text = sportText,
+                                        createdAt = startJST, // 運動開始時刻
+                                        source = SnsType.GOOGLEFIT,
+                                        imageUrl = null
+                                    )
+
+                                    posts.add(sportPost)
+                                    Log.d("ZeppImport", "運動投稿生成: $sportTypeName ${sportMinutes}分")
+
+                                } catch (e: Exception) {
+                                    Log.e("ZeppImport", "運動データ解析エラー: $line", e)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                _zeppImportState.value = BackupState.Progress(0.8f, "健康データを保存中...")
 
                 // データベースに保存
-                testPosts.forEachIndexed { index, post ->
-                    Log.d("HealthTest", "投稿 ${index + 1} 保存中: ${post.id}")
-                    val tagCount = postDao.insertWithHashtagExtraction(post)
-                    Log.d("HealthTest", "投稿 ${index + 1} 保存完了。抽出タグ数: $tagCount")
+                Log.d("ZeppImport", "合計 ${posts.size} 件の投稿を保存開始")
+                posts.forEach { post ->
+                    postDao.insertWithHashtagExtraction(post)
                 }
 
-                Log.d("HealthTest", "全投稿の保存完了。リフレッシュ開始...")
+                _zeppImportState.value = BackupState.Progress(1.0f, "完了")
 
-                // 投稿リストを更新
+                // 投稿リスト更新
                 refreshPostsWithoutScroll()
 
-                Log.d("HealthTest", "=== テスト用健康データ生成完了 ===")
+                Log.d("ZeppImport", "健康データ投稿生成完了: ${posts.size}件")
 
-                withContext(Dispatchers.Main) {
-                    // 成功メッセージは呼び出し元で表示
-                }
+                // 少し待ってからCompleted状態に
+                delay(500)
+                _zeppImportState.value = BackupState.Completed
+
+                // 6. 一時ファイル削除
+                tempDir.deleteRecursively()
+
+                Log.d("ZeppImport", "=== Zeppデータインポート完了 ===")
 
             } catch (e: Exception) {
-                Log.e("HealthTest", "健康データ生成エラー: ${e.message}", e)
-                withContext(Dispatchers.Main) {
-                    // エラーメッセージは呼び出し元で表示
-                }
+                _zeppImportState.value = BackupState.Error(e.message ?: "インポートエラー")
+                Log.e("ZeppImport", "インポートエラー: ${e.message}", e)
             }
         }
     }

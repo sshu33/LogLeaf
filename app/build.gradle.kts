@@ -86,4 +86,6 @@ dependencies {
     coreLibraryDesugaring(libs.android.desugar.jdk.libs)
     implementation("io.coil-kt:coil-compose:2.6.0")
     implementation("androidx.compose.foundation:foundation:1.8.0")
+
+    implementation("net.lingala.zip4j:zip4j:2.11.5")
 }
