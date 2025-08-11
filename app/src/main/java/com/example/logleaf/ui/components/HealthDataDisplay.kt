@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -13,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.logleaf.R
 import com.yourpackage.logleaf.ui.components.UserFontText
@@ -70,11 +72,21 @@ fun SleepDataDisplay(
     iconRes: Int = HealthIcons.SLEEP, // デフォルトは通常の睡眠アイコン
     modifier: Modifier = Modifier
 ) {
-    HealthDataDisplay(
-        iconRes = iconRes,
-        text = "$startTime - $endTime ($duration)",
-        modifier = modifier
-    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        HealthDataDisplay(
+            iconRes = iconRes,
+            text = "$startTime - $endTime",
+            modifier = Modifier
+        )
+        UserFontText(
+            text = duration,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold
+        )
+    }
 }
 
 /**
@@ -87,17 +99,21 @@ fun ExerciseDataDisplay(
     distance: String? = null,
     modifier: Modifier = Modifier
 ) {
-    val displayText = if (distance != null) {
-        "$exerciseType $duration $distance"
-    } else {
-        "$exerciseType $duration"
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        HealthDataDisplay(
+            iconRes = HealthIcons.EXERCISE,
+            text = "$exerciseType ${distance ?: ""}",
+            modifier = Modifier
+        )
+        UserFontText(
+            text = duration.replace("分", "m"),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold
+        )
     }
-
-    HealthDataDisplay(
-        iconRes = HealthIcons.EXERCISE,
-        text = displayText,
-        modifier = modifier
-    )
 }
 
 /**
@@ -184,14 +200,13 @@ fun HealthPostDisplay(
             }
         }
 
-        // 運動データの判定
+// 運動データの判定
         postText.contains("ランニング") || postText.contains("🏃") -> {
             Log.d("HealthDisplay", "運動データとして判定")
-            // 例: "🏃‍♂️ ランニング 30分\n距離: 2.5km"
             val lines = postText.lines()
             val firstLine = lines.firstOrNull() ?: ""
 
-            val exercisePattern = "(\\w+)\\s+(\\d+分?)".toRegex()
+            val exercisePattern = "🏃‍♂️\\s*(\\w+)\\s+\\d{2}:\\d{2}\\s*-\\s*\\d{2}:\\d{2}\\s+(\\d+分?)".toRegex()
             val distancePattern = "距離:\\s*([\\d.]+km)".toRegex()
 
             exercisePattern.find(firstLine)?.let { match ->
@@ -210,9 +225,10 @@ fun HealthPostDisplay(
         // デイリー健康データの判定（歩数 + カロリー）
         postText.contains("歩") && postText.contains("kcal") -> {
             Log.d("HealthDisplay", "デイリー健康データとして判定")
-            // 例: "📊 今日の健康データ\n👟 歩数: 8,542歩\n🔥 消費カロリー: 1,850kcal"
-            val stepsPattern = "([\\d,]+)歩".toRegex()
-            val caloriesPattern = "([\\d,]+)kcal".toRegex()
+
+            // 新しいフォーマット対応の正規表現に変更
+            val stepsPattern = "歩数:\\s*([\\d,]+)歩".toRegex()
+            val caloriesPattern = "消費カロリー:\\s*([\\d,]+)kcal".toRegex()
 
             val stepsMatch = stepsPattern.find(postText)
             val caloriesMatch = caloriesPattern.find(postText)
@@ -223,7 +239,7 @@ fun HealthPostDisplay(
                 val steps = stepsStr.toIntOrNull() ?: 0
                 val calories = caloriesStr.toIntOrNull() ?: 0
 
-                // 歩数とカロリーを並べて表示
+                // 既存のレイアウトはそのまま
                 Row(
                     modifier = modifier,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)

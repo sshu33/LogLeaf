@@ -1525,6 +1525,7 @@ class MainViewModel(
                 // 4. CSVファイルを探して解析
                 val sleepCsv = tempDir.walkTopDown().find { it.name.contains("SLEEP") && it.extension == "csv" }
                 val sportCsv = tempDir.walkTopDown().find { it.name.contains("SPORT") && it.extension == "csv" }
+                val activityCsv = tempDir.walkTopDown().find { it.name.contains("ACTIVITY") && it.extension == "csv" }
 
                 Log.d("ZeppImport", "SLEEP.csv: ${sleepCsv?.exists()}")
                 Log.d("ZeppImport", "SPORT.csv: ${sportCsv?.exists()}")
@@ -1614,23 +1615,25 @@ class MainViewModel(
                                     val startDateTime = ZonedDateTime.parse(startTime.replace(" ", "T").replace("+0000", "Z"))
                                     val startJST = startDateTime.withZoneSameInstant(ZoneId.of("Asia/Tokyo"))
 
-                                    // 運動時間・距離変換
+// 運動終了時刻を計算
+                                    val endJST = startJST.plusSeconds(sportTimeSeconds.toLong())
+
+// 運動時間・距離変換
                                     val sportMinutes = sportTimeSeconds / 60
                                     val distanceKm = distanceMeters / 1000.0
 
-                                    // 運動タイプ判定（とりあえず1=ランニング）
+// 運動タイプ判定（とりあえず1=ランニング）
                                     val sportTypeName = when (type) {
                                         "1" -> "ランニング"
                                         else -> "運動"
                                     }
 
-                                    // 投稿テキスト生成
+// 投稿テキスト生成（時刻情報を追加）
                                     val sportText = """
-                        🏃‍♂️ $sportTypeName ${sportMinutes}分
-                        距離: ${String.format("%.1f", distanceKm)}km
-                        カロリー: ${calories.toInt()}kcal
-                    """.trimIndent()
-
+🏃‍♂️ $sportTypeName ${startJST.format(DateTimeFormatter.ofPattern("HH:mm"))} - ${endJST.format(DateTimeFormatter.ofPattern("HH:mm"))} ${sportMinutes}分
+距離: ${String.format("%.1f", distanceKm)}km
+カロリー: ${calories.toInt()}kcal
+""".trimIndent()
                                     val sportPost = Post(
                                         id = "zepp_sport_${startTime.replace(":", "").replace("-", "").replace(" ", "_")}",
                                         accountId = sessionManager.accountsFlow.first().first().userId,
@@ -1645,6 +1648,51 @@ class MainViewModel(
 
                                 } catch (e: Exception) {
                                     Log.e("ZeppImport", "運動データ解析エラー: $line", e)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // アクティビティデータ解析（運動データ解析の後に追加）
+                activityCsv?.let { csvFile ->
+                    val lines = csvFile.readLines().drop(1) // ヘッダー行をスキップ
+                    lines.forEach { line ->
+                        if (line.isNotBlank()) {
+                            val columns = line.split(",")
+                            if (columns.size >= 5) {
+                                try {
+                                    val date = columns[0] // "2021-06-22"
+                                    val steps = columns[1].toIntOrNull() ?: 0
+                                    val calories = columns[4].toIntOrNull() ?: 0
+
+                                    // 投稿時刻は23:59
+                                    val activityDate = LocalDate.parse(date)
+                                    val postTime = activityDate.atTime(timeSettings.dayStartHour, timeSettings.dayStartMinute)
+                                        .minusMinutes(1)
+                                        .atZone(ZoneId.of("Asia/Tokyo"))
+
+                                    // 投稿テキスト生成
+                                    val activityText = """
+📊 今日の健康データ
+歩数: ${steps.toString().replace(Regex("(\\d)(?=(\\d{3})+$)"), "$1,")}歩
+消費カロリー: ${calories}kcal
+                    """.trimIndent()
+
+                                    val activityPost = Post(
+                                        id = "zepp_activity_${date.replace("-", "")}",
+                                        accountId = sessionManager.accountsFlow.first().first().userId,
+                                        text = activityText,
+                                        createdAt = postTime,
+                                        source = SnsType.GOOGLEFIT,
+                                        imageUrl = null
+                                    )
+
+                                    posts.add(activityPost)
+                                    Log.d("ZeppImport", "アクティビティ投稿生成: $date - ${steps}歩, ${calories}kcal")
+
+                                } catch (e: Exception) {
+                                    Log.e("ZeppImport", "アクティビティデータ解析エラー: $line", e)
                                 }
                             }
                         }
