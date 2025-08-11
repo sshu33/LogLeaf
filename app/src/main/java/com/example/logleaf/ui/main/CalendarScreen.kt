@@ -94,6 +94,7 @@ import com.example.logleaf.data.model.Post
 import com.example.logleaf.data.model.PostWithTagsAndImages
 import com.example.logleaf.data.model.UiPost
 import com.example.logleaf.data.settings.TimeSettings
+import com.example.logleaf.ui.components.HealthPostDisplay
 import com.example.logleaf.ui.entry.PostImage
 import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
@@ -783,12 +784,22 @@ fun CalendarPostCardItem(
                         .weight(1f)
                         .padding(start = 12.dp)
                 ) {
-                    Text(
-                        text = uiPost.displayText,
-                        style = MaterialTheme.typography.bodyLarge,
-                        maxLines = maxLines,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    // 健康データかどうかで表示を分岐
+                    if (post.source == SnsType.GOOGLEFIT) {
+                        // 健康データの場合：新しい表示コンポーネントを使用
+                        HealthPostDisplay(
+                            postText = post.text,
+                            modifier = Modifier
+                        )
+                    } else {
+                        // 通常投稿の場合：既存の表示
+                        Text(
+                            text = uiPost.displayText,
+                            style = MaterialTheme.typography.bodyLarge,
+                            maxLines = maxLines,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
 
                     if (tags.isNotEmpty()) {
                         FlowRow(
@@ -799,7 +810,6 @@ fun CalendarPostCardItem(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             tags.forEach { tag ->
-                                // ▼▼▼ この Row に置き換え ▼▼▼
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(0.dp)

@@ -230,14 +230,17 @@ class MainViewModel(
         val postEntry = results[1] as PostEntryState
         val showHidden = results[2] as Boolean
         val isRefreshing = results[3] as Boolean
+
         @Suppress("UNCHECKED_CAST")
         val favoriteTags = results[4] as List<Tag>
+
         @Suppress("UNCHECKED_CAST")
         val frequentTags = results[5] as List<Tag> // ← まず変数'frequentTags'を定義する
 
         // 2. 取り出したデータを使って、必要な加工処理を行う
         val dayLogs = groupPostsByDay(posts)
-        val uniqueFrequentTags = frequentTags.distinctBy { it.tagName } // ← ★定義済みの'frequentTags'をここで加工する
+        val uniqueFrequentTags =
+            frequentTags.distinctBy { it.tagName } // ← ★定義済みの'frequentTags'をここで加工する
 
         // 3. 最終的なデータをUiStateに渡す
         UiState(
@@ -299,13 +302,18 @@ class MainViewModel(
                                         sessionManager.markAccountForReauthentication(account.userId)
                                         emptyList()
                                     }
+
                                     is MastodonPostResult.Error -> {
                                         println("Mastodon API Error: ${result.message}")
                                         emptyList()
                                     }
                                 }
                             }
-                            is Account.GitHub -> gitHubApi.getPostsForAccount(account, account.period)
+
+                            is Account.GitHub -> gitHubApi.getPostsForAccount(
+                                account,
+                                account.period
+                            )
                         }
                     }
                 }
@@ -747,7 +755,6 @@ class MainViewModel(
     }
 
 
-
     fun onAddTag(tagName: String) {
         val trimmed = tagName.trim()
         if (trimmed.isBlank()) return
@@ -773,7 +780,10 @@ class MainViewModel(
                 val newTag = Tag(tagId = 0, tagName = trimmed)
                 val newState = currentState.copy(currentTags = currentState.currentTags + newTag)
 
-                Log.d("TagDebug", "ViewModel State Updated (Add): ${newState.currentTags.map { it.tagName }}")
+                Log.d(
+                    "TagDebug",
+                    "ViewModel State Updated (Add): ${newState.currentTags.map { it.tagName }}"
+                )
                 newState
             } else {
                 currentState
@@ -1192,7 +1202,8 @@ class MainViewModel(
                 // タグ再取得（重複作らないように改良版）
                 val (postCount, tagCount) = postDao.applyHashtagExtractionToAllPosts()
 
-                _maintenanceState.value = BackupState.Progress(0.7f, "重複タグをクリーンアップ中...")
+                _maintenanceState.value =
+                    BackupState.Progress(0.7f, "重複タグをクリーンアップ中...")
 
                 Log.d("TagMaintenance", "forceRemoveDuplicateTags開始")
                 // 最後に重複削除
@@ -1239,7 +1250,10 @@ class MainViewModel(
                     if (tags.size > 1) {
                         Log.d("TagDebug", "重複発見: $normalizedName")
                         tags.forEach { tag ->
-                            Log.d("TagDebug", "  - ID:${tag.tagId}, 名前:'${tag.tagName}', お気に入り:${tag.isFavorite}")
+                            Log.d(
+                                "TagDebug",
+                                "  - ID:${tag.tagId}, 名前:'${tag.tagName}', お気に入り:${tag.isFavorite}"
+                            )
                         }
                     } else {
                         Log.d("TagDebug", "正常: $normalizedName (ID:${tags[0].tagId})")
@@ -1275,7 +1289,8 @@ class MainViewModel(
     private fun parsePostsFromText(text: String): List<RestoredPostData> {
 
         val posts = mutableListOf<RestoredPostData>()
-        val postBlocks = text.split("------------------------------").filter { it.contains("投稿ID:") }
+        val postBlocks =
+            text.split("------------------------------").filter { it.contains("投稿ID:") }
 
         postBlocks.forEach { block ->
             try {
@@ -1436,7 +1451,8 @@ class MainViewModel(
 
                 // 4. 表示用の文字列を作成
                 _dataSize.value = "%.1f MB".format(totalSizeMB)
-                _dataSizeDetails.value = "テキスト %.1f MB / 画像 %.1f MB".format(textSizeMB, imagesSizeMB)
+                _dataSizeDetails.value =
+                    "テキスト %.1f MB / 画像 %.1f MB".format(textSizeMB, imagesSizeMB)
 
             } catch (e: Exception) {
                 _dataSize.value = "計算エラー"
@@ -1467,5 +1483,135 @@ class MainViewModel(
             Log.d("TagCleanup", "重複タグ削除・正規化完了")
         }
     }
-}
 
+// MainViewModel.ktに追加するテスト用健康データ生成メソッド
+
+    /**
+     * テスト用の健康データ投稿を生成する
+     */
+    fun createTestHealthData() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                Log.d("HealthTest", "=== テスト用健康データ生成開始 ===")
+
+                // 登録済みアカウントを取得
+                val accounts = sessionManager.accountsFlow.first()
+                if (accounts.isEmpty()) {
+                    Log.e("HealthTest", "登録済みアカウントがありません")
+                    return@launch
+                }
+
+                // 最初のアカウントのIDを使用（既存アカウントとして）
+                val existingAccountId = accounts.first().userId
+                Log.d("HealthTest", "使用するアカウントID: $existingAccountId")
+
+                val now = ZonedDateTime.now()
+
+                // 日本時間に変換して今日の日付で作成
+                val japanTime = now.withZoneSameInstant(ZoneId.of("Asia/Tokyo"))
+                val todayInJapan = japanTime.toLocalDate()
+
+                Log.d("HealthTest", "現在時刻（日本時間）: $japanTime")
+                Log.d("HealthTest", "今日の日付（日本）: $todayInJapan")
+
+                // 設定された日切り替え時間を取得
+                val timeSettings = timeSettingsRepository.timeSettings.first()
+                val dayStartTime = japanTime.withHour(timeSettings.dayStartHour)
+                    .withMinute(timeSettings.dayStartMinute)
+                    .withSecond(0)
+                    .withNano(0)
+
+                Log.d(
+                    "HealthTest",
+                    "日切り替え時間設定: ${timeSettings.dayStartHour}:${timeSettings.dayStartMinute}"
+                )
+                Log.d("HealthTest", "睡眠投稿予定時刻: $dayStartTime")
+
+                val testPosts = mutableListOf<Post>()
+
+                // 1. 昨夜の睡眠データ（今日の日切り替え時間に投稿）
+                val sleepPost = Post(
+                    id = "test_sleep_${System.currentTimeMillis()}",
+                    accountId = existingAccountId, // 既存アカウントIDを使用
+                    text = "🌙 22:30 → 06:45 (8h15m)\n深い睡眠: 1h57m (22%)\n浅い睡眠: 6h23m (73%)\nレム睡眠: 28m (5%)",
+                    createdAt = dayStartTime,
+                    source = SnsType.GOOGLEFIT,
+                    imageUrl = null
+                )
+                testPosts.add(sleepPost)
+                Log.d(
+                    "HealthTest",
+                    "睡眠投稿作成: ${sleepPost.id} (account: ${sleepPost.accountId})"
+                )
+
+                // 2. 今日の運動データ（現在時刻の少し前）
+                val workoutPost = Post(
+                    id = "test_workout_${System.currentTimeMillis() + 1}",
+                    accountId = existingAccountId,
+                    text = "🏃‍♂️ ランニング 30分\n距離: 2.5km\n平均ペース: 6:00/km\nカロリー: 180kcal",
+                    createdAt = japanTime.minusHours(2), // 2時間前に設定
+                    source = SnsType.GOOGLEFIT,
+                    imageUrl = null
+                )
+                testPosts.add(workoutPost)
+                Log.d(
+                    "HealthTest",
+                    "運動投稿作成: ${workoutPost.id} 時刻: ${workoutPost.createdAt}"
+                )
+
+                // 3. 仮眠データ（昼寝）
+                val napPost = Post(
+                    id = "test_nap_${System.currentTimeMillis() + 2}",
+                    accountId = existingAccountId,
+                    text = "💤 仮眠 12:15 → 13:12 (57分)",
+                    createdAt = japanTime.withHour(13).withMinute(12),
+                    source = SnsType.GOOGLEFIT,
+                    imageUrl = null
+                )
+                testPosts.add(napPost)
+                Log.d("HealthTest", "仮眠投稿作成: ${napPost.id} 時刻: ${napPost.createdAt}")
+
+                // 4. 現在時刻に近いテスト投稿
+                val recentPost = Post(
+                    id = "test_recent_${System.currentTimeMillis() + 3}",
+                    accountId = existingAccountId,
+                    text = "📊 健康データテスト\n👟 歩数: 8,542歩\n❤️ 平均心拍数: 72bpm\n🔥 消費カロリー: 1,850kcal",
+                    createdAt = japanTime.minusMinutes(10), // 10分前
+                    source = SnsType.GOOGLEFIT,
+                    imageUrl = null
+                )
+                testPosts.add(recentPost)
+                Log.d(
+                    "HealthTest",
+                    "最新テスト投稿作成: ${recentPost.id} 時刻: ${recentPost.createdAt}"
+                )
+
+                Log.d("HealthTest", "合計 ${testPosts.size} 件の投稿を保存開始")
+
+                // データベースに保存
+                testPosts.forEachIndexed { index, post ->
+                    Log.d("HealthTest", "投稿 ${index + 1} 保存中: ${post.id}")
+                    val tagCount = postDao.insertWithHashtagExtraction(post)
+                    Log.d("HealthTest", "投稿 ${index + 1} 保存完了。抽出タグ数: $tagCount")
+                }
+
+                Log.d("HealthTest", "全投稿の保存完了。リフレッシュ開始...")
+
+                // 投稿リストを更新
+                refreshPostsWithoutScroll()
+
+                Log.d("HealthTest", "=== テスト用健康データ生成完了 ===")
+
+                withContext(Dispatchers.Main) {
+                    // 成功メッセージは呼び出し元で表示
+                }
+
+            } catch (e: Exception) {
+                Log.e("HealthTest", "健康データ生成エラー: ${e.message}", e)
+                withContext(Dispatchers.Main) {
+                    // エラーメッセージは呼び出し元で表示
+                }
+            }
+        }
+    }
+}

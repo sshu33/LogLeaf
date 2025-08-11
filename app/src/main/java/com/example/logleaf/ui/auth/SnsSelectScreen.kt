@@ -37,7 +37,8 @@ fun SnsSelectScreen(navController: NavController) {
     val snsProviders = listOf(
         SnsProvider("Bluesky", R.drawable.ic_bluesky, "login", SnsType.BLUESKY.brandColor),
         SnsProvider("Mastodon", R.drawable.ic_mastodon, "mastodon_instance", SnsType.MASTODON.brandColor),
-        SnsProvider("GitHub", R.drawable.ic_github, "github_login", SnsType.GITHUB.brandColor, isImplemented = true) // ← isImplemented = true に変更
+        SnsProvider("GitHub", R.drawable.ic_github, "github_login", SnsType.GITHUB.brandColor, isImplemented = true),
+        SnsProvider("Google Fit", R.drawable.ic_googlefit, "google_fit_login", SnsType.GOOGLEFIT.brandColor, isImplemented = false) // 🏃‍♂️ Google Fit追加
     )
 
     Scaffold(

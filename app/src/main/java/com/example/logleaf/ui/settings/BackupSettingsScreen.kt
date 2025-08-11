@@ -68,6 +68,20 @@ fun BackupSettingsScreen(
         }
     )
 
+    val zeppZipPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+        onResult = { uri ->
+            if (uri != null) {
+                // TODO: ZeppのZIPファイルからMibandデータをインポート
+                Toast.makeText(
+                    context,
+                    "Zeppの健康データインポート機能は開発中です\n対応予定: SLEEP.csv, SPORT.csv, HEARTRATE.csv",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    )
+
     // --- ▼ 最適化メニューで使う変数を準備 ---
     var isOptimizationExpanded by remember { mutableStateOf(false) }
     var showConfirmDialog by remember { mutableStateOf(false) }
@@ -674,6 +688,96 @@ fun BackupSettingsScreen(
                             )
                         }
                     }
+
+                    //健康データインポート
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                mainViewModel.createTestHealthData()
+                                Toast.makeText(
+                                    context,
+                                    "テスト用健康データを作成しました",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_analytics),
+                            contentDescription = null,
+                            tint = Color(0xFF4285F4), // Google Fitのブランドカラー
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            UserFontText(
+                                text = "テスト用健康データ作成",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            UserFontText(
+                                text = "睡眠・運動・仮眠・デイリーサマリーのサンプル",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+// Zeppデータインポート
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                zeppZipPickerLauncher.launch("application/zip")
+                            }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_upload),
+                            contentDescription = null,
+                            tint = Color(0xFF4285F4), // Google Fitのブランドカラー
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            UserFontText(
+                                text = "Zepp健康データインポート",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            UserFontText(
+                                text = "ZeppアプリからエクスポートしたZIPファイル",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+// 対応ファイル形式の説明
+                    UserFontText(
+                        text = "📁 対応フォルダ: SLEEP/, SPORT/, HEARTRATE/, ACTIVITY/",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        modifier = Modifier.padding(top = 8.dp, start = 40.dp)
+                    )
+
 
                     // 自動バックアップ
                     Row(

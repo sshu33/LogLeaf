@@ -280,27 +280,29 @@ fun SearchTopBar(
 
                     // --- 各SNSのフィルター項目 ---
                     SnsType.entries.forEach { sns ->
-                        val isSelected = sns in selectedSns // ◀ このSNSが選択されているか
+                        val isSelected = sns in selectedSns
                         DropdownMenuItem(
                             text = {
                                 UserFontText(
-                                    text = sns.name.lowercase().replaceFirstChar { it.uppercase() })
+                                    text = sns.name.lowercase().replaceFirstChar { it.uppercase() }
+                                )
                             },
                             leadingIcon = {
                                 val iconResId = when (sns) {
                                     SnsType.BLUESKY -> R.drawable.ic_bluesky
                                     SnsType.MASTODON -> R.drawable.ic_mastodon
                                     SnsType.LOGLEAF -> R.drawable.ic_logleaf
-                                    SnsType.GITHUB -> R.drawable.ic_github  // ← これを追加
+                                    SnsType.GITHUB -> R.drawable.ic_github
+                                    SnsType.GOOGLEFIT -> R.drawable.ic_googlefit
                                 }
                                 Icon(
                                     painter = painterResource(id = iconResId),
                                     contentDescription = sns.name,
-                                    modifier = Modifier.size(24.dp),
-                                    tint = if (isSelected) sns.brandColor else Color.Gray.copy(alpha = 0.6f) // ◀ 状態に応じて色を変更
+                                    tint = if (isSelected) sns.brandColor else Color.Gray,
+                                    modifier = Modifier.size(20.dp)
                                 )
                             },
-                            onClick = { onSnsFilterChanged(sns) }, // ◀ 修正済みの関数を呼び出す
+                            onClick = { onSnsFilterChanged(sns) },
                             modifier = menuItemModifier,
                             contentPadding = indentedContentPadding
                         )
