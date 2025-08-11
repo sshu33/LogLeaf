@@ -1564,6 +1564,11 @@ class MainViewModel(
                                     val totalHours = totalMinutes / 60
                                     val remainingMinutes = totalMinutes % 60
 
+                                    if (totalMinutes == 0) {
+                                        Log.d("ZeppImport", "0分睡眠データをスキップ: $date")
+                                        return@forEach // この行をスキップして次の行へ
+                                    }
+
                                     // 投稿時刻は起床日の日切り替え時間
                                     val sleepDate = stopJST.toLocalDate()
                                     val postTime = sleepDate.atTime(timeSettings.dayStartHour, timeSettings.dayStartMinute)
@@ -1728,5 +1733,40 @@ class MainViewModel(
                 Log.e("ZeppImport", "インポートエラー: ${e.message}", e)
             }
         }
+    }
+
+    /**
+     * GoogleFitデータで既存データを置き換える
+     */
+    private suspend fun replaceWithGoogleFitData(
+        dataType: String, // "sleep", "exercise", "activity"
+        date: LocalDate,
+        newGoogleFitPost: Post
+    ) {
+        // 既存のZeppデータを削除
+        val zeppId = "zepp_${dataType}_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}"
+        postDao.deletePostById(zeppId)
+
+        Log.d("GoogleFit", "既存Zeppデータを削除: $zeppId")
+
+        // GoogleFitデータで置き換え
+        val gfitId = "googlefit_${dataType}_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}"
+        val googleFitPost = newGoogleFitPost.copy(id = gfitId)
+        postDao.insertWithHashtagExtraction(googleFitPost)
+
+        Log.d("GoogleFit", "GoogleFitデータで置き換え: $gfitId")
+    }
+
+    /**
+     * 既存の健康データをチェック
+     */
+    private suspend fun hasExistingHealthData(
+        dataType: String,
+        date: LocalDate
+    ): Boolean {
+        val zeppId = "zepp_${dataType}_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}"
+        val gfitId = "googlefit_${dataType}_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}"
+
+        return postDao.getPostById(zeppId) != null || postDao.getPostById(gfitId) != null
     }
 }

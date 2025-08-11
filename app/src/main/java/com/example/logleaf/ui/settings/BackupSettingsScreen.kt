@@ -931,7 +931,7 @@ fun BackupSettingsScreen(
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Zepp健康データインポート",
+                                text = "Zeppデータインポート",
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -942,7 +942,7 @@ fun BackupSettingsScreen(
                                 zeppImportState.isInProgress -> zeppImportState.statusText
                                 zeppImportState.isCompleted -> "インポートが完了しました"
                                 zeppImportState.statusText.startsWith("エラー") -> zeppImportState.statusText
-                                else -> "ZeppアプリからエクスポートしたZIPファイル"
+                                else -> "ZeppLifeからエクスポートしたZIPファイル"
                             }
 
                             Text(
