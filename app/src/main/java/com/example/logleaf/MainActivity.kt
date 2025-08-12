@@ -53,6 +53,7 @@ import com.example.logleaf.ui.main.CalendarScreen
 import com.example.logleaf.ui.settings.FontSettingsScreen
 import com.example.logleaf.ui.auth.GitHubLoginScreen
 import com.example.logleaf.ui.auth.GitHubLoginViewModel
+import com.example.logleaf.ui.auth.GoogleFitLoginScreen
 import com.example.logleaf.ui.auth.LoginScreen
 import com.example.logleaf.ui.auth.MastodonInstanceScreen
 import com.example.logleaf.ui.auth.MastodonInstanceViewModel
@@ -386,6 +387,10 @@ fun MainScreen(
                     navController = navController,
                     mainViewModel = mainViewModel
                 )
+            }
+
+            composable("google_fit_login") {
+                GoogleFitLoginScreen(navController = navController)
             }
         }
     }

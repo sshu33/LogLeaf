@@ -1,6 +1,11 @@
 package com.example.logleaf.ui.settings
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.util.Log
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -21,6 +26,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,11 +47,18 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import com.example.logleaf.MainViewModel
 import com.example.logleaf.R
+import com.example.logleaf.api.googlefit.GoogleFitDataManager
+import com.example.logleaf.auth.GoogleFitAuthManager
 import com.example.logleaf.ui.components.CustomTopAppBar
+import com.example.logleaf.ui.components.ListCard
 import com.yourpackage.logleaf.ui.components.UserFontText
+import kotlinx.coroutines.launch
+import java.time.LocalDate
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,6 +70,8 @@ fun SettingsScreen(
 ) {
     var showLogoutDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
+
+    val coroutineScope = rememberCoroutineScope()  //Debug
 
     // 画面全体の親をColumnに変更し、Scaffoldを完全に削除
     Column(
@@ -153,6 +169,156 @@ fun SettingsScreen(
                         title = "ログアウト",
                         onClick = { showLogoutDialog = true }
                     )
+
+                    // ★★★ 開発中のみ：GoogleFitテスト用 ★★★
+
+                    ListCard(
+                        onClick = {
+                            Log.d("SettingsScreen", "Google Fitテストボタンがタップされました")
+
+                            // 権限チェック
+                            val hasPermission = ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.ACTIVITY_RECOGNITION
+                            ) == PackageManager.PERMISSION_GRANTED
+
+                            Log.d("SettingsScreen", "ACTIVITY_RECOGNITION権限: $hasPermission")
+
+                            if (hasPermission) {
+                                Log.d("SettingsScreen", "権限OK、syncGoogleFitDataを呼び出します")
+
+                                GoogleFitAuthManager(context).debugAuthStatus()
+
+                                try {
+                                    // ★★★ メソッドが存在するかチェック ★★★
+                                    val method =
+                                        mainViewModel::class.java.methods.find { it.name == "syncGoogleFitData" }
+                                    if (method != null) {
+                                        Log.d(
+                                            "SettingsScreen",
+                                            "syncGoogleFitDataメソッドが存在します"
+                                        )
+
+                                        // ★ここを修正：8月9日の日付を指定
+                                        val testDate = LocalDate.of(2025, 8, 9)
+                                        Log.d("SettingsScreen", "8月9日のデータでテスト: $testDate")
+                                        mainViewModel.syncGoogleFitData(testDate)  // ← 引数に日付を渡す
+
+                                        Log.d("SettingsScreen", "syncGoogleFitData呼び出し完了")
+                                    } else {
+                                        Log.e(
+                                            "SettingsScreen",
+                                            "syncGoogleFitDataメソッドが存在しません！"
+                                        )
+                                        Toast.makeText(
+                                            context,
+                                            "syncGoogleFitDataメソッドが実装されていません",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("SettingsScreen", "syncGoogleFitData呼び出しでエラー", e)
+                                    Toast.makeText(
+                                        context,
+                                        "エラー: ${e.message}",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            } else {
+                                Log.d("SettingsScreen", "権限なし、トーストを表示")
+                                Toast.makeText(
+                                    context,
+                                    "設定アプリでACTIVITY_RECOGNITION権限を許可してください",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_sync2),
+                            contentDescription = "GoogleFit同期テスト",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "GoogleFit同期テスト",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "今日のデータを手動同期（開発用）",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+
+                    ListCard(
+                        onClick = {
+                            Log.d("SettingsScreen", "テストデータ投入ボタンがタップされました")
+
+                            // 権限チェック
+                            val hasPermission = ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.ACTIVITY_RECOGNITION
+                            ) == PackageManager.PERMISSION_GRANTED
+
+                            if (hasPermission) {
+                                coroutineScope.launch { // ← lifecycleScopeの代わりにcoroutineScopeを使用
+                                    val googleFitDataManager = GoogleFitDataManager(context)
+                                    val testDate = LocalDate.of(2025, 8, 9)
+                                    val success = googleFitDataManager.insertTestData(testDate)
+
+                                    Toast.makeText(
+                                        context,
+                                        if (success) "テストデータ投入完了" else "テストデータ投入失敗",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    "設定アプリでACTIVITY_RECOGNITION権限を許可してください",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_sync2), // 同じアイコンでOK
+                            contentDescription = "テストデータ投入",
+                            tint = MaterialTheme.colorScheme.primary, // 色を変えて区別
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "テストデータ投入",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "エミュレータ用のダミーデータを作成",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+
                 }
             }
         }

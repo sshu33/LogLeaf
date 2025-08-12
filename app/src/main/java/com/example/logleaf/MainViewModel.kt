@@ -14,6 +14,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.logleaf.api.bluesky.BlueskyApi
 import com.example.logleaf.api.github.GitHubApi
+import com.example.logleaf.api.googlefit.GoogleFitDataManager
 import com.example.logleaf.api.mastodon.MastodonApi
 import com.example.logleaf.api.mastodon.MastodonPostResult
 import com.example.logleaf.data.model.Account
@@ -177,6 +178,10 @@ class MainViewModel(
             }
         }
     }
+
+    // GoogleFitDataManager のインスタンス追加
+    private val googleFitDataManager = GoogleFitDataManager(getApplication())
+
 
     private val _backupProgress = MutableStateFlow<String?>(null)
     val backupProgress = _backupProgress.asStateFlow()
@@ -1768,5 +1773,118 @@ class MainViewModel(
         val gfitId = "googlefit_${dataType}_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}"
 
         return postDao.getPostById(zeppId) != null || postDao.getPostById(gfitId) != null
+    }
+
+    /**
+     * GoogleFitから健康データを同期
+     */
+    fun syncGoogleFitData(targetDate: LocalDate? = null) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val date = targetDate ?: LocalDate.now()
+                Log.d("GoogleFit", "データ同期開始: $date")
+
+                // 睡眠データ同期
+                syncSleepData(date)
+
+                // アクティビティデータ同期
+                syncActivityData(date)
+
+                // UI更新
+                refreshPostsWithoutScroll()
+
+                Log.d("GoogleFit", "データ同期完了: $date")
+
+            } catch (e: Exception) {
+                Log.e("GoogleFit", "データ同期エラー", e)
+            }
+        }
+    }
+
+    private suspend fun syncSleepData(date: LocalDate) {
+        Log.d("GoogleFit", "syncSleepData開始: $date")
+
+        try {
+            val sleepData = googleFitDataManager.getSleepData(date)
+            Log.d("GoogleFit", "sleepData取得結果: $sleepData")
+
+            if (sleepData != null) {
+            // Zeppと同じフォーマットで投稿テキスト生成
+            val sleepText = """
+🛏️ ${sleepData.startTime} → ${sleepData.endTime} (${sleepData.duration})
+""".trimIndent()
+
+            val sleepPost = Post(
+                id = "googlefit_sleep_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}",
+                accountId = sessionManager.accountsFlow.first().first().userId,
+                text = sleepText,
+                createdAt = date.atTime(timeSettingsRepository.timeSettings.first().dayStartHour, timeSettingsRepository.timeSettings.first().dayStartMinute)
+                    .atZone(ZoneId.of("Asia/Tokyo")),
+                source = SnsType.GOOGLEFIT,
+                imageUrl = null
+            )
+
+            // 既存データと重複回避
+            replaceWithGoogleFitData("sleep", date, sleepPost)
+                Log.d("GoogleFit", "睡眠データ同期: ${sleepData.startTime} - ${sleepData.endTime}")
+            } else {
+                Log.d("GoogleFit", "sleepDataがnullです")
+            }
+        } catch (e: Exception) {
+            Log.e("GoogleFit", "syncSleepDataでエラー", e)
+        }
+
+        Log.d("GoogleFit", "syncSleepData終了")
+    }
+
+    private suspend fun syncActivityData(date: LocalDate) {
+        Log.d("GoogleFit", "syncActivityData開始: $date")
+
+        try {
+            Log.d("GoogleFit", "googleFitDataManager.getActivityData呼び出し中...")
+            val activityData = googleFitDataManager.getActivityData(date)
+
+            Log.d("GoogleFit", "activityData取得結果: $activityData")
+
+            if (activityData != null) {
+                Log.d("GoogleFit", "データ詳細 - steps: ${activityData.steps}, calories: ${activityData.calories}")
+
+                if (activityData.steps > 0 || activityData.calories > 0) {
+                    Log.d("GoogleFit", "データが有効、投稿作成中...")
+
+                    // Zeppと同じフォーマットで投稿テキスト生成
+                    val activityText = """
+📊 今日の健康データ
+歩数: ${activityData.steps.toString().replace(Regex("(\\d)(?=(\\d{3})+$)"), "$1,")}歩
+消費カロリー: ${activityData.calories}kcal
+""".trimIndent()
+
+                    val activityPost = Post(
+                        id = "googlefit_activity_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}",
+                        accountId = sessionManager.accountsFlow.first().first().userId,
+                        text = activityText,
+                        createdAt = date.atTime(timeSettingsRepository.timeSettings.first().dayStartHour, timeSettingsRepository.timeSettings.first().dayStartMinute)
+                            .minusMinutes(1)
+                            .atZone(ZoneId.of("Asia/Tokyo")),
+                        source = SnsType.GOOGLEFIT,
+                        imageUrl = null
+                    )
+
+                    Log.d("GoogleFit", "投稿作成完了、保存中...")
+
+                    // 既存データと重複回避
+                    replaceWithGoogleFitData("activity", date, activityPost)
+                    Log.d("GoogleFit", "アクティビティデータ同期: ${activityData.steps}歩, ${activityData.calories}kcal")
+                } else {
+                    Log.d("GoogleFit", "データが0なので投稿をスキップ")
+                }
+            } else {
+                Log.d("GoogleFit", "activityDataがnullです")
+            }
+        } catch (e: Exception) {
+            Log.e("GoogleFit", "syncActivityDataでエラー", e)
+        }
+
+        Log.d("GoogleFit", "syncActivityData終了")
     }
 }

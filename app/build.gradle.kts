@@ -88,4 +88,8 @@ dependencies {
     implementation("androidx.compose.foundation:foundation:1.8.0")
 
     implementation("net.lingala.zip4j:zip4j:2.11.5")
+
+    // Google Play services - Fitness API
+    implementation("com.google.android.gms:play-services-fitness:21.1.0")
+    implementation("com.google.android.gms:play-services-auth:20.7.0")
 }

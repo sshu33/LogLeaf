@@ -645,7 +645,7 @@ fun BackupSettingsScreen(
                 Box(
                     modifier = Modifier
                         .width(4.dp)
-                        .height(400.dp)
+                        .height(300.dp)
                         .background(
                             MaterialTheme.colorScheme.primary,
                             RoundedCornerShape(2.dp)
