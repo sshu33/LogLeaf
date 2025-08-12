@@ -237,30 +237,217 @@ fun AccountScreen(
 
     // 削除確認ダイアログ
     accountToDelete?.let { account ->
-        AlertDialog(
-            onDismissRequest = { accountToDelete = null },
-            title = { Text("アカウントの完全削除") },
-            text = { Text("${account.displayName} を削除しますか？\n\n注意：このアカウントの投稿もすべて削除され、元に戻すことはできません。") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.deleteAccountAndPosts(account)
-                        accountToDelete = null
-                    }
-                ) {
-                    Text("削除", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { accountToDelete = null }) {
-                    Text("キャンセル")
-                }
+        StylishDeleteDialog(
+            account = account,
+            onDismiss = { accountToDelete = null },
+            onConfirm = { deletePostsAlso ->
+                viewModel.deleteAccountAndPosts(account, deletePostsAlso)
+                accountToDelete = null
             }
         )
     }
 }
 
-// AccountScreen.kt に追加するダイアログコンポーネント
+// AccountScreen.kt の削除確認ダイアログを置き換える
+
+@Composable
+fun StylishDeleteDialog(
+    account: Account,
+    onDismiss: () -> Unit,
+    onConfirm: (deletePostsAlso: Boolean) -> Unit
+) {
+    var deletePostsAlso by remember { mutableStateOf(false) }
+
+    val isGoogleFit = account is Account.GoogleFit
+    val title = if (isGoogleFit) "Google Fit連携を解除しますか？" else "アカウントを削除しますか？"
+    val description = if (isGoogleFit)
+        "連携を解除すると、新しい健康データの取得が停止されます。"
+    else
+        "削除すると、このアカウントの投稿もすべて削除され、元に戻すことはできません。"
+    val actionText = if (isGoogleFit) "連携解除" else "削除"
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .wrapContentHeight(),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                // アイコンとタイトル
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // 警告アイコン
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(
+                                color = if (isGoogleFit)
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                else
+                                    MaterialTheme.colorScheme.error.copy(alpha = 0.1f),
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(
+                                id = if (isGoogleFit) R.drawable.ic_link_off else R.drawable.ic_warning
+                            ),
+                            contentDescription = null,
+                            tint = if (isGoogleFit)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.headlineSmall.copy(
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = account.displayName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+
+                // 説明文
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                    lineHeight = 20.sp
+                )
+
+                // Google Fit用チェックボックス または 一般SNS用警告
+                if (isGoogleFit) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { deletePostsAlso = !deletePostsAlso }
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Checkbox(
+                                checked = deletePostsAlso,
+                                onCheckedChange = { deletePostsAlso = it },
+                                colors = CheckboxDefaults.colors(
+                                    checkedColor = MaterialTheme.colorScheme.error
+                                )
+                            )
+                            Text(
+                                text = "既存の健康データも削除する",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                } else {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.1f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_warning),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "この操作は元に戻せません",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = FontWeight.Medium
+                                ),
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+
+                // ボタン
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // キャンセルボタン
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                        )
+                    ) {
+                        Text(
+                            text = "キャンセル",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.Medium
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    // 実行ボタン
+                    Button(
+                        onClick = { onConfirm(deletePostsAlso) },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isGoogleFit)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text(
+                            text = actionText,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.Medium
+                            ),
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun BlueskyPeriodDialog(
     account: Account.Bluesky,

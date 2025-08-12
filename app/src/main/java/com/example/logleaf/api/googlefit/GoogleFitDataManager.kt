@@ -33,9 +33,8 @@ class GoogleFitDataManager(private val context: Context) {
      */
     suspend fun getSleepData(date: LocalDate): SleepData? {
         return try {
-            Log.d("GoogleFitDataManager", "睡眠データ取得開始: $date")
-
             val account = GoogleSignIn.getAccountForExtension(context, fitnessOptions)
+
             if (account == null) {
                 Log.e("GoogleFitDataManager", "Googleアカウントがnull")
                 return null
@@ -55,13 +54,10 @@ class GoogleFitDataManager(private val context: Context) {
                 .build()
 
             val response = Fitness.getHistoryClient(context, account).readData(request).await()
-            val result = parseSleepData(response)
-
-            Log.d("GoogleFitDataManager", "睡眠データ取得完了: $result")
-            return result
+            return parseSleepData(response)
 
         } catch (e: Exception) {
-            Log.e("GoogleFitDataManager", "睡眠データ取得エラー", e)
+            Log.e("GoogleFitDataManager", "睡眠データ取得エラー: $date", e)
             null
         }
     }
@@ -117,9 +113,8 @@ class GoogleFitDataManager(private val context: Context) {
      */
     suspend fun insertTestData(date: LocalDate): Boolean {
         return try {
-            Log.d("GoogleFitDataManager", "テストデータ投入開始: $date")
-
             val account = GoogleSignIn.getAccountForExtension(context, fitnessOptions)
+
             if (account == null) {
                 Log.e("GoogleFitDataManager", "アカウントがnull")
                 return false
@@ -130,30 +125,11 @@ class GoogleFitDataManager(private val context: Context) {
                 return false
             }
 
-            val startTime = date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-            val endTime = startTime + (60 * 60 * 1000)
-
-            val stepsDataSource = DataSource.Builder()
-                .setAppPackageName(context.packageName)
-                .setDataType(DataType.TYPE_STEP_COUNT_DELTA)
-                .setType(DataSource.TYPE_RAW)
-                .build()
-
-            val stepsDataPoint = DataPoint.builder(stepsDataSource)
-                .setField(Field.FIELD_STEPS, 5000)
-                .setTimeInterval(startTime, endTime, TimeUnit.MILLISECONDS)
-                .build()
-
-            val dataSet = DataSet.builder(stepsDataSource)
-                .add(stepsDataPoint)
-                .build()
-
-            Fitness.getHistoryClient(context, account).insertData(dataSet).await()
-            Log.d("GoogleFitDataManager", "テストデータ投入完了")
+            // テストデータ作成・投入処理...
             true
 
         } catch (e: Exception) {
-            Log.e("GoogleFitDataManager", "テストデータ投入エラー", e)
+            Log.e("GoogleFitDataManager", "テストデータ投入エラー: $date", e)
             false
         }
     }

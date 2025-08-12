@@ -40,6 +40,7 @@ import com.example.logleaf.api.bluesky.BlueskyApi
 import com.example.logleaf.api.github.GitHubApi
 import com.example.logleaf.api.mastodon.MastodonApi
 import com.example.logleaf.api.mastodon.MastodonAuthHolder
+import com.example.logleaf.auth.GoogleFitAuthManager
 import com.example.logleaf.data.session.SessionManager
 import com.example.logleaf.ui.font.FontSettingsManager
 import com.example.logleaf.db.AppDatabase
@@ -127,6 +128,11 @@ fun AppEntry(
 ) {
     val context = LocalContext.current
     val sessionManager = remember { SessionManager(context.applicationContext) }
+
+    // ★ 起動時にGoogle Fit連携状態をチェックして自動でアカウント追加
+    LaunchedEffect(Unit) {
+        sessionManager.checkAndAddGoogleFitAccount(context)
+    }
 
     MainScreen(
         sessionManager = sessionManager,
@@ -390,7 +396,10 @@ fun MainScreen(
             }
 
             composable("google_fit_login") {
-                GoogleFitLoginScreen(navController = navController)
+                GoogleFitLoginScreen(
+                    navController = navController,
+                    sessionManager = sessionManager // ← 追加
+                )
             }
         }
     }

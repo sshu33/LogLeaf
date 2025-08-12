@@ -76,4 +76,17 @@ sealed class Account {
         All,    // 全リポジトリから取得
         Selected // 選択したリポジトリのみ取得
     }
+
+    @Serializable
+    @SerialName("Account.GoogleFit")
+    data class GoogleFit(
+        val isConnected: Boolean = true,
+        override val needsReauthentication: Boolean = false,
+        override val isVisible: Boolean = true,
+        override val lastSyncedAt: String? = null
+    ) : Account() {
+        override val snsType: SnsType get() = SnsType.GOOGLEFIT
+        override val userId: String get() = "googlefit_user"
+        override val displayName: String get() = "Google Fit"
+    }
 }

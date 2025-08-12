@@ -324,6 +324,8 @@ class MainViewModel(
                                 account,
                                 account.period
                             )
+
+                            is Account.GoogleFit -> emptyList()
                         }
                     }
                 }

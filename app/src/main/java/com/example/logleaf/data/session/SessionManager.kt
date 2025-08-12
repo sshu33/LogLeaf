@@ -3,6 +3,7 @@ package com.example.logleaf.data.session
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import com.example.logleaf.auth.GoogleFitAuthManager
 import com.example.logleaf.data.model.Account
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,7 +14,8 @@ import java.time.format.DateTimeFormatter
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-class SessionManager(context: Context) {
+
+class SessionManager(private val context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("LogLeaf_Prefs", Context.MODE_PRIVATE)
 
     companion object {
@@ -75,7 +77,6 @@ class SessionManager(context: Context) {
     }
 
     fun deleteAccount(accountToDelete: Account) {
-
         val stackTrace = Thread.currentThread().stackTrace.joinToString(separator = "\n") { "  at $it" }
         Log.e("ACCOUNT_DELETE_INVESTIGATION", "deleteAccountが呼び出されました！")
         Log.e("ACCOUNT_DELETE_INVESTIGATION", "--- 削除対象アカウント情報 ---")
@@ -84,22 +85,65 @@ class SessionManager(context: Context) {
         Log.e("ACCOUNT_DELETE_INVESTIGATION", stackTrace)
         Log.e("ACCOUNT_DELETE_INVESTIGATION", "------------------------------------")
 
+        when (accountToDelete) {
+            is Account.GoogleFit -> {
+                // GoogleFit連携解除処理（別途実装）
+                handleGoogleFitDisconnection(accountToDelete)
+            }
+            else -> {
+                // 従来のSNSアカウント削除処理
+                val currentAccounts = getAccounts().toMutableList()
+                currentAccounts.removeAll { it.userId == accountToDelete.userId && it.snsType == accountToDelete.snsType }
+                saveAccountsList(currentAccounts)
+                _accountsFlow.value = currentAccounts
+                println("【SessionManager】アカウント削除。残りのアカウント数: ${currentAccounts.size}")
+            }
+        }
+    }
+
+    // GoogleFit連携解除の専用処理
+    private fun handleGoogleFitDisconnection(googleFitAccount: Account.GoogleFit) {
+        // 1. アカウント情報を削除
         val currentAccounts = getAccounts().toMutableList()
-        currentAccounts.removeAll { it.userId == accountToDelete.userId && it.snsType == accountToDelete.snsType }
+        currentAccounts.removeAll { it is Account.GoogleFit }
         saveAccountsList(currentAccounts)
-        // StateFlowに新しいリストを通知する
         _accountsFlow.value = currentAccounts
-        // ★★★ デバッグログを追加 ★★★
-        println("【SessionManager】アカウント削除。残りのアカウント数: ${currentAccounts.size}")
+
+        // 2. Google Fit認証情報をクリア
+        try {
+            val authManager = GoogleFitAuthManager(context)
+            authManager.clearAuthentication()
+            Log.d("SessionManager", "Google Fit認証情報をクリアしました")
+        } catch (e: Exception) {
+            Log.e("SessionManager", "Google Fit認証クリア中にエラー", e)
+        }
+    }
+
+    /**
+     * GoogleFit連携時にアカウントを追加する新しいメソッド
+     */
+    fun addGoogleFitAccount() {
+        val googleFitAccount = Account.GoogleFit(
+            isConnected = true,
+            isVisible = true
+        )
+        saveAccount(googleFitAccount)
+    }
+
+    /**
+     * GoogleFit連携状態をチェックする
+     */
+    fun isGoogleFitConnected(): Boolean {
+        return getAccounts().any { it is Account.GoogleFit && it.isConnected }
     }
 
     fun toggleAccountVisibility(accountId: String) {
         updateAccountState(accountId) { account ->
-            // isVisibleプロパティの値を反転させた新しいAccountオブジェクトを返す
             when (account) {
-                is Account.Bluesky -> account.copy(isVisible = !account.isVisible)
-                is Account.Mastodon -> account.copy(isVisible = !account.isVisible)
-                is Account.GitHub -> account.copy(isVisible = !account.isVisible) // ← 追加
+                is Account.Bluesky -> account.copy(needsReauthentication = true)
+                is Account.Mastodon -> account.copy(needsReauthentication = true)
+                is Account.GitHub -> account.copy(needsReauthentication = true)
+                is Account.GoogleFit -> account.copy(needsReauthentication = true) // ← 追加
             }
         }
         Log.d("SessionManager", "アカウント($accountId)の表示状態を切り替えました。")
@@ -110,7 +154,8 @@ class SessionManager(context: Context) {
             when (account) {
                 is Account.Bluesky -> account.copy(needsReauthentication = true)
                 is Account.Mastodon -> account.copy(needsReauthentication = true)
-                is Account.GitHub -> account.copy(needsReauthentication = true) // ← 追加
+                is Account.GitHub -> account.copy(needsReauthentication = true)
+                is Account.GoogleFit -> account.copy(needsReauthentication = true) // ← 追加
             }
         }
         println("【SessionManager】アカウント($accountId)を要再認証としてマークしました。")
@@ -151,6 +196,10 @@ class SessionManager(context: Context) {
                         Log.d("SessionManager", "GitHubアカウント詳細:")
                         Log.d("SessionManager", "ユーザー名: ${account.username}")
                         Log.d("SessionManager", "アクセストークン長さ: ${account.accessToken.length}")
+                    }
+                    is Account.GoogleFit -> {
+                        Log.d("SessionManager", "GoogleFitアカウント詳細:")
+                        Log.d("SessionManager", "連携状態: ${account.isConnected}")
                     }
                 }
             }
@@ -290,6 +339,7 @@ class SessionManager(context: Context) {
                 is Account.GitHub -> account.copy(lastSyncedAt = syncTimeString)
                 is Account.Bluesky -> account.copy(lastSyncedAt = syncTimeString)
                 is Account.Mastodon -> account.copy(lastSyncedAt = syncTimeString)
+                is Account.GoogleFit -> account.copy(lastSyncedAt = syncTimeString) // ← 追加
                 else -> account
             }
         }
@@ -319,5 +369,16 @@ class SessionManager(context: Context) {
 
     fun getShowHiddenPosts(): Flow<Boolean> {
         return MutableStateFlow(false)
+    }
+
+    /**
+     * GoogleFit連携状況をチェックしてアカウントを自動追加
+     */
+    fun checkAndAddGoogleFitAccount(context: Context) {
+        val authManager = GoogleFitAuthManager(context)
+
+        if (authManager.isSignedIn() && !isGoogleFitConnected()) {
+            addGoogleFitAccount()
+        }
     }
 }

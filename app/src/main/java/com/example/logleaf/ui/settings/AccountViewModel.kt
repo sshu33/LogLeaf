@@ -30,11 +30,32 @@ class AccountViewModel(
         sessionManager.toggleAccountVisibility(accountId)
     }
 
-    fun deleteAccountAndPosts(account: Account) {
+    fun deleteAccountAndPosts(account: Account, deletePostsAlso: Boolean = true) {
         viewModelScope.launch {
-            postDao.deletePostsByAccountId(account.userId)
-            sessionManager.deleteAccount(account)
+            when (account) {
+                is Account.GoogleFit -> {
+                    // Google Fit専用処理
+                    if (deletePostsAlso) {
+                        // Google Fitの投稿のみ削除
+                        postDao.deletePostsByAccountId(account.userId) // "googlefit_user"
+                    }
+                    // Google Fit連携解除
+                    sessionManager.deleteAccount(account)
+                }
+                else -> {
+                    // 従来のSNSアカウント削除処理
+                    if (deletePostsAlso) {
+                        postDao.deletePostsByAccountId(account.userId)
+                    }
+                    sessionManager.deleteAccount(account)
+                }
+            }
         }
+    }
+
+    // オーバーロード：既存の呼び出しとの互換性を保つ
+    fun deleteAccountAndPosts(account: Account) {
+        deleteAccountAndPosts(account, deletePostsAlso = true)
     }
 
     /**

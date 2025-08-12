@@ -1,6 +1,7 @@
 package com.example.logleaf.ui.auth
 
 import android.app.Activity
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -22,12 +23,17 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.logleaf.R
 import com.example.logleaf.auth.GoogleFitAuthManager
+import com.example.logleaf.data.session.SessionManager
 import com.example.logleaf.ui.theme.SnsType
 import com.yourpackage.logleaf.ui.components.UserFontText
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GoogleFitLoginScreen(navController: NavController) {
+fun GoogleFitLoginScreen(
+    navController: NavController,
+    sessionManager: SessionManager
+) {
     val context = LocalContext.current
     val authManager = remember { GoogleFitAuthManager(context) }
 
@@ -46,16 +52,42 @@ fun GoogleFitLoginScreen(navController: NavController) {
             isLoading = false
             if (success) {
                 isSignedIn = true
-                navController.popBackStack()
+                sessionManager.addGoogleFitAccount()
+                navController.popBackStack("accounts", inclusive = false)
             } else {
                 errorMessage = error
+                Log.e("GoogleFitLogin", "連携失敗: $error")
             }
         }
     }
 
+    // 初期状態チェックと既存連携の検出
     LaunchedEffect(Unit) {
-        authManager.debugAuthStatus()
-        isSignedIn = authManager.isSignedIn()
+        val currentSignedIn = authManager.isSignedIn()
+        isSignedIn = currentSignedIn
+
+        // 既に連携済みの場合もアカウントを追加
+        if (currentSignedIn && !sessionManager.isGoogleFitConnected()) {
+            sessionManager.addGoogleFitAccount()
+        }
+    }
+
+    // ローディング中の連携状態監視
+    LaunchedEffect(isLoading) {
+        if (isLoading) {
+            // 連携完了まで継続的にチェック
+            while (isLoading) {
+                delay(1000)
+                val newSignedIn = authManager.isSignedIn()
+
+                if (newSignedIn && !isSignedIn) {
+                    isLoading = false
+                    isSignedIn = true
+                    sessionManager.addGoogleFitAccount()
+                    navController.popBackStack("accounts", inclusive = false)
+                }
+            }
+        }
     }
 
     // Google Fitのブランドカラー（LogLeaf統一カラー）
@@ -109,7 +141,7 @@ fun GoogleFitLoginScreen(navController: NavController) {
 
             // タイトルテキスト
             UserFontText(
-                text = if (isSignedIn) "連携完了" else "Google Fit",
+                text = if (isSignedIn) "連携完了" else "Google Fit と連携",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -119,13 +151,13 @@ fun GoogleFitLoginScreen(navController: NavController) {
             Spacer(modifier = Modifier.height(16.dp))
 
             // 説明テキスト
-            Text(
+            UserFontText(
                 text = if (isSignedIn)
-                    "健康データの自動同期が有効です"
+                    "健康データの自動同期が有効"
                 else
-                    "健康データを自動で取り込みます",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    "健康データを自動同期",
+                fontSize = 16.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                 textAlign = TextAlign.Center,
                 lineHeight = 24.sp
             )
@@ -151,14 +183,19 @@ fun GoogleFitLoginScreen(navController: NavController) {
                         errorMessage = null
                         authManager.signIn(context as Activity) { success, error ->
                             if (success) {
+                                // 即座に成功した場合
                                 isLoading = false
                                 isSignedIn = true
-                                navController.popBackStack()
+                                sessionManager.addGoogleFitAccount()
+                                navController.popBackStack("accounts", inclusive = false)
                             } else {
+                                // エラーまたは権限ダイアログ表示
                                 if (error != null) {
                                     isLoading = false
                                     errorMessage = error
+                                    Log.e("GoogleFitLogin", "認証エラー: $error")
                                 }
+                                // error == null の場合は権限ダイアログが表示中
                             }
                         }
                     },
