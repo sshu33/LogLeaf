@@ -2,6 +2,7 @@ package com.example.logleaf.ui.components
 
 import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -154,15 +155,12 @@ fun HealthPostDisplay(
     postText: String,
     modifier: Modifier = Modifier
 ) {
-    // デバッグログ追加
     Log.d("HealthDisplay", "投稿テキスト: $postText")
 
-    // 投稿テキストを解析して適切なコンポーネントを表示
     when {
-        // 睡眠データの判定
-        postText.contains("→") && (postText.contains("睡眠") || postText.contains("🌙")) -> {
+        // 睡眠データの判定（HealthDetailView.ktと統一）
+        postText.contains("→") && (postText.contains("🛏️") || postText.contains("深い睡眠")) -> {
             Log.d("HealthDisplay", "睡眠データとして判定")
-            // 例: "🌙 22:30 → 06:45 (8h15m)"
             val timePattern = "(\\d{2}:\\d{2})\\s*→\\s*(\\d{2}:\\d{2})\\s*\\(([^)]+)\\)".toRegex()
             timePattern.find(postText)?.let { match ->
                 val (startTime, endTime, duration) = match.destructured
@@ -170,12 +168,11 @@ fun HealthPostDisplay(
                     startTime = startTime,
                     endTime = endTime,
                     duration = duration,
-                    iconRes = HealthIcons.SLEEP, // ← ここも追加
+                    iconRes = HealthIcons.SLEEP,
                     modifier = modifier
                 )
             } ?: run {
                 Log.d("HealthDisplay", "睡眠パターンマッチ失敗")
-                // パターンマッチしない場合はデフォルト表示
                 UserFontText(
                     text = postText,
                     style = MaterialTheme.typography.bodyMedium,
@@ -184,7 +181,7 @@ fun HealthPostDisplay(
             }
         }
 
-        // 仮眠データの判定（「仮眠」文字なしで表示）
+        // 仮眠データの判定
         postText.contains("仮眠") -> {
             Log.d("HealthDisplay", "仮眠データとして判定")
             val napPattern = "(\\d{2}:\\d{2})\\s*→\\s*(\\d{2}:\\d{2})\\s*\\(([^)]+)\\)".toRegex()
@@ -194,13 +191,13 @@ fun HealthPostDisplay(
                     startTime = startTime,
                     endTime = endTime,
                     duration = duration,
-                    iconRes = HealthIcons.NAP, // ← ここを追加
+                    iconRes = HealthIcons.NAP,
                     modifier = modifier
                 )
             }
         }
 
-// 運動データの判定
+        // 運動データの判定
         postText.contains("ランニング") || postText.contains("🏃") -> {
             Log.d("HealthDisplay", "運動データとして判定")
             val lines = postText.lines()
@@ -222,11 +219,10 @@ fun HealthPostDisplay(
             }
         }
 
-        // デイリー健康データの判定（歩数 + カロリー）
+        // デイリー健康データの判定（ZeppとGoogleFit両方対応）
         postText.contains("歩") && postText.contains("kcal") -> {
             Log.d("HealthDisplay", "デイリー健康データとして判定")
 
-            // 新しいフォーマット対応の正規表現に変更
             val stepsPattern = "歩数:\\s*([\\d,]+)歩".toRegex()
             val caloriesPattern = "消費カロリー:\\s*([\\d,]+)kcal".toRegex()
 
@@ -239,54 +235,25 @@ fun HealthPostDisplay(
                 val steps = stepsStr.toIntOrNull() ?: 0
                 val calories = caloriesStr.toIntOrNull() ?: 0
 
-                // 既存のレイアウトはそのまま
-                Row(
-                    modifier = modifier,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    StepsDataDisplay(
-                        steps = steps,
-                        modifier = Modifier
-                    )
-                    CaloriesDataDisplay(
-                        calories = calories,
-                        modifier = Modifier
-                    )
+                    StepsDataDisplay(steps = steps)
+                    CaloriesDataDisplay(calories = calories)
                 }
-            }
-        }
-
-        // 歩数データのみの判定
-        postText.contains("歩") -> {
-            Log.d("HealthDisplay", "歩数データとして判定")
-            val stepsPattern = "([\\d,]+)歩".toRegex()
-            stepsPattern.find(postText)?.let { match ->
-                val stepsStr = match.groupValues[1].replace(",", "")
-                val steps = stepsStr.toIntOrNull() ?: 0
-                StepsDataDisplay(
-                    steps = steps,
+            } else {
+                // パターンマッチ失敗時はデフォルト表示
+                UserFontText(
+                    text = postText,
+                    style = MaterialTheme.typography.bodyMedium,
                     modifier = modifier
                 )
             }
         }
 
-        // カロリーデータのみの判定
-        postText.contains("kcal") -> {
-            Log.d("HealthDisplay", "カロリーデータとして判定")
-            val caloriesPattern = "([\\d,]+)kcal".toRegex()
-            caloriesPattern.find(postText)?.let { match ->
-                val caloriesStr = match.groupValues[1].replace(",", "")
-                val calories = caloriesStr.toIntOrNull() ?: 0
-                CaloriesDataDisplay(
-                    calories = calories,
-                    modifier = modifier
-                )
-            }
-        }
-
-        // デフォルト: 通常のテキスト表示
+        // どのパターンにも該当しない場合
         else -> {
-            Log.d("HealthDisplay", "通常テキストとして表示")
+            Log.d("HealthDisplay", "健康データとして認識されませんでした")
             UserFontText(
                 text = postText,
                 style = MaterialTheme.typography.bodyMedium,

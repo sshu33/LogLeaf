@@ -869,13 +869,18 @@ class MainViewModel(
         return groupedByDate.map { (date, postList) ->
             val sortedPostList = postList.sortedBy { it.post.createdAt }
 
-            // ★変更点: 画像を持つ投稿とそのURLをペアで探す
+            // ★修正点1: GoogleFit投稿を除外してfirstPostを選択
+            val firstNonGoogleFitPost = sortedPostList
+                .firstOrNull { it.post.source != SnsType.GOOGLEFIT }?.post
+
+            // ★修正点2: 画像検索でもGoogleFit投稿を除外（オプション）
             val firstImageInfo: Pair<String, String>? = sortedPostList
+                .filter { it.post.source != SnsType.GOOGLEFIT } // GoogleFit投稿を除外
                 .firstNotNullOfOrNull { postWithTagsAndImages ->
                     // 投稿から画像URLを探す
                     val imageUrl = postWithTagsAndImages.images.firstOrNull()?.let { image ->
                         image.thumbnailUrl ?: image.imageUrl
-                    } ?: postWithTagsAndImages.post.imageUrl // 従来のフィールドもチェック
+                    } ?: postWithTagsAndImages.post.imageUrl
 
                     // 画像URLが見つかった場合、その投稿IDとURLのペアを返す
                     imageUrl?.let { url ->
@@ -885,11 +890,10 @@ class MainViewModel(
 
             DayLog(
                 date = date,
-                firstPost = sortedPostList.firstOrNull()?.post,
-                totalPosts = postList.size,
-                // ★変更点: Pairからそれぞれの値を取り出して代入
-                imagePostId = firstImageInfo?.first,  // 投稿ID
-                dayImageUrl = firstImageInfo?.second  // 画像URL
+                firstPost = firstNonGoogleFitPost, // ★修正: GoogleFit以外の最初の投稿
+                totalPosts = postList.size, // 総投稿数はGoogleFitも含む
+                imagePostId = firstImageInfo?.first,
+                dayImageUrl = firstImageInfo?.second
             )
         }.sortedByDescending { it.date }
     }
@@ -1500,7 +1504,8 @@ class MainViewModel(
     fun importZeppHealthData(zipUri: Uri, password: String) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                _zeppImportState.value = BackupState.Starting.copy(statusText = "インポート準備中...")
+                _zeppImportState.value =
+                    BackupState.Starting.copy(statusText = "インポート準備中...")
 
                 Log.d("ZeppImport", "=== Zeppデータインポート開始 ===")
                 val context = getApplication<Application>().applicationContext
@@ -1528,9 +1533,12 @@ class MainViewModel(
                 zipFile.extractAll(tempDir.absolutePath)
 
                 // 4. CSVファイルを探して解析
-                val sleepCsv = tempDir.walkTopDown().find { it.name.contains("SLEEP") && it.extension == "csv" }
-                val sportCsv = tempDir.walkTopDown().find { it.name.contains("SPORT") && it.extension == "csv" }
-                val activityCsv = tempDir.walkTopDown().find { it.name.contains("ACTIVITY") && it.extension == "csv" }
+                val sleepCsv = tempDir.walkTopDown()
+                    .find { it.name.contains("SLEEP") && it.extension == "csv" }
+                val sportCsv = tempDir.walkTopDown()
+                    .find { it.name.contains("SPORT") && it.extension == "csv" }
+                val activityCsv = tempDir.walkTopDown()
+                    .find { it.name.contains("ACTIVITY") && it.extension == "csv" }
 
                 Log.d("ZeppImport", "SLEEP.csv: ${sleepCsv?.exists()}")
                 Log.d("ZeppImport", "SPORT.csv: ${sportCsv?.exists()}")
@@ -1557,12 +1565,18 @@ class MainViewModel(
                                     val remSleep = columns[6].toIntOrNull() ?: 0 // 分
 
                                     // 時刻解析
-                                    val startDateTime = ZonedDateTime.parse(startTime.replace(" ", "T").replace("+0000", "Z"))
-                                    val stopDateTime = ZonedDateTime.parse(stopTime.replace(" ", "T").replace("+0000", "Z"))
+                                    val startDateTime = ZonedDateTime.parse(
+                                        startTime.replace(" ", "T").replace("+0000", "Z")
+                                    )
+                                    val stopDateTime = ZonedDateTime.parse(
+                                        stopTime.replace(" ", "T").replace("+0000", "Z")
+                                    )
 
                                     // 日本時間に変換
-                                    val startJST = startDateTime.withZoneSameInstant(ZoneId.of("Asia/Tokyo"))
-                                    val stopJST = stopDateTime.withZoneSameInstant(ZoneId.of("Asia/Tokyo"))
+                                    val startJST =
+                                        startDateTime.withZoneSameInstant(ZoneId.of("Asia/Tokyo"))
+                                    val stopJST =
+                                        stopDateTime.withZoneSameInstant(ZoneId.of("Asia/Tokyo"))
 
                                     // 総睡眠時間計算
                                     val totalMinutes = deepSleep + shallowSleep + remSleep
@@ -1576,12 +1590,19 @@ class MainViewModel(
 
                                     // 投稿時刻は起床日の日切り替え時間
                                     val sleepDate = stopJST.toLocalDate()
-                                    val postTime = sleepDate.atTime(timeSettings.dayStartHour, timeSettings.dayStartMinute)
+                                    val postTime = sleepDate.atTime(
+                                        timeSettings.dayStartHour,
+                                        timeSettings.dayStartMinute
+                                    )
                                         .atZone(ZoneId.of("Asia/Tokyo"))
 
                                     // 投稿テキスト生成
                                     val sleepText = """
-                        🛏️ ${startJST.format(DateTimeFormatter.ofPattern("HH:mm"))} → ${stopJST.format(DateTimeFormatter.ofPattern("HH:mm"))} (${totalHours}h${remainingMinutes}m)
+                        🛏️ ${startJST.format(DateTimeFormatter.ofPattern("HH:mm"))} → ${
+                                        stopJST.format(
+                                            DateTimeFormatter.ofPattern("HH:mm")
+                                        )
+                                    } (${totalHours}h${remainingMinutes}m)
                         深い睡眠: ${deepSleep}分
                         浅い睡眠: ${shallowSleep}分
                         レム睡眠: ${remSleep}分
@@ -1589,7 +1610,8 @@ class MainViewModel(
 
                                     val sleepPost = Post(
                                         id = "zepp_sleep_${date.replace("-", "")}",
-                                        accountId = sessionManager.accountsFlow.first().first().userId,
+                                        accountId = sessionManager.accountsFlow.first()
+                                            .first().userId,
                                         text = sleepText,
                                         createdAt = postTime,
                                         source = SnsType.GOOGLEFIT,
@@ -1622,8 +1644,11 @@ class MainViewModel(
                                     val calories = columns[7].toDoubleOrNull() ?: 0.0
 
                                     // 時刻解析・日本時間変換
-                                    val startDateTime = ZonedDateTime.parse(startTime.replace(" ", "T").replace("+0000", "Z"))
-                                    val startJST = startDateTime.withZoneSameInstant(ZoneId.of("Asia/Tokyo"))
+                                    val startDateTime = ZonedDateTime.parse(
+                                        startTime.replace(" ", "T").replace("+0000", "Z")
+                                    )
+                                    val startJST =
+                                        startDateTime.withZoneSameInstant(ZoneId.of("Asia/Tokyo"))
 
 // 運動終了時刻を計算
                                     val endJST = startJST.plusSeconds(sportTimeSeconds.toLong())
@@ -1640,13 +1665,21 @@ class MainViewModel(
 
 // 投稿テキスト生成（時刻情報を追加）
                                     val sportText = """
-🏃‍♂️ $sportTypeName ${startJST.format(DateTimeFormatter.ofPattern("HH:mm"))} - ${endJST.format(DateTimeFormatter.ofPattern("HH:mm"))} ${sportMinutes}分
+🏃‍♂️ $sportTypeName ${startJST.format(DateTimeFormatter.ofPattern("HH:mm"))} - ${
+                                        endJST.format(
+                                            DateTimeFormatter.ofPattern("HH:mm")
+                                        )
+                                    } ${sportMinutes}分
 距離: ${String.format("%.1f", distanceKm)}km
 カロリー: ${calories.toInt()}kcal
 """.trimIndent()
                                     val sportPost = Post(
-                                        id = "zepp_sport_${startTime.replace(":", "").replace("-", "").replace(" ", "_")}",
-                                        accountId = sessionManager.accountsFlow.first().first().userId,
+                                        id = "zepp_sport_${
+                                            startTime.replace(":", "").replace("-", "")
+                                                .replace(" ", "_")
+                                        }",
+                                        accountId = sessionManager.accountsFlow.first()
+                                            .first().userId,
                                         text = sportText,
                                         createdAt = startJST, // 運動開始時刻
                                         source = SnsType.GOOGLEFIT,
@@ -1654,7 +1687,10 @@ class MainViewModel(
                                     )
 
                                     posts.add(sportPost)
-                                    Log.d("ZeppImport", "運動投稿生成: $sportTypeName ${sportMinutes}分")
+                                    Log.d(
+                                        "ZeppImport",
+                                        "運動投稿生成: $sportTypeName ${sportMinutes}分"
+                                    )
 
                                 } catch (e: Exception) {
                                     Log.e("ZeppImport", "運動データ解析エラー: $line", e)
@@ -1678,7 +1714,10 @@ class MainViewModel(
 
                                     // 投稿時刻は23:59
                                     val activityDate = LocalDate.parse(date)
-                                    val postTime = activityDate.atTime(timeSettings.dayStartHour, timeSettings.dayStartMinute)
+                                    val postTime = activityDate.atTime(
+                                        timeSettings.dayStartHour,
+                                        timeSettings.dayStartMinute
+                                    )
                                         .minusMinutes(1)
                                         .atZone(ZoneId.of("Asia/Tokyo"))
 
@@ -1691,7 +1730,8 @@ class MainViewModel(
 
                                     val activityPost = Post(
                                         id = "zepp_activity_${date.replace("-", "")}",
-                                        accountId = sessionManager.accountsFlow.first().first().userId,
+                                        accountId = sessionManager.accountsFlow.first()
+                                            .first().userId,
                                         text = activityText,
                                         createdAt = postTime,
                                         source = SnsType.GOOGLEFIT,
@@ -1699,7 +1739,10 @@ class MainViewModel(
                                     )
 
                                     posts.add(activityPost)
-                                    Log.d("ZeppImport", "アクティビティ投稿生成: $date - ${steps}歩, ${calories}kcal")
+                                    Log.d(
+                                        "ZeppImport",
+                                        "アクティビティ投稿生成: $date - ${steps}歩, ${calories}kcal"
+                                    )
 
                                 } catch (e: Exception) {
                                     Log.e("ZeppImport", "アクティビティデータ解析エラー: $line", e)
@@ -1802,89 +1845,118 @@ class MainViewModel(
     }
 
     private suspend fun syncSleepData(date: LocalDate) {
-        Log.d("GoogleFit", "syncSleepData開始: $date")
-
         try {
             val sleepData = googleFitDataManager.getSleepData(date)
-            Log.d("GoogleFit", "sleepData取得結果: $sleepData")
 
             if (sleepData != null) {
-            // Zeppと同じフォーマットで投稿テキスト生成
-            val sleepText = """
+                val timeSettings = timeSettingsRepository.timeSettings.first()
+
+                val postTime = date.atTime(timeSettings.dayStartHour, timeSettings.dayStartMinute)
+                    .atZone(ZoneId.of("Asia/Tokyo"))
+
+                // Zeppと完全に同じフォーマットで投稿テキスト生成
+                val sleepText = """
 🛏️ ${sleepData.startTime} → ${sleepData.endTime} (${sleepData.duration})
+深い睡眠: ${sleepData.deepSleep}分
+浅い睡眠: ${sleepData.shallowSleep}分
+レム睡眠: ${sleepData.remSleep}分
 """.trimIndent()
 
-            val sleepPost = Post(
-                id = "googlefit_sleep_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}",
-                accountId = sessionManager.accountsFlow.first().first().userId,
-                text = sleepText,
-                createdAt = date.atTime(timeSettingsRepository.timeSettings.first().dayStartHour, timeSettingsRepository.timeSettings.first().dayStartMinute)
-                    .atZone(ZoneId.of("Asia/Tokyo")),
-                source = SnsType.GOOGLEFIT,
-                imageUrl = null
-            )
+                val sleepPost = Post(
+                    id = "googlefit_sleep_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}",
+                    accountId = sessionManager.accountsFlow.first().first().userId,
+                    text = sleepText,
+                    createdAt = postTime,
+                    source = SnsType.GOOGLEFIT,
+                    imageUrl = null
+                )
 
-            // 既存データと重複回避
-            replaceWithGoogleFitData("sleep", date, sleepPost)
-                Log.d("GoogleFit", "睡眠データ同期: ${sleepData.startTime} - ${sleepData.endTime}")
-            } else {
-                Log.d("GoogleFit", "sleepDataがnullです")
+                // 既存データ削除
+                val zeppId = "zepp_sleep_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}"
+                postDao.deletePostById(zeppId)
+
+                val gfitId = "googlefit_sleep_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}"
+                val googleFitPost = sleepPost.copy(id = gfitId)
+
+                // ★★★ 睡眠データのタグを自動付与 ★★★
+                val sleepTags = listOf("睡眠", "健康データ")
+                insertGoogleFitPostWithTags(googleFitPost, sleepTags)
             }
         } catch (e: Exception) {
-            Log.e("GoogleFit", "syncSleepDataでエラー", e)
+            Log.e("GoogleFit", "睡眠データ同期エラー", e)
         }
-
-        Log.d("GoogleFit", "syncSleepData終了")
     }
 
+    // ===== syncActivityData() の修正 =====
     private suspend fun syncActivityData(date: LocalDate) {
-        Log.d("GoogleFit", "syncActivityData開始: $date")
-
         try {
-            Log.d("GoogleFit", "googleFitDataManager.getActivityData呼び出し中...")
             val activityData = googleFitDataManager.getActivityData(date)
 
-            Log.d("GoogleFit", "activityData取得結果: $activityData")
+            if (activityData != null && (activityData.steps > 0 || activityData.calories > 0)) {
+                val timeSettings = timeSettingsRepository.timeSettings.first()
 
-            if (activityData != null) {
-                Log.d("GoogleFit", "データ詳細 - steps: ${activityData.steps}, calories: ${activityData.calories}")
+                val postTime = date.atTime(timeSettings.dayStartHour, timeSettings.dayStartMinute)
+                    .minusMinutes(1)
+                    .atZone(ZoneId.of("Asia/Tokyo"))
 
-                if (activityData.steps > 0 || activityData.calories > 0) {
-                    Log.d("GoogleFit", "データが有効、投稿作成中...")
-
-                    // Zeppと同じフォーマットで投稿テキスト生成
-                    val activityText = """
+                val activityText = """
 📊 今日の健康データ
 歩数: ${activityData.steps.toString().replace(Regex("(\\d)(?=(\\d{3})+$)"), "$1,")}歩
 消費カロリー: ${activityData.calories}kcal
 """.trimIndent()
 
-                    val activityPost = Post(
-                        id = "googlefit_activity_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}",
-                        accountId = sessionManager.accountsFlow.first().first().userId,
-                        text = activityText,
-                        createdAt = date.atTime(timeSettingsRepository.timeSettings.first().dayStartHour, timeSettingsRepository.timeSettings.first().dayStartMinute)
-                            .minusMinutes(1)
-                            .atZone(ZoneId.of("Asia/Tokyo")),
-                        source = SnsType.GOOGLEFIT,
-                        imageUrl = null
-                    )
+                val activityPost = Post(
+                    id = "googlefit_activity_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}",
+                    accountId = sessionManager.accountsFlow.first().first().userId,
+                    text = activityText,
+                    createdAt = postTime,
+                    source = SnsType.GOOGLEFIT,
+                    imageUrl = null
+                )
 
-                    Log.d("GoogleFit", "投稿作成完了、保存中...")
+                // 既存データ削除
+                val zeppId = "zepp_activity_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}"
+                postDao.deletePostById(zeppId)
 
-                    // 既存データと重複回避
-                    replaceWithGoogleFitData("activity", date, activityPost)
-                    Log.d("GoogleFit", "アクティビティデータ同期: ${activityData.steps}歩, ${activityData.calories}kcal")
-                } else {
-                    Log.d("GoogleFit", "データが0なので投稿をスキップ")
-                }
-            } else {
-                Log.d("GoogleFit", "activityDataがnullです")
+                val gfitId = "googlefit_activity_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}"
+                val googleFitPost = activityPost.copy(id = gfitId)
+
+                // ★★★ 健康データのタグを自動付与 ★★★
+                val activityTags = listOf("健康データ", "歩数", "カロリー")
+                insertGoogleFitPostWithTags(googleFitPost, activityTags)
             }
         } catch (e: Exception) {
-            Log.e("GoogleFit", "syncActivityDataでエラー", e)
+            Log.e("GoogleFit", "健康データ同期エラー", e)
+        }
+    }
+
+// ===== 新しいヘルパーメソッド =====
+    /**
+     * GoogleFit投稿をタグ付きで保存する
+     */
+    private suspend fun insertGoogleFitPostWithTags(post: Post, tagNames: List<String>) {
+        // 1. 投稿を保存
+        postDao.insertPost(post)
+
+        // 2. タグを処理
+        val tagIds = mutableListOf<Long>()
+        tagNames.forEach { tagName ->
+            var tagId = postDao.getTagIdByName(tagName)
+            if (tagId == null) {
+                // タグが存在しない場合は新規作成
+                tagId = postDao.insertTag(Tag(tagName = tagName))
+            }
+            if (tagId != null && tagId != -1L) {
+                tagIds.add(tagId)
+            }
         }
 
-        Log.d("GoogleFit", "syncActivityData終了")
+        // 3. 投稿とタグの関連付け
+        val crossRefs = tagIds.map { tagId ->
+            PostTagCrossRef(postId = post.id, tagId = tagId)
+        }
+        crossRefs.forEach { crossRef ->
+            postDao.insertPostTagCrossRef(crossRef)
+        }
     }
 }

@@ -800,8 +800,8 @@ fun CalendarPostCardItem(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-
-                    if (tags.isNotEmpty()) {
+                    // GoogleFit投稿以外の場合のみタグを表示
+                    if (tags.isNotEmpty() && post.source != SnsType.GOOGLEFIT) {
                         FlowRow(
                             modifier = Modifier
                                 .fillMaxWidth()

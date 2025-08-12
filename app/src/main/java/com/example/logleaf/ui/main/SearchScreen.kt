@@ -48,6 +48,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.example.logleaf.data.model.Post
 import com.example.logleaf.R
+import com.example.logleaf.ui.components.HealthPostDisplay
 import com.example.logleaf.ui.components.HighlightedText
 import com.example.logleaf.ui.search.SearchMode
 import com.example.logleaf.ui.theme.SnsType
@@ -460,10 +461,21 @@ fun SearchResultItem(
                 }
 
                 Spacer(modifier = Modifier.height(4.dp))
-                HighlightedText(
-                    text = displayText,
-                    keywordsToHighlight = keywords
-                )
+
+                // GoogleFit投稿かどうかで表示を分岐
+                if (post.source == SnsType.GOOGLEFIT) {
+                    // 健康データの場合：アイコン付き表示
+                    HealthPostDisplay(
+                        postText = post.text,
+                        modifier = Modifier
+                    )
+                } else {
+                    // 通常投稿の場合：ハイライト付きテキスト表示
+                    HighlightedText(
+                        text = displayText,
+                        keywordsToHighlight = keywords
+                    )
+                }
             }
         }
     }
