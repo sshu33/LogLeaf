@@ -34,6 +34,7 @@ import com.example.logleaf.ui.components.CustomTopAppBar
 import com.example.logleaf.ui.components.ListCard
 import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
+import com.yourpackage.logleaf.ui.components.UserFontText
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
@@ -51,7 +52,7 @@ fun AccountScreen(
     var blueskyAccountToEdit by remember { mutableStateOf<Account.Bluesky?>(null) }
     var mastodonAccountToEdit by remember { mutableStateOf<Account.Mastodon?>(null) }
     var githubAccountToEdit by remember { mutableStateOf<Account.GitHub?>(null) }
-
+    var googleFitAccountToEdit by remember { mutableStateOf<Account.GoogleFit?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
 
@@ -102,6 +103,9 @@ fun AccountScreen(
                                         }
                                         account is Account.Mastodon -> {
                                             mastodonAccountToEdit = account
+                                        }
+                                        account is Account.GoogleFit -> {
+                                            googleFitAccountToEdit = account
                                         }
                                     }
                                 }
@@ -237,6 +241,18 @@ fun AccountScreen(
         )
     }
 
+    // Google Fit設定変更ダイアログ
+    googleFitAccountToEdit?.let { account ->
+        GoogleFitPeriodDialog(
+            account = account,
+            onDismiss = { googleFitAccountToEdit = null },
+            onPeriodChanged = { newPeriod ->
+                viewModel.updateGoogleFitAccountPeriod(newPeriod)
+                mainViewModel.refreshPosts()
+            }
+        )
+    }
+
     // 削除確認ダイアログ
     accountToDelete?.let { account ->
         DeleteDialog(
@@ -281,11 +297,11 @@ fun DeleteDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp) // スペースを適度に
             ) {
                 // タイトル
-                Text(
+                UserFontText(
                     text = if (isGoogleFit) "連携解除" else "アカウントの削除",
                     style = MaterialTheme.typography.headlineSmall.copy(
                         fontWeight = FontWeight.SemiBold,
-                        fontSize = 18.sp
+                        fontSize = 24.sp
                     ),
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center
@@ -312,12 +328,12 @@ fun DeleteDialog(
                 }
 
                 // 説明文
-                Text(
+                UserFontText(
                     text = if (isGoogleFit)
                         "新しい健康データの取得が\n停止されます"
                     else
                         "OKを押すと\nすべてのポストが削除されます",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                     textAlign = TextAlign.Center,
                     lineHeight = 22.sp
@@ -354,7 +370,7 @@ fun DeleteDialog(
 
                         Text(
                             text = "既存のポストも削除",
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
@@ -381,9 +397,9 @@ fun DeleteDialog(
                         ),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp) // 元のサイズに
                     ) {
-                        Text(
+                        UserFontText(
                             text = "キャンセル",
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.bodyMedium,
                             maxLines = 1
                         )
                     }
@@ -401,9 +417,9 @@ fun DeleteDialog(
                         ),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp) // 元のサイズに
                     ) {
-                        Text(
+                        UserFontText(
                             text = "OK",
-                            style = MaterialTheme.typography.bodySmall.copy(
+                            style = MaterialTheme.typography.bodyMedium.copy(
                                 fontWeight = FontWeight.Medium
                             ),
                             color = Color.White,
@@ -839,6 +855,90 @@ fun GitHubPeriodDialog(
                         }
                     ) {
                         Text("変更", color = SnsType.GITHUB.brandColor, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun GoogleFitPeriodDialog(
+    account: Account.GoogleFit,
+    onDismiss: () -> Unit,
+    onPeriodChanged: (String) -> Unit
+) {
+    var selectedPeriod by remember { mutableStateOf(account.period) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .wrapContentHeight()
+                .widthIn(min = 300.dp, max = 400.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // タイトル
+                Text(
+                    text = "Google Fit設定",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                // 取得期間段落
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "取得期間",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("1ヶ月", "3ヶ月", "6ヶ月").forEach { period ->
+                                val isSelected = selectedPeriod == period
+                                PeriodChip(
+                                    period = period,
+                                    isSelected = isSelected,
+                                    onClick = { selectedPeriod = period },
+                                    brandColor = SnsType.GOOGLEFIT.brandColor
+                                )
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("12ヶ月", "24ヶ月", "全期間").forEach { period ->
+                                val isSelected = selectedPeriod == period
+                                PeriodChip(
+                                    period = period,
+                                    isSelected = isSelected,
+                                    onClick = { selectedPeriod = period },
+                                    brandColor = SnsType.GOOGLEFIT.brandColor
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // ボタン
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("キャンセル", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                    }
+                    TextButton(
+                        onClick = {
+                            onPeriodChanged(selectedPeriod)
+                            onDismiss()
+                        }
+                    ) {
+                        Text("変更", color = SnsType.GOOGLEFIT.brandColor, fontWeight = FontWeight.Medium)
                     }
                 }
             }

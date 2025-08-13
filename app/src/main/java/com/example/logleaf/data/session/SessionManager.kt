@@ -122,9 +122,10 @@ class SessionManager(private val context: Context) {
     /**
      * GoogleFit連携時にアカウントを追加する新しいメソッド
      */
-    fun addGoogleFitAccount() {
+    fun addGoogleFitAccount(period: String = "3ヶ月") {
         val googleFitAccount = Account.GoogleFit(
             isConnected = true,
+            period = period,
             isVisible = true
         )
         saveAccount(googleFitAccount)
@@ -380,5 +381,18 @@ class SessionManager(private val context: Context) {
         if (authManager.isSignedIn() && !isGoogleFitConnected()) {
             addGoogleFitAccount()
         }
+    }
+
+    /**
+     * GoogleFitアカウントの期間設定を更新する
+     */
+    fun updateGoogleFitAccountPeriod(newPeriod: String) {
+        updateAccountState("googlefit_user") { account ->
+            when (account) {
+                is Account.GoogleFit -> account.copy(period = newPeriod) // lastSyncedAtはリセットしない
+                else -> account
+            }
+        }
+        Log.d("SessionManager", "Google Fitアカウントの期間を${newPeriod}に変更しました。")
     }
 }

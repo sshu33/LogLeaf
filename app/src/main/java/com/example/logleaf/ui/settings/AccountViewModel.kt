@@ -91,6 +91,13 @@ class AccountViewModel(
     }
 
     /**
+     * GoogleFitアカウントの期間設定を変更する
+     */
+    fun updateGoogleFitAccountPeriod(newPeriod: String) {
+        sessionManager.updateGoogleFitAccountPeriod(newPeriod)
+    }
+
+    /**
      * GitHubのリポジトリ一覧を取得
      */
     suspend fun getGitHubRepositories(accessToken: String): List<GitHubRepository> {

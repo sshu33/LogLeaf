@@ -81,6 +81,7 @@ sealed class Account {
     @SerialName("Account.GoogleFit")
     data class GoogleFit(
         val isConnected: Boolean = true,
+        val period: String = "3ヶ月", // ★ 追加
         override val needsReauthentication: Boolean = false,
         override val isVisible: Boolean = true,
         override val lastSyncedAt: String? = null

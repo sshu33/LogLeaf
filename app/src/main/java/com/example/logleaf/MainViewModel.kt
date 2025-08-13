@@ -301,6 +301,13 @@ class MainViewModel(
         return viewModelScope.launch(Dispatchers.IO) {
             val accountsToFetch = accounts.filter { !it.needsReauthentication }
             try {
+                // ★ Google Fit処理を追加
+                val hasGoogleFit = accountsToFetch.any { it is Account.GoogleFit }
+                if (hasGoogleFit) {
+                    Log.d("GoogleFit", "Google Fitアカウントを検出、データ同期開始")
+                    syncGoogleFitData()
+                }
+
                 val postLists = accountsToFetch.map { account ->
                     async {
                         when (account) {
@@ -325,7 +332,7 @@ class MainViewModel(
                                 account.period
                             )
 
-                            is Account.GoogleFit -> emptyList()
+                            is Account.GoogleFit -> emptyList() // Google Fitは上記で処理済み
                         }
                     }
                 }
@@ -1821,27 +1828,101 @@ class MainViewModel(
     }
 
     /**
-     * GoogleFitから健康データを同期
+     * GoogleFitから健康データを同期（期間対応版）
      */
     fun syncGoogleFitData(targetDate: LocalDate? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val date = targetDate ?: LocalDate.now()
-                Log.d("GoogleFit", "データ同期開始: $date")
+                val googleFitAccount = sessionManager.getAccounts()
+                    .find { it is Account.GoogleFit } as? Account.GoogleFit
 
-                // 睡眠データ同期
-                syncSleepData(date)
+                if (googleFitAccount == null) {
+                    Log.d("GoogleFit", "Google Fitアカウントが見つかりません")
+                    return@launch
+                }
 
-                // アクティビティデータ同期
-                syncActivityData(date)
+                // 取得範囲を決定（期間設定を考慮）
+                val (startDate, endDate) = determineDateRangeForGoogleFit(googleFitAccount, targetDate)
+
+                Log.d("GoogleFit", "データ同期開始: ${startDate} ～ ${endDate}")
+
+                // 指定期間の各日のデータを取得
+                var currentDate = startDate
+                while (!currentDate.isAfter(endDate)) {
+                    // 睡眠データ同期
+                    syncSleepData(currentDate)
+
+                    // アクティビティデータ同期
+                    syncActivityData(currentDate)
+
+                    currentDate = currentDate.plusDays(1)
+                }
+
+                // 同期完了後、最終同期時刻を更新
+                sessionManager.updateLastSyncedAt("googlefit_user", ZonedDateTime.now())
 
                 // UI更新
                 refreshPostsWithoutScroll()
 
-                Log.d("GoogleFit", "データ同期完了: $date")
+                Log.d("GoogleFit", "データ同期完了: ${startDate} ～ ${endDate}")
 
             } catch (e: Exception) {
                 Log.e("GoogleFit", "データ同期エラー", e)
+            }
+        }
+    }
+
+    /**
+     * Google Fit用の取得日付範囲を決定
+     */
+    private fun determineDateRangeForGoogleFit(
+        account: Account.GoogleFit,
+        targetDate: LocalDate?
+    ): Pair<LocalDate, LocalDate> {
+        val endDate = targetDate ?: LocalDate.now()
+
+        return when {
+            // 単発の日付指定がある場合（手動同期）
+            targetDate != null -> {
+                Pair(targetDate, targetDate)
+            }
+
+            // 「全期間」の場合は前回同期時刻以降
+            account.period == "全期間" -> {
+                account.lastSyncedAt?.let { lastSync ->
+                    val lastSyncDate = ZonedDateTime.parse(lastSync).toLocalDate()
+                    Pair(lastSyncDate, endDate)
+                } ?: run {
+                    // 初回は過去2年分（全期間のデフォルト）
+                    Pair(endDate.minusYears(2), endDate)
+                }
+            }
+
+            // 期間指定がある場合
+            else -> {
+                val periodStartDate = when (account.period) {
+                    "1ヶ月" -> endDate.minusMonths(1)
+                    "3ヶ月" -> endDate.minusMonths(3)
+                    "6ヶ月" -> endDate.minusMonths(6)
+                    "12ヶ月" -> endDate.minusMonths(12)
+                    "24ヶ月" -> endDate.minusMonths(24)
+                    else -> endDate.minusMonths(3) // デフォルト3ヶ月
+                }
+
+                // 前回同期時刻と期間指定の新しい方を使用
+                account.lastSyncedAt?.let { lastSync ->
+                    val lastSyncDate = ZonedDateTime.parse(lastSync).toLocalDate()
+                    if (lastSyncDate.isAfter(periodStartDate)) {
+                        Log.d("GoogleFit", "差分取得: 前回同期時刻(${lastSyncDate})以降")
+                        Pair(lastSyncDate, endDate)
+                    } else {
+                        Log.d("GoogleFit", "期間変更: 期間指定(${account.period})で取得")
+                        Pair(periodStartDate, endDate)
+                    }
+                } ?: run {
+                    Log.d("GoogleFit", "初回同期: 期間指定(${account.period})で取得")
+                    Pair(periodStartDate, endDate)
+                }
             }
         }
     }
@@ -1866,7 +1947,7 @@ class MainViewModel(
 
                 val sleepPost = Post(
                     id = "googlefit_sleep_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}",
-                    accountId = sessionManager.accountsFlow.first().first().userId,
+                    accountId = "googlefit_user",
                     text = sleepText,
                     createdAt = postTime,
                     source = SnsType.GOOGLEFIT,
@@ -1909,7 +1990,7 @@ class MainViewModel(
 
                 val activityPost = Post(
                     id = "googlefit_activity_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}",
-                    accountId = sessionManager.accountsFlow.first().first().userId,
+                    accountId = "googlefit_user",
                     text = activityText,
                     createdAt = postTime,
                     source = SnsType.GOOGLEFIT,
@@ -1959,6 +2040,12 @@ class MainViewModel(
         }
         crossRefs.forEach { crossRef ->
             postDao.insertPostTagCrossRef(crossRef)
+        }
+    }
+
+    fun insertTestGoogleFitPost(post: Post) {
+        viewModelScope.launch {
+            postDao.insertPost(post)
         }
     }
 }
