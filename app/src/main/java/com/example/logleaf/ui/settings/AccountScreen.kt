@@ -20,9 +20,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavController
 import com.example.logleaf.data.model.Account
 import com.example.logleaf.api.github.GitHubRepository
@@ -237,7 +239,7 @@ fun AccountScreen(
 
     // 削除確認ダイアログ
     accountToDelete?.let { account ->
-        StylishDeleteDialog(
+        DeleteDialog(
             account = account,
             onDismiss = { accountToDelete = null },
             onConfirm = { deletePostsAlso ->
@@ -249,9 +251,8 @@ fun AccountScreen(
 }
 
 // AccountScreen.kt の削除確認ダイアログを置き換える
-
 @Composable
-fun StylishDeleteDialog(
+fun DeleteDialog(
     account: Account,
     onDismiss: () -> Unit,
     onConfirm: (deletePostsAlso: Boolean) -> Unit
@@ -259,71 +260,52 @@ fun StylishDeleteDialog(
     var deletePostsAlso by remember { mutableStateOf(false) }
 
     val isGoogleFit = account is Account.GoogleFit
-    val title = if (isGoogleFit) "Google Fit連携を解除しますか？" else "アカウントを削除しますか？"
-    val description = if (isGoogleFit)
-        "連携を解除すると、新しい健康データの取得が停止されます。"
-    else
-        "削除すると、このアカウントの投稿もすべて削除され、元に戻すことはできません。"
-    val actionText = if (isGoogleFit) "連携解除" else "削除"
 
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            decorFitsSystemWindows = false
+        )
+    ) {
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .wrapContentHeight(),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFFFFFFFF),
+            shadowElevation = 4.dp
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                modifier = Modifier.padding(20.dp), // 余白を適度に
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp) // スペースを適度に
             ) {
-                // アイコンとタイトル
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    // 警告アイコン
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .background(
-                                color = if (isGoogleFit)
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-                                else
-                                    MaterialTheme.colorScheme.error.copy(alpha = 0.1f),
-                                shape = CircleShape
-                            ),
-                        contentAlignment = Alignment.Center
+                // タイトル
+                Text(
+                    text = if (isGoogleFit) "連携解除" else "アカウントの削除",
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 18.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center
+                )
+
+                // アカウント名（Google Fit以外のみ）
+                if (!isGoogleFit) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Icon(
-                            painter = painterResource(
-                                id = if (isGoogleFit) R.drawable.ic_link_off else R.drawable.ic_warning
-                            ),
+                            painter = painterResource(id = R.drawable.ic_warning),
                             contentDescription = null,
-                            tint = if (isGoogleFit)
-                                MaterialTheme.colorScheme.primary
-                            else
-                                MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.headlineSmall.copy(
-                                fontWeight = FontWeight.SemiBold
-                            ),
-                            color = MaterialTheme.colorScheme.onSurface
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            modifier = Modifier.size(18.dp)
                         )
                         Text(
                             text = account.displayName,
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                         )
                     }
@@ -331,115 +313,101 @@ fun StylishDeleteDialog(
 
                 // 説明文
                 Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = if (isGoogleFit)
+                        "新しい健康データの取得が\n停止されます"
+                    else
+                        "OKを押すと\nすべてのポストが削除されます",
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                    lineHeight = 20.sp
+                    textAlign = TextAlign.Center,
+                    lineHeight = 22.sp
                 )
 
-                // Google Fit用チェックボックス または 一般SNS用警告
+                // Google Fit用オプション
                 if (isGoogleFit) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                        ),
-                        shape = RoundedCornerShape(12.dp)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { deletePostsAlso = !deletePostsAlso }
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { deletePostsAlso = !deletePostsAlso }
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Checkbox(
-                                checked = deletePostsAlso,
-                                onCheckedChange = { deletePostsAlso = it },
-                                colors = CheckboxDefaults.colors(
-                                    checkedColor = MaterialTheme.colorScheme.error
-                                )
-                            )
-                            Text(
-                                text = "既存の健康データも削除する",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-                } else {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.1f)
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.ic_warning),
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Text(
-                                text = "この操作は元に戻せません",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontWeight = FontWeight.Medium
-                                ),
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
+                        // 自前のチェックボックスアイコン
+                        Icon(
+                            painter = painterResource(
+                                id = if (deletePostsAlso)
+                                    R.drawable.ic_toggle_on
+                                else
+                                    R.drawable.ic_toggle_off
+                            ),
+                            contentDescription = null,
+                            tint = if (deletePostsAlso)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                            modifier = Modifier.size(24.dp)
+                        )
+
+                        // アイコンとテキストの間に空白を追加
+                        Spacer(modifier = Modifier.width(4.dp))
+
+                        Text(
+                            text = "既存のポストも削除",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 }
+
+                Spacer(modifier = Modifier.height(4.dp)) // 追加の余白
 
                 // ボタン
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp) // 元のスペースに
                 ) {
                     // キャンセルボタン
                     OutlinedButton(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(8.dp),
                         border = BorderStroke(
                             1.dp,
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-                        )
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                        ),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        ),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp) // 元のサイズに
                     ) {
                         Text(
                             text = "キャンセル",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontWeight = FontWeight.Medium
-                            ),
-                            color = MaterialTheme.colorScheme.onSurface
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1
                         )
                     }
 
-                    // 実行ボタン
+                    // 実行ボタン（プライマリカラー使用）
                     Button(
                         onClick = { onConfirm(deletePostsAlso) },
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (isGoogleFit)
-                                MaterialTheme.colorScheme.primary
+                                SnsType.GOOGLEFIT.brandColor
                             else
-                                MaterialTheme.colorScheme.error
-                        )
+                                account.snsType.brandColor // 各アカウントのブランドカラー
+                        ),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp) // 元のサイズに
                     ) {
                         Text(
-                            text = actionText,
-                            style = MaterialTheme.typography.bodyMedium.copy(
+                            text = "OK",
+                            style = MaterialTheme.typography.bodySmall.copy(
                                 fontWeight = FontWeight.Medium
                             ),
-                            color = Color.White
+                            color = Color.White,
+                            maxLines = 1
                         )
                     }
                 }
