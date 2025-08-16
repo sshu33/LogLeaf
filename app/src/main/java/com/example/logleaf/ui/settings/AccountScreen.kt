@@ -117,7 +117,8 @@ fun AccountScreen(
                                             SnsType.MASTODON -> R.drawable.ic_mastodon
                                             SnsType.LOGLEAF -> R.drawable.ic_logleaf
                                             SnsType.GITHUB -> R.drawable.ic_github
-                                            SnsType.GOOGLEFIT -> R.drawable.ic_googlefit // ️ Google Fit用アイコン
+                                            SnsType.GOOGLEFIT -> R.drawable.ic_googlefit
+                                            SnsType.FITBIT -> R.drawable.ic_fitbit
                                         }
                                     ),
                                     contentDescription = account.snsType.name,

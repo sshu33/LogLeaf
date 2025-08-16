@@ -13,6 +13,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.logleaf.api.bluesky.BlueskyApi
+import com.example.logleaf.api.fitbit.FitbitApi
 import com.example.logleaf.api.github.GitHubApi
 import com.example.logleaf.api.googlefit.GoogleFitDataManager
 import com.example.logleaf.api.mastodon.MastodonApi
@@ -94,6 +95,7 @@ class MainViewModel(
     private val blueskyApi: BlueskyApi,
     private val mastodonApi: MastodonApi,
     private val gitHubApi: GitHubApi, // ← 追加
+    private val fitbitApi: FitbitApi,
     private val sessionManager: SessionManager,
     private val postDao: PostDao
 ) : AndroidViewModel(application) {
@@ -308,6 +310,12 @@ class MainViewModel(
                     syncGoogleFitData()
                 }
 
+                val hasFitbit = accountsToFetch.any { it is Account.Fitbit }
+                if (hasFitbit) {
+                    Log.d("Fitbit", "Fitbitアカウントを検出、データ同期開始")
+                    syncFitbitData()
+                }
+
                 val postLists = accountsToFetch.map { account ->
                     async {
                         when (account) {
@@ -319,20 +327,15 @@ class MainViewModel(
                                         sessionManager.markAccountForReauthentication(account.userId)
                                         emptyList()
                                     }
-
                                     is MastodonPostResult.Error -> {
                                         println("Mastodon API Error: ${result.message}")
                                         emptyList()
                                     }
                                 }
                             }
-
-                            is Account.GitHub -> gitHubApi.getPostsForAccount(
-                                account,
-                                account.period
-                            )
-
-                            is Account.GoogleFit -> emptyList() // Google Fitは上記で処理済み
+                            is Account.GitHub -> gitHubApi.getPostsForAccount(account)  // ← この行を追加
+                            is Account.GoogleFit -> emptyList() // GoogleFitは別途同期      // ← この行を追加
+                            is Account.Fitbit -> emptyList()    // Fitbitは別途同期        // ← この行を追加
                         }
                     }
                 }
@@ -913,6 +916,7 @@ class MainViewModel(
             blueskyApi: BlueskyApi,
             mastodonApi: MastodonApi,
             gitHubApi: GitHubApi, // ← 追加
+            fitbitApi: FitbitApi,
             sessionManager: SessionManager,
             postDao: PostDao
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
@@ -922,7 +926,8 @@ class MainViewModel(
                     application,
                     blueskyApi,
                     mastodonApi,
-                    gitHubApi, // ← 追加
+                    gitHubApi,
+                    fitbitApi,  // ← これを追加
                     sessionManager,
                     postDao
                 ) as T
@@ -1624,7 +1629,8 @@ class MainViewModel(
                                         text = sleepText,
                                         createdAt = postTime,
                                         source = SnsType.GOOGLEFIT,
-                                        imageUrl = null
+                                        imageUrl = null,
+                                        isHealthData = true
                                     )
 
                                     posts.add(sleepPost)
@@ -1951,7 +1957,8 @@ class MainViewModel(
                     text = sleepText,
                     createdAt = postTime,
                     source = SnsType.GOOGLEFIT,
-                    imageUrl = null
+                    imageUrl = null,
+                    isHealthData = true
                 )
 
                 // 既存データ削除
@@ -2046,6 +2053,142 @@ class MainViewModel(
     fun insertTestGoogleFitPost(post: Post) {
         viewModelScope.launch {
             postDao.insertPost(post)
+        }
+    }
+
+    /**
+     * Fitbitデータを同期
+     */
+    fun syncFitbitData(targetDate: LocalDate? = null) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val fitbitAccount = sessionManager.getAccounts()
+                    .find { it is Account.Fitbit } as? Account.Fitbit
+
+                if (fitbitAccount == null) {
+                    Log.d("Fitbit", "Fitbitアカウントが見つかりません")
+                    return@launch
+                }
+
+                Log.d("Fitbit", "データ同期開始")
+
+                // 今日のデータのみ取得（シンプル版）
+                val today = targetDate ?: LocalDate.now()
+
+                // 睡眠データ同期
+                syncFitbitSleepData(today, fitbitAccount)
+
+                // アクティビティデータ同期
+                syncFitbitActivityData(today, fitbitAccount)
+
+                Log.d("Fitbit", "データ同期完了")
+
+            } catch (e: Exception) {
+                Log.e("Fitbit", "データ同期エラー", e)
+            }
+        }
+    }
+
+    private suspend fun syncFitbitSleepData(date: LocalDate, account: Account.Fitbit) {
+        try {
+            val sleepData = fitbitApi.getSleepData(account.accessToken, date)
+
+            if (sleepData != null) {
+                val timeSettings = timeSettingsRepository.timeSettings.first()
+
+                val postTime = date.atTime(timeSettings.dayStartHour, timeSettings.dayStartMinute)
+                    .atZone(ZoneId.of("Asia/Tokyo"))
+
+                val sleepText = """
+💤 睡眠記録
+日付: ${date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))}
+睡眠時間: ${sleepData.duration}
+睡眠効率: ${sleepData.efficiency}%
+深い睡眠: ${sleepData.deepSleep}分
+浅い睡眠: ${sleepData.lightSleep}分
+レム睡眠: ${sleepData.remSleep}分
+覚醒: ${sleepData.awakeSleep}分
+""".trimIndent()
+
+                val sleepPost = Post(
+                    id = "fitbit_sleep_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}_${account.userId}",
+                    accountId = account.userId,
+                    text = sleepText,
+                    createdAt = postTime,
+                    source = SnsType.FITBIT,
+                    imageUrl = null,
+                    isHidden = false,
+                    isHealthData = true
+                )
+
+                postDao.deletePostById(sleepPost.id)
+                insertFitbitPostWithTags(sleepPost, listOf("睡眠", "健康データ"))
+
+                Log.d("Fitbit", "睡眠投稿作成完了: $date")
+            }
+        } catch (e: Exception) {
+            Log.e("Fitbit", "睡眠データ同期エラー: $date", e)
+        }
+    }
+
+    private suspend fun syncFitbitActivityData(date: LocalDate, account: Account.Fitbit) {
+        try {
+            val activityData = fitbitApi.getActivityData(account.accessToken, date)
+
+            if (activityData != null && (activityData.steps > 0 || activityData.calories > 0)) {
+                val timeSettings = timeSettingsRepository.timeSettings.first()
+
+                val postTime = date.atTime(timeSettings.dayStartHour, timeSettings.dayStartMinute)
+                    .minusMinutes(1)
+                    .atZone(ZoneId.of("Asia/Tokyo"))
+
+                val activityText = """
+🏃 アクティビティ記録
+日付: ${date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))}
+歩数: ${String.format("%,d", activityData.steps)}歩
+消費カロリー: ${activityData.calories}kcal
+""".trimIndent()
+
+                val activityPost = Post(
+                    id = "fitbit_activity_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}_${account.userId}",
+                    accountId = account.userId,
+                    text = activityText,
+                    createdAt = postTime,
+                    source = SnsType.FITBIT,
+                    imageUrl = null,
+                    isHidden = false,
+                    isHealthData = true
+                )
+
+                postDao.deletePostById(activityPost.id)
+                insertFitbitPostWithTags(activityPost, listOf("歩数", "カロリー", "健康データ"))
+
+                Log.d("Fitbit", "アクティビティ投稿作成完了: $date")
+            }
+        } catch (e: Exception) {
+            Log.e("Fitbit", "アクティビティデータ同期エラー: $date", e)
+        }
+    }
+
+    private suspend fun insertFitbitPostWithTags(post: Post, tagNames: List<String>) {
+        postDao.insertPost(post)
+
+        val tagIds = mutableListOf<Long>()
+        tagNames.forEach { tagName ->
+            var tagId = postDao.getTagIdByName(tagName)
+            if (tagId == null) {
+                tagId = postDao.insertTag(Tag(tagName = tagName))
+            }
+            if (tagId != null && tagId != -1L) {
+                tagIds.add(tagId)
+            }
+        }
+
+        val crossRefs = tagIds.map { tagId ->
+            PostTagCrossRef(postId = post.id, tagId = tagId)
+        }
+        crossRefs.forEach { crossRef ->
+            postDao.insertPostTagCrossRef(crossRef)
         }
     }
 }

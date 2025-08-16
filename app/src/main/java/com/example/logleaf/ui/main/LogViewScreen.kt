@@ -372,7 +372,7 @@ fun LogViewPostCard(
             )
         ) {
             // ★★★ 追加：健康データ判定の条件分岐のみ ★★★
-            if (post.source == SnsType.GOOGLEFIT) {
+            if (post.source == SnsType.GOOGLEFIT || post.source == SnsType.FITBIT) {
                 // 健康データも既存のCard構造を維持
                 Row(
                     modifier = Modifier

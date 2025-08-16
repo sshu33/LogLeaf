@@ -54,6 +54,14 @@
                 <data android:scheme="logleaf" android:host="callback" />
             </intent-filter>
 
+            <!-- 【追加】Fitbitコールバックを受け取るためのフィルタ -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="logleaf" android:host="fitbit" android:path="/callback" />
+            </intent-filter>
+
         </activity>
 
         <activity

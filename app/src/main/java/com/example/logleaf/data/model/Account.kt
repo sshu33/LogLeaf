@@ -90,4 +90,20 @@ sealed class Account {
         override val userId: String get() = "googlefit_user"
         override val displayName: String get() = "Google Fit"
     }
+
+    @Serializable
+    @SerialName("Account.Fitbit")
+    data class Fitbit(
+        val accessToken: String,
+        val refreshToken: String,
+        val fitbitUserId: String,  // ← 名前を変更
+        val period: String = "3ヶ月",
+        override val needsReauthentication: Boolean = false,
+        override val isVisible: Boolean = true,
+        override val lastSyncedAt: String? = null
+    ) : Account() {
+        override val snsType: SnsType get() = SnsType.FITBIT
+        override val userId: String get() = fitbitUserId  // ← これを追加
+        override val displayName: String get() = "Fitbit"
+    }
 }

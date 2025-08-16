@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.logleaf.api.bluesky.BlueskyApi
+import com.example.logleaf.api.fitbit.FitbitApi
 import com.example.logleaf.api.github.GitHubApi
 import com.example.logleaf.api.mastodon.MastodonApi
 import com.example.logleaf.data.session.SessionManager
@@ -51,7 +52,8 @@ class WidgetPostActivity : ComponentActivity() {
                     application = application,
                     blueskyApi = BlueskyApi(sessionManager),
                     mastodonApi = MastodonApi(sessionManager),
-                    gitHubApi = GitHubApi(sessionManager), // ← 追加
+                    gitHubApi = GitHubApi(sessionManager),
+                    fitbitApi = FitbitApi(sessionManager),  // ← この行を追加
                     sessionManager = sessionManager,
                     postDao = postDao
                 )

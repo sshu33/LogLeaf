@@ -295,6 +295,7 @@ fun SearchTopBar(
                                     SnsType.LOGLEAF -> R.drawable.ic_logleaf
                                     SnsType.GITHUB -> R.drawable.ic_github
                                     SnsType.GOOGLEFIT -> R.drawable.ic_googlefit
+                                    SnsType.FITBIT -> R.drawable.ic_fitbit
                                 }
                                 Icon(
                                     painter = painterResource(id = iconResId),
@@ -463,7 +464,7 @@ fun SearchResultItem(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 // GoogleFit投稿かどうかで表示を分岐
-                if (post.source == SnsType.GOOGLEFIT) {
+                if (post.source == SnsType.GOOGLEFIT || post.source == SnsType.FITBIT) {
                     // 健康データの場合：アイコン付き表示
                     HealthPostDisplay(
                         postText = post.text,

@@ -37,6 +37,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.logleaf.api.bluesky.BlueskyApi
+import com.example.logleaf.api.fitbit.FitbitApi
+import com.example.logleaf.api.fitbit.FitbitAuthHolder
 import com.example.logleaf.api.github.GitHubApi
 import com.example.logleaf.api.mastodon.MastodonApi
 import com.example.logleaf.api.mastodon.MastodonAuthHolder
@@ -50,6 +52,7 @@ import com.example.logleaf.ui.settings.AccountScreen
 import com.example.logleaf.ui.settings.AccountViewModel
 import com.example.logleaf.ui.settings.BackupSettingsScreen
 import com.example.logleaf.ui.auth.BlueskyViewModelFactory
+import com.example.logleaf.ui.auth.FitbitLoginScreen
 import com.example.logleaf.ui.main.CalendarScreen
 import com.example.logleaf.ui.settings.FontSettingsScreen
 import com.example.logleaf.ui.auth.GitHubLoginScreen
@@ -80,11 +83,31 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         addOnNewIntentListener { intent ->
-
             if (intent.action == Intent.ACTION_VIEW && intent.data != null) {
+                val uri = intent.data!!
                 GlobalScope.launch {
-                    MastodonAuthHolder.postUri(intent.data!!)
-                    Log.d("MastodonDebug", "URI送信完了: ${intent.data}")
+                    when {
+                        // Mastodonのコールバック
+                        uri.scheme == "logleaf" && uri.host == "callback" -> {
+                            MastodonAuthHolder.postUri(uri)
+                            Log.d("MastodonDebug", "URI送信完了: $uri")
+                        }
+
+                        // Fitbitのコールバック
+                        uri.scheme == "logleaf" && uri.host == "fitbit" && uri.path == "/callback" -> {
+                            val code = uri.getQueryParameter("code")
+                            if (code != null) {
+                                FitbitAuthHolder.postAuthCode(code)
+                                Log.d("FitbitDebug", "認証コード受信完了: $code")
+                            } else {
+                                Log.e("FitbitDebug", "認証コードが見つかりません: $uri")
+                            }
+                        }
+
+                        else -> {
+                            Log.w("CallbackDebug", "未知のコールバック: $uri")
+                        }
+                    }
                 }
             }
         }
@@ -159,7 +182,8 @@ fun MainScreen(
             application = application,
             blueskyApi = BlueskyApi(sessionManager),
             mastodonApi = MastodonApi(sessionManager),
-            gitHubApi = GitHubApi(sessionManager), // ← これを追加
+            gitHubApi = GitHubApi(sessionManager),
+            fitbitApi = FitbitApi(sessionManager),  // ← この行を追加
             sessionManager = sessionManager,
             postDao = postDao
         )
@@ -399,6 +423,15 @@ fun MainScreen(
                 GoogleFitLoginScreen(
                     navController = navController,
                     sessionManager = sessionManager // ← 追加
+                )
+            }
+
+            composable("fitbit_login") {
+                val fitbitApi = FitbitApi(sessionManager)
+                FitbitLoginScreen(
+                    navController = navController,
+                    sessionManager = sessionManager,
+                    fitbitApi = fitbitApi
                 )
             }
         }

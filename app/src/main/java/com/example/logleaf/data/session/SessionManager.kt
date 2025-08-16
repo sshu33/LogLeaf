@@ -144,7 +144,8 @@ class SessionManager(private val context: Context) {
                 is Account.Bluesky -> account.copy(needsReauthentication = true)
                 is Account.Mastodon -> account.copy(needsReauthentication = true)
                 is Account.GitHub -> account.copy(needsReauthentication = true)
-                is Account.GoogleFit -> account.copy(needsReauthentication = true) // ← 追加
+                is Account.GoogleFit -> account.copy(needsReauthentication = true)
+                is Account.Fitbit -> account.copy(needsReauthentication = true)  // ← この行を追加
             }
         }
         Log.d("SessionManager", "アカウント($accountId)の表示状態を切り替えました。")
@@ -156,7 +157,8 @@ class SessionManager(private val context: Context) {
                 is Account.Bluesky -> account.copy(needsReauthentication = true)
                 is Account.Mastodon -> account.copy(needsReauthentication = true)
                 is Account.GitHub -> account.copy(needsReauthentication = true)
-                is Account.GoogleFit -> account.copy(needsReauthentication = true) // ← 追加
+                is Account.GoogleFit -> account.copy(needsReauthentication = true)
+                is Account.Fitbit -> account.copy(needsReauthentication = true)  // ← この行を追加
             }
         }
         println("【SessionManager】アカウント($accountId)を要再認証としてマークしました。")
@@ -201,6 +203,11 @@ class SessionManager(private val context: Context) {
                     is Account.GoogleFit -> {
                         Log.d("SessionManager", "GoogleFitアカウント詳細:")
                         Log.d("SessionManager", "連携状態: ${account.isConnected}")
+                    }
+                    is Account.Fitbit -> {  // ← この部分を追加
+                        Log.d("SessionManager", "Fitbitアカウント詳細:")
+                        Log.d("SessionManager", "ユーザーID: ${account.fitbitUserId}")
+                        Log.d("SessionManager", "アクセストークン長さ: ${account.accessToken.length}")
                     }
                 }
             }

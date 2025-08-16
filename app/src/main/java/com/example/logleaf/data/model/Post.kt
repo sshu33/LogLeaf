@@ -25,7 +25,9 @@ data class Post(
     @ColumnInfo(name = "isHidden", defaultValue = "0")
     val isHidden: Boolean = false,
     @ColumnInfo(name = "isDeletedFromSns", defaultValue = "0")
-    val isDeletedFromSns: Boolean = false
+    val isDeletedFromSns: Boolean = false,
+    @ColumnInfo(name = "isHealthData", defaultValue = "0")  // ← この行を追加
+    val isHealthData: Boolean = false  // ← この行を追加
 ) {
     @delegate:androidx.room.Ignore
     val color: Color by lazy { source.brandColor }

@@ -158,9 +158,9 @@ fun HealthPostDisplay(
     Log.d("HealthDisplay", "投稿テキスト: $postText")
 
     when {
-        // 睡眠データの判定（HealthDetailView.ktと統一）
+        // GoogleFit睡眠データの判定（既存のまま）
         postText.contains("→") && (postText.contains("🛏️") || postText.contains("深い睡眠")) -> {
-            Log.d("HealthDisplay", "睡眠データとして判定")
+            Log.d("HealthDisplay", "GoogleFit睡眠データとして判定")
             val timePattern = "(\\d{2}:\\d{2})\\s*→\\s*(\\d{2}:\\d{2})\\s*\\(([^)]+)\\)".toRegex()
             timePattern.find(postText)?.let { match ->
                 val (startTime, endTime, duration) = match.destructured
@@ -181,7 +181,25 @@ fun HealthPostDisplay(
             }
         }
 
-        // 仮眠データの判定
+        // ★ Fitbit睡眠データの判定（新規追加）
+        postText.contains("💤 睡眠記録") && postText.contains("睡眠時間:") -> {
+            Log.d("HealthDisplay", "Fitbit睡眠データとして判定")
+
+            // 睡眠時間を抽出（例: "8時間50分"）
+            val durationPattern = "睡眠時間:\\s*([^\\n]+)".toRegex()
+            val duration = durationPattern.find(postText)?.groupValues?.get(1) ?: "不明"
+
+            // 既存のSleepDataDisplayを使用（時刻は仮の値）
+            SleepDataDisplay(
+                startTime = "就寝",
+                endTime = "起床",
+                duration = duration,
+                iconRes = HealthIcons.SLEEP,
+                modifier = modifier
+            )
+        }
+
+        // 仮眠データの判定（既存のまま）
         postText.contains("仮眠") -> {
             Log.d("HealthDisplay", "仮眠データとして判定")
             val napPattern = "(\\d{2}:\\d{2})\\s*→\\s*(\\d{2}:\\d{2})\\s*\\(([^)]+)\\)".toRegex()
@@ -197,7 +215,7 @@ fun HealthPostDisplay(
             }
         }
 
-        // 運動データの判定
+        // 運動データの判定（既存のまま）
         postText.contains("ランニング") || postText.contains("🏃") -> {
             Log.d("HealthDisplay", "運動データとして判定")
             val lines = postText.lines()
@@ -219,7 +237,7 @@ fun HealthPostDisplay(
             }
         }
 
-        // デイリー健康データの判定（ZeppとGoogleFit両方対応）
+        // デイリー健康データの判定（既存のまま）
         postText.contains("歩") && postText.contains("kcal") -> {
             Log.d("HealthDisplay", "デイリー健康データとして判定")
 
@@ -251,7 +269,7 @@ fun HealthPostDisplay(
             }
         }
 
-        // どのパターンにも該当しない場合
+        // どのパターンにも該当しない場合（既存のまま）
         else -> {
             Log.d("HealthDisplay", "健康データとして認識されませんでした")
             UserFontText(

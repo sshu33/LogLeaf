@@ -785,7 +785,7 @@ fun CalendarPostCardItem(
                         .padding(start = 12.dp)
                 ) {
                     // 健康データかどうかで表示を分岐
-                    if (post.source == SnsType.GOOGLEFIT) {
+                    if (post.source == SnsType.GOOGLEFIT || post.source == SnsType.FITBIT) {
                         // 健康データの場合：新しい表示コンポーネントを使用
                         HealthPostDisplay(
                             postText = post.text,
