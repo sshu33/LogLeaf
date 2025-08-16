@@ -1,21 +1,16 @@
 package com.example.logleaf.ui.components
 
 import android.util.Log
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.yourpackage.logleaf.ui.components.UserFontText
+import io.ktor.websocket.Frame
 
 /**
  * Fitbit専用の健康データ表示コンポーネント（GoogleFitと同じUI）
@@ -25,26 +20,24 @@ fun FitbitHealthDisplay(
     postText: String,
     modifier: Modifier = Modifier
 ) {
-    Log.d("FitbitDisplay", "Fitbit投稿テキスト: $postText")
+    Log.d("FitbitDisplay", "=== FitbitHealthDisplay呼ばれた！ ===")
+    Log.d("FitbitDisplay", "postText: ${postText.take(100)}")
 
     when {
-        // Fitbit睡眠データ
         postText.contains("💤 睡眠記録") -> {
+            Log.d("FitbitDisplay", "睡眠記録マッチ！")
             FitbitSleepDisplay(postText = postText, modifier = modifier)
         }
 
-        // Fitbitアクティビティデータ
-        postText.contains("🏃 アクティビティ記録") -> {
+        // ★ 修正：判定条件を変更
+        postText.contains("📊 今日の健康データ") -> {  // 🏃 から 📊 に変更
+            Log.d("FitbitDisplay", "アクティビティマッチ！")
             FitbitActivityDisplay(postText = postText, modifier = modifier)
         }
 
-        // フォールバック
         else -> {
-            UserFontText(
-                text = postText,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = modifier
-            )
+            Log.d("FitbitDisplay", "else節")
+            Text("Fitbit表示エラー", color = Color.Red)
         }
     }
 }
@@ -53,20 +46,19 @@ fun FitbitHealthDisplay(
  * Fitbit睡眠データ表示（GoogleFitと完全に同じUI）
  */
 @Composable
-private fun FitbitSleepDisplay(
+fun FitbitSleepDisplay(
     postText: String,
     modifier: Modifier = Modifier
 ) {
     // データ解析
-    val duration = extractValue(postText, "睡眠時間:\\s*([^\\n]+)") ?: "不明"
-    val deepSleep = extractValue(postText, "深い睡眠:\\s*(\\d+)分")?.toIntOrNull() ?: 0
-    val lightSleep = extractValue(postText, "浅い睡眠:\\s*(\\d+)分")?.toIntOrNull() ?: 0
-    val remSleep = extractValue(postText, "レム睡眠:\\s*(\\d+)分")?.toIntOrNull() ?: 0
+    val startTime = extractValue(postText, "(\\d{2}:\\d{2})\\s*→") ?: "不明"
+    val endTime = extractValue(postText, "→\\s*(\\d{2}:\\d{2})") ?: "不明"
+    val duration = extractValue(postText, "\\(([^)]+)\\)") ?: "不明"
 
     // 既存のSleepDataDisplayコンポーネントを使用（GoogleFitと同じ）
     SleepDataDisplay(
-        startTime = "就寝",
-        endTime = "起床",
+        startTime = startTime,
+        endTime = endTime,
         duration = duration,
         iconRes = HealthIcons.SLEEP,
         modifier = modifier
@@ -77,7 +69,7 @@ private fun FitbitSleepDisplay(
  * Fitbitアクティビティデータ表示（GoogleFitと同じスタイル）
  */
 @Composable
-private fun FitbitActivityDisplay(
+fun FitbitActivityDisplay(
     postText: String,
     modifier: Modifier = Modifier
 ) {

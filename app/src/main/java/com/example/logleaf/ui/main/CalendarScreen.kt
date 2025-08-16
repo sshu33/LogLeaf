@@ -94,6 +94,8 @@ import com.example.logleaf.data.model.Post
 import com.example.logleaf.data.model.PostWithTagsAndImages
 import com.example.logleaf.data.model.UiPost
 import com.example.logleaf.data.settings.TimeSettings
+import com.example.logleaf.ui.components.CompactHealthView
+import com.example.logleaf.ui.components.FitbitHealthDisplay
 import com.example.logleaf.ui.components.HealthPostDisplay
 import com.example.logleaf.ui.entry.PostImage
 import com.example.logleaf.ui.theme.SettingsTheme
@@ -785,12 +787,12 @@ fun CalendarPostCardItem(
                         .padding(start = 12.dp)
                 ) {
                     // 健康データかどうかで表示を分岐
-                    if (post.source == SnsType.GOOGLEFIT || post.source == SnsType.FITBIT) {
-                        // 健康データの場合：新しい表示コンポーネントを使用
-                        HealthPostDisplay(
-                            postText = post.text,
-                            modifier = Modifier
-                        )
+                    if (post.isHealthData) {
+                        if (post.source == SnsType.FITBIT) {
+                            FitbitHealthDisplay(postText = post.text, modifier = Modifier)
+                        } else {
+                            CompactHealthView(postText = post.text, modifier = Modifier)
+                        }
                     } else {
                         // 通常投稿の場合：既存の表示
                         Text(
@@ -800,8 +802,9 @@ fun CalendarPostCardItem(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
+
                     // GoogleFit投稿以外の場合のみタグを表示
-                    if (tags.isNotEmpty() && post.source != SnsType.GOOGLEFIT) {
+                    if (tags.isNotEmpty() && !post.isHealthData) {
                         FlowRow(
                             modifier = Modifier
                                 .fillMaxWidth()

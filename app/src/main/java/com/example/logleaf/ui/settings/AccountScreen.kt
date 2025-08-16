@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -30,14 +31,18 @@ import com.example.logleaf.data.model.Account
 import com.example.logleaf.api.github.GitHubRepository
 import com.example.logleaf.MainViewModel
 import com.example.logleaf.R
+import com.example.logleaf.data.session.FitbitHistoryManager
 import com.example.logleaf.ui.components.CustomTopAppBar
 import com.example.logleaf.ui.components.ListCard
 import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
+import com.google.firebase.dataconnect.LocalDate
 import com.yourpackage.logleaf.ui.components.UserFontText
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,93 +84,123 @@ fun AccountScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(accounts) { account ->
-                            ListCard(
-                                onClick = {
-                                    when {
-                                        account.needsReauthentication && account is Account.Mastodon -> {
-                                            val encodedUrl = URLEncoder.encode(
-                                                account.instanceUrl,
-                                                StandardCharsets.UTF_8.toString()
-                                            )
-                                            navController.navigate("mastodon_instance?instanceUrl=$encodedUrl")
-                                        }
-                                        account.needsReauthentication && account is Account.Bluesky -> {
-                                            navController.navigate("login")
-                                        }
-                                        account.needsReauthentication && account is Account.GitHub -> {
-                                            navController.navigate("github_login")
-                                        }
-                                        account is Account.GitHub -> {
-                                            githubAccountToEdit = account
-                                        }
-                                        account is Account.Bluesky -> {
-                                            blueskyAccountToEdit = account
-                                        }
-                                        account is Account.Mastodon -> {
-                                            mastodonAccountToEdit = account
-                                        }
-                                        account is Account.GoogleFit -> {
-                                            googleFitAccountToEdit = account
-                                        }
-                                    }
-                                }
-                            ) {
-                                Icon(
-                                    painter = painterResource(
-                                        id = when (account.snsType) {
-                                            SnsType.BLUESKY -> R.drawable.ic_bluesky
-                                            SnsType.MASTODON -> R.drawable.ic_mastodon
-                                            SnsType.LOGLEAF -> R.drawable.ic_logleaf
-                                            SnsType.GITHUB -> R.drawable.ic_github
-                                            SnsType.GOOGLEFIT -> R.drawable.ic_googlefit
-                                            SnsType.FITBIT -> R.drawable.ic_fitbit
-                                        }
-                                    ),
-                                    contentDescription = account.snsType.name,
-                                    tint = account.snsType.brandColor,
-                                    modifier = Modifier.size(26.dp)
-                                )
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = account.displayName,
-                                        style = MaterialTheme.typography.bodyLarge
+                            // ★ Fitbitアカウントかどうかで分岐
+                            when (account) {
+                                is Account.Fitbit -> {
+                                    // Fitbit専用のUIコンポーネント
+                                    FitbitAccountItem(
+                                        account = account,
+                                        viewModel = viewModel,
+                                        mainViewModel = mainViewModel,
+                                        onDeleteClick = { accountToDelete = account }
                                     )
                                 }
-
-                                if (account.needsReauthentication) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            text = "再認証",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                        Spacer(Modifier.width(4.dp))
+                                else -> {
+                                    // 既存のListCard（他のアカウント用）
+                                    ListCard(
+                                        onClick = {
+                                            when {
+                                                account.needsReauthentication && account is Account.Mastodon -> {
+                                                    val encodedUrl = URLEncoder.encode(
+                                                        account.instanceUrl,
+                                                        StandardCharsets.UTF_8.toString()
+                                                    )
+                                                    navController.navigate("mastodon_instance?instanceUrl=$encodedUrl")
+                                                }
+                                                account.needsReauthentication && account is Account.Bluesky -> {
+                                                    navController.navigate("login")
+                                                }
+                                                account.needsReauthentication && account is Account.GitHub -> {
+                                                    navController.navigate("github_login")
+                                                }
+                                                account is Account.GitHub -> {
+                                                    githubAccountToEdit = account
+                                                }
+                                                account is Account.Bluesky -> {
+                                                    blueskyAccountToEdit = account
+                                                }
+                                                account is Account.Mastodon -> {
+                                                    mastodonAccountToEdit = account
+                                                }
+                                                account is Account.GoogleFit -> {
+                                                    googleFitAccountToEdit = account
+                                                }
+                                            }
+                                        }
+                                    ) {
+                                        // 既存のアカウント表示UI（アイコン、名前、スイッチ、削除ボタン）
                                         Icon(
-                                            painter = painterResource(id = R.drawable.ic_sync),
-                                            contentDescription = "再認証が必要です",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
-                                } else {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Switch(
-                                            checked = account.isVisible,
-                                            onCheckedChange = { viewModel.toggleAccountVisibility(account.userId) }
+                                            painter = painterResource(
+                                                id = when (account.snsType) {
+                                                    SnsType.BLUESKY -> R.drawable.ic_bluesky
+                                                    SnsType.MASTODON -> R.drawable.ic_mastodon
+                                                    SnsType.LOGLEAF -> R.drawable.ic_logleaf
+                                                    SnsType.GITHUB -> R.drawable.ic_github
+                                                    SnsType.GOOGLEFIT -> R.drawable.ic_googlefit
+                                                    SnsType.FITBIT -> R.drawable.ic_fitbit
+                                                }
+                                            ),
+                                            contentDescription = account.snsType.name,
+                                            tint = account.snsType.brandColor,
+                                            modifier = Modifier.size(26.dp)
                                         )
 
-                                        Spacer(Modifier.width(8.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = account.displayName,
+                                                style = MaterialTheme.typography.bodyLarge
+                                            )
+                                        }
 
-                                        Icon(
-                                            painter = painterResource(id = R.drawable.ic_delete),
-                                            contentDescription = "削除",
-                                            tint = MaterialTheme.colorScheme.error,
-                                            modifier = Modifier
-                                                .size(32.dp)
-                                                .clickable { accountToDelete = account }
-                                                .padding(4.dp) // ← タップ領域確保のための最小padding
-                                        )
+                                        if (account.needsReauthentication) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = "再認証",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                                Spacer(Modifier.width(4.dp))
+                                                Icon(
+                                                    painter = painterResource(id = R.drawable.ic_sync),
+                                                    contentDescription = "再認証が必要です",
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(24.dp)
+                                                )
+
+                                                // GoogleFitの場合はゴミ箱アイコンも表示
+                                                if (account is Account.GoogleFit) {
+                                                    Spacer(Modifier.width(8.dp))
+                                                    Icon(
+                                                        painter = painterResource(id = R.drawable.ic_delete),
+                                                        contentDescription = "削除",
+                                                        tint = MaterialTheme.colorScheme.error,
+                                                        modifier = Modifier
+                                                            .size(32.dp)
+                                                            .clickable { accountToDelete = account }
+                                                            .padding(4.dp)
+                                                    )
+                                                }
+                                            }
+                                        } else {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Switch(
+                                                    checked = account.isVisible,
+                                                    onCheckedChange = { viewModel.toggleAccountVisibility(account.userId) }
+                                                )
+
+                                                Spacer(Modifier.width(8.dp))
+
+                                                Icon(
+                                                    painter = painterResource(id = R.drawable.ic_delete),
+                                                    contentDescription = "削除",
+                                                    tint = MaterialTheme.colorScheme.error,
+                                                    modifier = Modifier
+                                                        .size(32.dp)
+                                                        .clickable { accountToDelete = account }
+                                                        .padding(4.dp)
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -942,6 +977,159 @@ fun GoogleFitPeriodDialog(
                         Text("変更", color = SnsType.GOOGLEFIT.brandColor, fontWeight = FontWeight.Medium)
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun FitbitAccountItem(
+    account: Account.Fitbit,
+    viewModel: AccountViewModel,
+    mainViewModel: MainViewModel,
+    onDeleteClick: () -> Unit
+) {
+    var isHistoryFetching by remember { mutableStateOf(false) }
+    var remainingTime by remember { mutableStateOf("") }
+    var availablePeriod by remember { mutableStateOf<Pair<LocalDate, LocalDate>?>(null) }
+
+    val context = LocalContext.current
+    val historyManager = remember { FitbitHistoryManager(context) }
+
+    // タイマー更新用
+    LaunchedEffect(Unit) {
+        while (true) {
+            val canFetch = historyManager.canFetchHistory(account.userId)
+            remainingTime = if (canFetch) "" else historyManager.formatRemainingTime(account.userId)
+            availablePeriod = historyManager.getAvailablePeriod(account.userId)
+
+            delay(1000) // 1秒ごとに更新
+        }
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            // アカウント情報表示
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_fitbit),
+                    contentDescription = "Fitbit",
+                    tint = SnsType.FITBIT.brandColor,
+                    modifier = Modifier.size(26.dp)
+                )
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = account.displayName,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+
+                // 表示切り替えスイッチ
+                Switch(
+                    checked = account.isVisible,
+                    onCheckedChange = { viewModel.toggleAccountVisibility(account.userId) }
+                )
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // 削除ボタン
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_delete),
+                    contentDescription = "削除",
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clickable { onDeleteClick() }
+                        .padding(4.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 取得可能期間表示
+            if (availablePeriod != null) {
+                val (startDate, endDate) = availablePeriod!!
+                val formatter = DateTimeFormatter.ofPattern("yyyy/M/d")
+
+                Text(
+                    text = "取得可能期間",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                Text(
+                    text = "${startDate.format(formatter)}〜${endDate.format(formatter)}",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            // 過去データ取得ボタン
+            val canFetch = historyManager.canFetchHistory(account.userId) && availablePeriod != null
+
+            Button(
+                onClick = {
+                    if (canFetch && !isHistoryFetching) {
+                        isHistoryFetching = true
+                        // 過去データ取得処理
+                        mainViewModel.fetchFitbitHistoryData(account.userId) {
+                            isHistoryFetching = false
+                        }
+                    }
+                },
+                enabled = canFetch && !isHistoryFetching,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (canFetch) SnsType.FITBIT.brandColor else Color.Gray,
+                    disabledContainerColor = Color.Gray
+                )
+            ) {
+                when {
+                    isHistoryFetching -> {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("取得中...")
+                    }
+                    canFetch -> {
+                        Text("過去データを取得")
+                    }
+                    availablePeriod == null -> {
+                        Text("取得可能なデータがありません")
+                    }
+                    else -> {
+                        Text("過去データを取得 (残り $remainingTime)")
+                    }
+                }
+            }
+
+            // 注意書き
+            if (availablePeriod != null) {
+                Text(
+                    text = "※最古のデータより2ヶ月分を取得します",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(top = 8.dp)
+                )
             }
         }
     }

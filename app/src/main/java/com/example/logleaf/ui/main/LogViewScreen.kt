@@ -91,6 +91,7 @@ import com.example.logleaf.R
 import com.example.logleaf.data.model.PostWithTagsAndImages
 import com.example.logleaf.data.model.UiPost
 import com.example.logleaf.ui.components.CompactHealthView
+import com.example.logleaf.ui.components.FitbitHealthDisplay
 import com.example.logleaf.ui.components.HealthDetailView
 import com.example.logleaf.ui.components.HealthPostDisplay
 import com.example.logleaf.ui.components.SmartTagDisplay
@@ -345,9 +346,7 @@ fun LogViewPostCard(
     val post = postWithTagsAndImages.post
     val localDateTime = post.createdAt.withZoneSameInstant(ZoneId.systemDefault())
     val timeString = localDateTime.format(DateTimeFormatter.ofPattern("HH:mm"))
-    val context = LocalContext.current // 追加：Google Fitリンク用
 
-    // メニュー状態とクリップボード
     var isMenuExpanded by remember { mutableStateOf(false) }
     val clipboardManager = LocalClipboardManager.current
     val interactionSource = remember { MutableInteractionSource() }
@@ -371,134 +370,99 @@ fun LogViewPostCard(
                 contentColor = MaterialTheme.colorScheme.onSurface
             )
         ) {
-            // ★★★ 追加：健康データ判定の条件分岐のみ ★★★
-            if (post.source == SnsType.GOOGLEFIT || post.source == SnsType.FITBIT) {
-                // 健康データも既存のCard構造を維持
-                Row(
+            // ★ if文を削除して、全て統一構造に
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .height(IntrinsicSize.Min),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 1. カラーバー
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                        .height(IntrinsicSize.Min),
-                    verticalAlignment = Alignment.CenterVertically
+                        .width(4.dp)
+                        .fillMaxHeight()
+                        .background(post.source.brandColor)
+                )
+
+                // 2. スペーサー
+                Spacer(modifier = Modifier.width(16.dp))
+
+                // 3. コンテンツ（健康データも通常投稿も同じ構造）
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // 1. カラーバー（既存と同じ）
-                    Box(
-                        modifier = Modifier
-                            .width(4.dp)
-                            .fillMaxHeight()
-                            .background(post.source.brandColor)
-                    )
-
-                    // 2. スペーサー（既存と同じ）
-                    Spacer(modifier = Modifier.width(16.dp))
-
-                    // 3. 健康データコンテンツ
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // 左側に時刻を表示（既存と同じ）
-                            UserFontText(
-                                text = timeString,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                            )
-                            // 右側の余白
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
-
-                        // 健康データの詳細表示（グラフ付き、既存構造内でコンパクト）
-                        CompactHealthView(
-                            postText = post.text,
-                            modifier = Modifier
+                        // 左側に時刻を表示
+                        UserFontText(
+                            text = timeString,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                         )
-                    }
-                }
-            } else {
-                // ★★★ 既存のコード（一切変更なし） ★★★
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                        .height(IntrinsicSize.Min),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // 1. カラーバー
-                    Box(
-                        modifier = Modifier
-                            .width(4.dp)
-                            .fillMaxHeight()
-                            .background(post.source.brandColor)
-                    )
+                        // 中央の余白
+                        Spacer(modifier = Modifier.weight(1f))
+                        // 右側にタグを表示（健康データでも表示）
+                        if (postWithTagsAndImages.tags.isNotEmpty()) {
+                            val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+                            val cardPadding = 32.dp
+                            val cardWidth = screenWidth - cardPadding
+                            val colorBarAndSpacing = 20.dp
 
-                    // 2. スペーサー
-                    Spacer(modifier = Modifier.width(16.dp))
+                            val contentWidth = cardWidth - colorBarAndSpacing
+                            val tagAreaWidth = contentWidth * 2f / 3f
 
-                    // 3. コンテンツ
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // 左側に時刻を表示
-                            UserFontText(
-                                text = timeString,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            SmartTagDisplay(
+                                tags = postWithTagsAndImages.tags,
+                                onTagClick = onTagClick,
+                                availableWidth = tagAreaWidth
                             )
-                            // 中央の余白
-                            Spacer(modifier = Modifier.weight(1f))
-                            // 右側にタグをFlowRowで表示
-                            if (postWithTagsAndImages.tags.isNotEmpty()) {
-                                val screenWidth = LocalConfiguration.current.screenWidthDp.dp
-                                val cardPadding = 32.dp // カード左右余白（16dp × 2）
-                                val cardWidth = screenWidth - cardPadding
-                                val colorBarAndSpacing = 20.dp // カラーバー + スペーサー
-
-                                // カード内コンテンツ幅から、カラーバー分を除く
-                                val contentWidth = cardWidth - colorBarAndSpacing
-
-                                // 右から2/3がタグエリア
-                                val tagAreaWidth = contentWidth * 2f / 3f
-
-                                SmartTagDisplay(
-                                    tags = postWithTagsAndImages.tags,
-                                    onTagClick = onTagClick,
-                                    availableWidth = tagAreaWidth
-                                )
-                            }
                         }
+                    }
+
+                    // ★ 本文表示：健康データか通常投稿かで分岐
+                    if (post.isHealthData) {
+                        Log.d("LogView", "健康データ判定：true")
+                        Log.d("LogView", "ソース：${post.source}")
+
+                        if (post.source == SnsType.FITBIT) {
+                            Log.d("LogView", "Fitbit分岐に入った")
+                            FitbitHealthDisplay(postText = post.text, modifier = Modifier)
+                        } else {
+                            Log.d("LogView", "GoogleFit分岐に入った")
+                            HealthPostDisplay(postText = post.text, modifier = Modifier)
+                        }
+                    } else {
+                        Log.d("LogView", "健康データ判定：false")
                         HyperlinkUserFontText(
                             fullText = uiPost.displayText,
                             style = MaterialTheme.typography.bodyLarge
                         )
-                        if (postWithTagsAndImages.images.isNotEmpty()) {
-                            Row(
-                                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                postWithTagsAndImages.images.forEach { image ->
-                                    // サムネイルがあればサムネイル、なければ元画像を使用
-                                    val displayImageUrl = image.thumbnailUrl ?: image.imageUrl
+                    }
 
-                                    AsyncImage(
-                                        model = displayImageUrl,
-                                        contentDescription = "投稿画像",
-                                        modifier = Modifier
-                                            .size(80.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .clickable {
-                                                // クリック時は元画像を拡大表示
-                                                onImageClick(Uri.parse(image.imageUrl))
-                                            },
-                                        contentScale = ContentScale.Crop
-                                    )
-                                }
+                    // 画像表示
+                    if (postWithTagsAndImages.images.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            postWithTagsAndImages.images.forEach { image ->
+                                val displayImageUrl = image.thumbnailUrl ?: image.imageUrl
+
+                                AsyncImage(
+                                    model = displayImageUrl,
+                                    contentDescription = "投稿画像",
+                                    modifier = Modifier
+                                        .size(80.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            onImageClick(Uri.parse(image.imageUrl))
+                                        },
+                                    contentScale = ContentScale.Crop
+                                )
                             }
                         }
                     }

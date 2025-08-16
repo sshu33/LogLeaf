@@ -22,6 +22,7 @@ import com.example.logleaf.data.model.Account
 import com.example.logleaf.data.model.Post
 import com.example.logleaf.data.model.PostWithTagsAndImages
 import com.example.logleaf.data.model.UiPost
+import com.example.logleaf.data.session.FitbitHistoryManager
 import com.example.logleaf.data.session.SessionManager
 import com.example.logleaf.data.settings.TimeSettingsRepository
 import com.example.logleaf.db.PostDao
@@ -1969,7 +1970,7 @@ class MainViewModel(
                 val googleFitPost = sleepPost.copy(id = gfitId)
 
                 // ★★★ 睡眠データのタグを自動付与 ★★★
-                val sleepTags = listOf("睡眠", "健康データ")
+                val sleepTags = listOf("睡眠")
                 insertGoogleFitPostWithTags(googleFitPost, sleepTags)
             }
         } catch (e: Exception) {
@@ -2057,43 +2058,18 @@ class MainViewModel(
     }
 
     /**
-     * Fitbitデータを同期
+     * 睡眠データの期間一括取得
      */
-    fun syncFitbitData(targetDate: LocalDate? = null) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val fitbitAccount = sessionManager.getAccounts()
-                    .find { it is Account.Fitbit } as? Account.Fitbit
-
-                if (fitbitAccount == null) {
-                    Log.d("Fitbit", "Fitbitアカウントが見つかりません")
-                    return@launch
-                }
-
-                Log.d("Fitbit", "データ同期開始")
-
-                // 今日のデータのみ取得（シンプル版）
-                val today = targetDate ?: LocalDate.now()
-
-                // 睡眠データ同期
-                syncFitbitSleepData(today, fitbitAccount)
-
-                // アクティビティデータ同期
-                syncFitbitActivityData(today, fitbitAccount)
-
-                Log.d("Fitbit", "データ同期完了")
-
-            } catch (e: Exception) {
-                Log.e("Fitbit", "データ同期エラー", e)
-            }
-        }
-    }
-
-    private suspend fun syncFitbitSleepData(date: LocalDate, account: Account.Fitbit) {
+    private suspend fun syncFitbitSleepDataRange(
+        startDate: LocalDate,
+        endDate: LocalDate,
+        account: Account.Fitbit
+    ) {
         try {
-            val sleepData = fitbitApi.getSleepData(account.accessToken, date)
+            // FitbitApi に期間取得メソッドを追加する必要がある
+            val sleepDataList = fitbitApi.getSleepDataRange(account.accessToken, startDate, endDate)
 
-            if (sleepData != null) {
+            sleepDataList?.forEach { (date, sleepData) ->
                 val timeSettings = timeSettingsRepository.timeSettings.first()
 
                 val postTime = date.atTime(timeSettings.dayStartHour, timeSettings.dayStartMinute)
@@ -2101,13 +2077,12 @@ class MainViewModel(
 
                 val sleepText = """
 💤 睡眠記録
-日付: ${date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))}
-睡眠時間: ${sleepData.duration}
-睡眠効率: ${sleepData.efficiency}%
+${sleepData.startTime} → ${sleepData.endTime} (${sleepData.duration})
 深い睡眠: ${sleepData.deepSleep}分
 浅い睡眠: ${sleepData.lightSleep}分
 レム睡眠: ${sleepData.remSleep}分
 覚醒: ${sleepData.awakeSleep}分
+睡眠効率: ${sleepData.efficiency}%
 """.trimIndent()
 
                 val sleepPost = Post(
@@ -2122,30 +2097,88 @@ class MainViewModel(
                 )
 
                 postDao.deletePostById(sleepPost.id)
-                insertFitbitPostWithTags(sleepPost, listOf("睡眠", "健康データ"))
+                insertFitbitPostWithTags(sleepPost, listOf("睡眠"))
+            }
 
-                Log.d("Fitbit", "睡眠投稿作成完了: $date")
+            Log.d("Fitbit", "睡眠データ一括取得完了: $startDate ～ $endDate")
+        } catch (e: Exception) {
+            Log.e("Fitbit", "睡眠データ期間取得エラー", e)
+        }
+    }
+
+    private suspend fun syncFitbitSleepData(date: LocalDate, account: Account.Fitbit) {
+        try {
+            val sleepData = fitbitApi.getSleepData(account.accessToken, date)
+
+            if (sleepData != null) {
+                val timeSettings = timeSettingsRepository.timeSettings.first()
+
+                val postTime = date.atTime(timeSettings.dayStartHour, timeSettings.dayStartMinute)
+                    .atZone(ZoneId.of("Asia/Tokyo"))
+
+                // ★ GoogleFitと全く同じフォーマットに変更
+                val sleepText = """
+💤 睡眠記録
+${sleepData.startTime} → ${sleepData.endTime} (${sleepData.duration})
+深い睡眠: ${sleepData.deepSleep}分
+浅い睡眠: ${sleepData.lightSleep}分
+レム睡眠: ${sleepData.remSleep}分
+覚醒: ${sleepData.awakeSleep}分
+睡眠効率: ${sleepData.efficiency}%
+""".trimIndent()
+
+                val sleepPost = Post(
+                    id = "fitbit_sleep_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}_${account.userId}",
+                    accountId = account.userId,
+                    text = sleepText,
+                    createdAt = postTime,
+                    source = SnsType.FITBIT,
+                    imageUrl = null,
+                    isHealthData = true  // ★ 重要：健康データフラグを設定
+                )
+
+                // 既存データを削除してから保存
+                postDao.deletePostById(sleepPost.id)
+
+                // ★ タグ付きで保存
+                val sleepTags = listOf("睡眠")
+                insertFitbitPostWithTags(sleepPost, sleepTags)
             }
         } catch (e: Exception) {
-            Log.e("Fitbit", "睡眠データ同期エラー: $date", e)
+            Log.e("Fitbit", "睡眠データ同期エラー", e)
         }
     }
 
     private suspend fun syncFitbitActivityData(date: LocalDate, account: Account.Fitbit) {
         try {
+            Log.e("DEBUG", "=== syncFitbitActivityData開始 ===")
+            Log.e("DEBUG", "date: $date")
+
             val activityData = fitbitApi.getActivityData(account.accessToken, date)
 
             if (activityData != null && (activityData.steps > 0 || activityData.calories > 0)) {
                 val timeSettings = timeSettingsRepository.timeSettings.first()
 
-                val postTime = date.atTime(timeSettings.dayStartHour, timeSettings.dayStartMinute)
+                Log.e("DEBUG", "timeSettings: ${timeSettings.dayStartHour}:${timeSettings.dayStartMinute}")
+
+                val postTime = date.plusDays(1)
+                    .atTime(timeSettings.dayStartHour, timeSettings.dayStartMinute)
                     .minusMinutes(1)
                     .atZone(ZoneId.of("Asia/Tokyo"))
 
+                Log.e("DEBUG", "計算後のpostTime: $postTime")
+                Log.e("DEBUG", "postTimeの日付: ${postTime.toLocalDate()}")
+
+                // ★ この行を追加
+                val adjustedDate = postTime.minusHours(timeSettings.dayStartHour.toLong())
+                    .minusMinutes(timeSettings.dayStartMinute.toLong())
+                    .toLocalDate()
+                Log.e("DEBUG", "調整後の表示日付: $adjustedDate")
+
+                // ★ GoogleFitと同じフォーマットに統一
                 val activityText = """
-🏃 アクティビティ記録
-日付: ${date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))}
-歩数: ${String.format("%,d", activityData.steps)}歩
+📊 今日の健康データ
+歩数: ${activityData.steps.toString().replace(Regex("(\\d)(?=(\\d{3})+$)"), "$1,")}歩
 消費カロリー: ${activityData.calories}kcal
 """.trimIndent()
 
@@ -2156,27 +2189,31 @@ class MainViewModel(
                     createdAt = postTime,
                     source = SnsType.FITBIT,
                     imageUrl = null,
-                    isHidden = false,
-                    isHealthData = true
+                    isHealthData = true  // ★ 重要：健康データフラグを設定
                 )
 
+                // 既存データを削除してから保存
                 postDao.deletePostById(activityPost.id)
-                insertFitbitPostWithTags(activityPost, listOf("歩数", "カロリー", "健康データ"))
 
-                Log.d("Fitbit", "アクティビティ投稿作成完了: $date")
+                // ★ タグ付きで保存
+                val activityTags = listOf("歩数", "カロリー")
+                insertFitbitPostWithTags(activityPost, activityTags)
             }
         } catch (e: Exception) {
-            Log.e("Fitbit", "アクティビティデータ同期エラー: $date", e)
+            Log.e("Fitbit", "アクティビティデータ同期エラー", e)
         }
     }
 
     private suspend fun insertFitbitPostWithTags(post: Post, tagNames: List<String>) {
+        // 1. 投稿を保存
         postDao.insertPost(post)
 
+        // 2. タグを処理
         val tagIds = mutableListOf<Long>()
         tagNames.forEach { tagName ->
             var tagId = postDao.getTagIdByName(tagName)
             if (tagId == null) {
+                // タグが存在しない場合は新規作成
                 tagId = postDao.insertTag(Tag(tagName = tagName))
             }
             if (tagId != null && tagId != -1L) {
@@ -2184,11 +2221,155 @@ class MainViewModel(
             }
         }
 
+        // 3. 投稿とタグの関連付け
         val crossRefs = tagIds.map { tagId ->
             PostTagCrossRef(postId = post.id, tagId = tagId)
         }
         crossRefs.forEach { crossRef ->
             postDao.insertPostTagCrossRef(crossRef)
+        }
+    }
+
+    /**
+     * Fitbit過去データを取得（2ヶ月分）
+     */
+    fun fetchFitbitHistoryData(userId: String, onComplete: () -> Unit = {}) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val context = getApplication<Application>().applicationContext
+                val historyManager = FitbitHistoryManager(context)
+
+                // 取得制限チェック
+                if (!historyManager.canFetchHistory(userId)) {
+                    Log.d("Fitbit", "履歴取得制限中: $userId")
+                    onComplete()
+                    return@launch
+                }
+
+                val fitbitAccount = sessionManager.getAccounts()
+                    .find { it is Account.Fitbit && it.userId == userId } as? Account.Fitbit
+
+                if (fitbitAccount == null) {
+                    Log.e("Fitbit", "Fitbitアカウントが見つかりません: $userId")
+                    onComplete()
+                    return@launch
+                }
+
+                // 取得可能期間を計算
+                val availablePeriod = historyManager.getAvailablePeriod(userId)
+                if (availablePeriod == null) {
+                    Log.d("Fitbit", "取得可能な期間がありません: $userId")
+                    onComplete()
+                    return@launch
+                }
+
+                val (startDate, endDate) = availablePeriod
+                Log.d("Fitbit", "履歴取得開始: $userId, $startDate ～ $endDate")
+
+                // 取得時刻を記録（開始時）
+                historyManager.setLastHistoryFetchTime(userId)
+
+                // 睡眠データ：期間一括取得
+                syncFitbitSleepDataRange(startDate, endDate, fitbitAccount)
+
+                // 健康データ・運動データ：日別取得
+                var currentDate = startDate
+                var apiCallCount = 0
+                val maxApiCalls = 120 // 余裕を持って設定
+
+                while (!currentDate.isAfter(endDate) && apiCallCount < maxApiCalls) {
+                    // 健康データ同期
+                    syncFitbitActivityData(currentDate, fitbitAccount)
+                    apiCallCount++
+
+                    // 運動データ同期（将来実装）
+                    // syncFitbitExerciseData(currentDate, fitbitAccount)
+                    // apiCallCount++
+
+                    // API制限対策
+                    delay(100)
+
+                    currentDate = currentDate.plusDays(1)
+
+                    // 進捗ログ（10日ごと）
+                    if (currentDate.dayOfMonth % 10 == 0) {
+                        Log.d("Fitbit", "履歴取得進捗: $currentDate (API: $apiCallCount)")
+                    }
+                }
+
+                // 履歴期間を記録
+                historyManager.recordHistoryPeriod(userId, startDate)
+
+                Log.d("Fitbit", "履歴取得完了: $userId, $startDate ～ $endDate (API: $apiCallCount 回)")
+
+            } catch (e: Exception) {
+                Log.e("Fitbit", "履歴取得エラー: $userId", e)
+            } finally {
+                onComplete()
+            }
+        }
+    }
+    /**
+     * 初回連携時の期間記録
+     */
+    private suspend fun recordInitialFitbitPeriod(userId: String, startDate: LocalDate, endDate: LocalDate) {
+        val context = getApplication<Application>().applicationContext
+        val historyManager = FitbitHistoryManager(context)
+        historyManager.recordInitialPeriod(userId, startDate, endDate)
+    }
+
+    // 既存の syncFitbitData メソッドも修正が必要
+    fun syncFitbitData(targetDate: LocalDate? = null) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val fitbitAccount = sessionManager.getAccounts()
+                    .find { it is Account.Fitbit } as? Account.Fitbit
+
+                if (fitbitAccount == null) {
+                    Log.d("Fitbit", "Fitbitアカウントが見つかりません")
+                    return@launch
+                }
+
+                Log.d("Fitbit", "データ同期開始")
+
+                // 取得範囲を決定
+                val endDate = targetDate ?: LocalDate.now()
+                val startDate = if (targetDate != null) {
+                    // 単発指定の場合は1日のみ
+                    targetDate
+                } else {
+                    // 初回または再連携の場合は2ヶ月分
+                    endDate.minusMonths(2)
+                }
+
+                Log.d("Fitbit", "取得期間: $startDate ～ $endDate")
+
+                // 睡眠データ：期間一括取得（1回のAPI）
+                syncFitbitSleepDataRange(startDate, endDate, fitbitAccount)
+
+                // 健康データ・運動データ：日別取得
+                var currentDate = startDate
+                var apiCallCount = 0
+                val maxApiCalls = 120
+
+                while (!currentDate.isAfter(endDate) && apiCallCount < maxApiCalls) {
+                    syncFitbitActivityData(currentDate, fitbitAccount)
+                    apiCallCount++
+                    delay(100)
+                    currentDate = currentDate.plusDays(1)
+                }
+
+                // ★ 初回期間を記録
+                if (targetDate == null) {
+                    recordInitialFitbitPeriod(fitbitAccount.userId, startDate, endDate)
+                }
+
+                sessionManager.updateLastSyncedAt(fitbitAccount.userId, ZonedDateTime.now())
+                Log.d("Fitbit", "データ同期完了: $startDate ～ $endDate (API: $apiCallCount 回)")
+
+            } catch (e: Exception) {
+                Log.e("Fitbit", "データ同期エラー", e)
+            }
         }
     }
 }

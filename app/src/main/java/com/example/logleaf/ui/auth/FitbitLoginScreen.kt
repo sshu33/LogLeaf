@@ -192,50 +192,23 @@ fun FitbitLoginScreen(
             )
 
             if (!showSuccess) {
-                // 期間選択（Blueskyスタイル）
+                // 説明文（期間選択の代わり）
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = "取得期間",
+                        text = "初回連携では過去2ヶ月分のデータを取得します。",
                         fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                        textAlign = TextAlign.Center
                     )
-
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        // 1行目：1ヶ月、3ヶ月、6ヶ月
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)  // spacedByを追加
-                        ) {
-                            listOf("1ヶ月", "3ヶ月", "6ヶ月").forEach { period ->
-                                val isSelected = selectedPeriod == period
-                                PeriodChip(
-                                    period = period,  // 変更：text → period
-                                    isSelected = isSelected,
-                                    onClick = { selectedPeriod = period },
-                                    brandColor = SnsType.FITBIT.brandColor  // 追加
-                                )
-                            }
-                        }
-
-                        // 2行目：12ヶ月、24ヶ月、全期間
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)  // spacedByを追加
-                        ) {
-                            listOf("12ヶ月", "24ヶ月", "全期間").forEach { period ->
-                                val isSelected = selectedPeriod == period
-                                PeriodChip(
-                                    period = period,  // 変更：text → period
-                                    isSelected = isSelected,
-                                    onClick = { selectedPeriod = period },
-                                    brandColor = SnsType.FITBIT.brandColor  // 追加
-                                )
-                            }
-                        }
-                    }
+                    Text(
+                        text = "さらに過去のデータは連携後に追加取得できます。",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        textAlign = TextAlign.Center
+                    )
                 }
 
                 // Client ID入力

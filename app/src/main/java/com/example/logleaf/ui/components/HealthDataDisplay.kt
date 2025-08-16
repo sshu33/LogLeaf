@@ -171,6 +171,22 @@ fun HealthPostDisplay(
                     iconRes = HealthIcons.SLEEP,
                     modifier = modifier
                 )
+            }
+        }
+
+        // GoogleFit睡眠データの判定（既存のまま）
+        postText.contains("→") && (postText.contains("🛏️") || postText.contains("深い睡眠")) -> {
+            Log.d("HealthDisplay", "GoogleFit睡眠データとして判定")
+            val timePattern = "(\\d{2}:\\d{2})\\s*→\\s*(\\d{2}:\\d{2})\\s*\\(([^)]+)\\)".toRegex()
+            timePattern.find(postText)?.let { match ->
+                val (startTime, endTime, duration) = match.destructured
+                SleepDataDisplay(
+                    startTime = startTime,
+                    endTime = endTime,
+                    duration = duration,
+                    iconRes = HealthIcons.SLEEP,
+                    modifier = modifier
+                )
             } ?: run {
                 Log.d("HealthDisplay", "睡眠パターンマッチ失敗")
                 UserFontText(
@@ -179,24 +195,6 @@ fun HealthPostDisplay(
                     modifier = modifier
                 )
             }
-        }
-
-        // ★ Fitbit睡眠データの判定（新規追加）
-        postText.contains("💤 睡眠記録") && postText.contains("睡眠時間:") -> {
-            Log.d("HealthDisplay", "Fitbit睡眠データとして判定")
-
-            // 睡眠時間を抽出（例: "8時間50分"）
-            val durationPattern = "睡眠時間:\\s*([^\\n]+)".toRegex()
-            val duration = durationPattern.find(postText)?.groupValues?.get(1) ?: "不明"
-
-            // 既存のSleepDataDisplayを使用（時刻は仮の値）
-            SleepDataDisplay(
-                startTime = "就寝",
-                endTime = "起床",
-                duration = duration,
-                iconRes = HealthIcons.SLEEP,
-                modifier = modifier
-            )
         }
 
         // 仮眠データの判定（既存のまま）
@@ -269,9 +267,8 @@ fun HealthPostDisplay(
             }
         }
 
-        // どのパターンにも該当しない場合（既存のまま）
+        // フォールバック
         else -> {
-            Log.d("HealthDisplay", "健康データとして認識されませんでした")
             UserFontText(
                 text = postText,
                 style = MaterialTheme.typography.bodyMedium,

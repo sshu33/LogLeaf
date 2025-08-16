@@ -48,6 +48,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.example.logleaf.data.model.Post
 import com.example.logleaf.R
+import com.example.logleaf.ui.components.CompactHealthView
+import com.example.logleaf.ui.components.FitbitHealthDisplay
 import com.example.logleaf.ui.components.HealthPostDisplay
 import com.example.logleaf.ui.components.HighlightedText
 import com.example.logleaf.ui.search.SearchMode
@@ -464,12 +466,12 @@ fun SearchResultItem(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 // GoogleFit投稿かどうかで表示を分岐
-                if (post.source == SnsType.GOOGLEFIT || post.source == SnsType.FITBIT) {
-                    // 健康データの場合：アイコン付き表示
-                    HealthPostDisplay(
-                        postText = post.text,
-                        modifier = Modifier
-                    )
+                if (post.isHealthData) {
+                    if (post.source == SnsType.FITBIT) {
+                        FitbitHealthDisplay(postText = post.text, modifier = Modifier)
+                    } else {
+                        CompactHealthView(postText = post.text, modifier = Modifier)
+                    }
                 } else {
                     // 通常投稿の場合：ハイライト付きテキスト表示
                     HighlightedText(

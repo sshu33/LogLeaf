@@ -279,7 +279,6 @@ class FitbitApi(private val sessionManager: SessionManager) {
         // 時間をフォーマット
         val startTime = formatTime(sleep.startTime)
         val endTime = formatTime(sleep.endTime)
-        val duration = formatDuration(sleep.duration)
 
         // 睡眠ステージ情報
         val levels = sleep.levels?.summary
@@ -288,10 +287,16 @@ class FitbitApi(private val sessionManager: SessionManager) {
         val remSleep = levels?.rem?.minutes ?: 0
         val awakeSleep = levels?.wake?.minutes ?: 0
 
+        // ★ 実際の睡眠時間 = 深い + 浅い + レム（覚醒時間は除く）
+        val actualSleepMinutes = deepSleep + lightSleep + remSleep
+        val hours = actualSleepMinutes / 60
+        val minutes = actualSleepMinutes % 60
+        val actualDuration = "${hours}h${minutes}m"
+
         return SleepData(
             startTime = startTime,
             endTime = endTime,
-            duration = duration,
+            duration = actualDuration,  // ★ 実際の睡眠時間を使用
             deepSleep = deepSleep,
             lightSleep = lightSleep,
             remSleep = remSleep,
@@ -331,5 +336,99 @@ class FitbitApi(private val sessionManager: SessionManager) {
         val hours = totalMinutes / 60
         val minutes = totalMinutes % 60
         return "${hours}時間${minutes}分"
+    }
+
+    /**
+     * 睡眠データを期間指定で取得（Fitbit Sleep Log List API使用）
+     */
+    suspend fun getSleepDataRange(
+        accessToken: String,
+        startDate: LocalDate,
+        endDate: LocalDate
+    ): Map<LocalDate, SleepData>? {
+        return try {
+            val startDateStr = startDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+            val endDateStr = endDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+
+            Log.d("FitbitApi", "睡眠データ期間取得開始")
+            Log.d("FitbitApi", "期間: $startDateStr ～ $endDateStr")
+            Log.d("FitbitApi", "リクエストURL: $BASE_URL/1.2/user/-/sleep/list.json")
+
+            val response = client.get("$BASE_URL/1.2/user/-/sleep/list.json") {
+                headers {
+                    append(HttpHeaders.Authorization, "Bearer $accessToken")
+                }
+                parameter("beforeDate", endDateStr)
+                parameter("afterDate", startDateStr)
+                parameter("sort", "asc")
+                parameter("limit", "100")
+            }
+
+            Log.d("FitbitApi", "睡眠データ期間取得HTTPステータス: ${response.status}")
+
+            if (response.status.isSuccess()) {
+                val responseText = response.body<String>()
+                val fitbitResponse = Json { ignoreUnknownKeys = true }
+                    .decodeFromString<FitbitSleepResponse>(responseText)
+
+                Log.d("FitbitApi", "睡眠データ期間取得成功: ${fitbitResponse.sleep.size}件")
+
+                // 日付ごとにマップ化
+                val sleepDataMap = mutableMapOf<LocalDate, SleepData>()
+                fitbitResponse.sleep.forEach { sleepRecord ->
+                    val sleepData = parseSleepDataFromRecord(sleepRecord)
+                    if (sleepData != null) {
+                        val date = LocalDate.parse(sleepRecord.dateOfSleep)
+                        sleepDataMap[date] = sleepData
+                    }
+                }
+
+                sleepDataMap
+            } else {
+                Log.e("FitbitApi", "睡眠データ期間取得エラー: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e("FitbitApi", "睡眠データ期間取得エラー", e)
+            null
+        }
+    }
+
+    /**
+     * 個別の睡眠記録からSleepDataを生成
+     */
+    private fun parseSleepDataFromRecord(sleep: FitbitSleepData): SleepData? {
+        return try {
+            // 時間をフォーマット
+            val startTime = formatTime(sleep.startTime)
+            val endTime = formatTime(sleep.endTime)
+
+            // 睡眠ステージ情報
+            val levels = sleep.levels?.summary
+            val deepSleep = levels?.deep?.minutes ?: 0
+            val lightSleep = levels?.light?.minutes ?: 0
+            val remSleep = levels?.rem?.minutes ?: 0
+            val awakeSleep = levels?.wake?.minutes ?: 0
+
+            // 実際の睡眠時間 = 深い + 浅い + レム（覚醒時間は除く）
+            val actualSleepMinutes = deepSleep + lightSleep + remSleep
+            val hours = actualSleepMinutes / 60
+            val minutes = actualSleepMinutes % 60
+            val actualDuration = "${hours}h${minutes}m"
+
+            SleepData(
+                startTime = startTime,
+                endTime = endTime,
+                duration = actualDuration,
+                deepSleep = deepSleep,
+                lightSleep = lightSleep,
+                remSleep = remSleep,
+                awakeSleep = awakeSleep,
+                efficiency = sleep.efficiency
+            )
+        } catch (e: Exception) {
+            Log.e("FitbitApi", "睡眠データ解析エラー", e)
+            null
+        }
     }
 }
