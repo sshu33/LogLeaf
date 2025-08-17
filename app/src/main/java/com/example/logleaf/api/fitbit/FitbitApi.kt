@@ -369,8 +369,7 @@ class FitbitApi(private val sessionManager: SessionManager) {
                 headers {
                     append(HttpHeaders.Authorization, "Bearer $accessToken")
                 }
-                parameter("beforeDate", endDateStr)
-                parameter("afterDate", startDateStr)
+                parameter("afterDate", startDateStr)  // 開始日のみ指定
                 parameter("sort", "asc")
                 parameter("limit", "100")
             }

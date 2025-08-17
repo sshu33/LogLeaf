@@ -40,7 +40,7 @@ class AccountViewModel(
                     if (deletePostsAlso) {
                         postDao.deletePostsByAccountId(account.userId)
                     }
-                    sessionManager.deleteAccount(account)
+                    sessionManager.deleteAccount(account)  // ← ここで新しい処理が呼ばれる
                 }
                 else -> {
                     // 従来のSNSアカウント削除処理

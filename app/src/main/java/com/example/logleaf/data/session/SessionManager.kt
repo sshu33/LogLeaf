@@ -90,6 +90,10 @@ class SessionManager(private val context: Context) {
                 // GoogleFit連携解除処理（別途実装）
                 handleGoogleFitDisconnection(accountToDelete)
             }
+            is Account.Fitbit -> {  // ← 追加
+                // Fitbit連携解除処理（新規追加）
+                handleFitbitDisconnection(accountToDelete)
+            }
             else -> {
                 // 従来のSNSアカウント削除処理
                 val currentAccounts = getAccounts().toMutableList()
@@ -117,6 +121,17 @@ class SessionManager(private val context: Context) {
         } catch (e: Exception) {
             Log.e("SessionManager", "Google Fit認証クリア中にエラー", e)
         }
+    }
+
+    // Fitbit連携解除の専用処理（新規追加）
+    private fun handleFitbitDisconnection(fitbitAccount: Account.Fitbit) {
+        // 1. アカウント情報を削除
+        val currentAccounts = getAccounts().toMutableList()
+        currentAccounts.removeAll { it is Account.Fitbit }
+        saveAccountsList(currentAccounts)
+        _accountsFlow.value = currentAccounts
+
+        Log.d("SessionManager", "Fitbit連携解除完了")
     }
 
     /**

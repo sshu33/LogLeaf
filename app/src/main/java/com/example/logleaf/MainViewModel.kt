@@ -136,7 +136,8 @@ class MainViewModel(
             postDao.getPostsWithTagsAndImages().map { postsWithTagsAndImages ->
                 // フィルタリング処理を追加
                 postsWithTagsAndImages.filter { pwtai ->
-                    (pwtai.post.accountId in accountIds) &&
+                    // Fitbit投稿は常に表示 OR アカウントが存在する投稿
+                    (pwtai.post.source == SnsType.FITBIT || pwtai.post.accountId in accountIds) &&
                             (!pwtai.post.isHidden || includeHiddenFlag == 1)
                 }
             }
@@ -2215,8 +2216,8 @@ ${sleepData.startTime} → ${sleepData.endTime} (${sleepData.duration})
     }
 
     private suspend fun insertFitbitPostWithTags(post: Post, tagNames: List<String>) {
-        // 1. 投稿を保存
-        postDao.insertPost(post)
+        // 1. 投稿を保存（ハッシュタグ抽出なし）
+        postDao.insert(post)  // ← insertPostから変更
 
         // 2. タグを処理
         val tagIds = mutableListOf<Long>()
