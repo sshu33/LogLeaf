@@ -56,6 +56,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
@@ -120,6 +121,9 @@ class MainViewModel(
 
     private val _scrollToTopEvent = MutableStateFlow<Boolean>(false)
     val scrollToTopEvent = _scrollToTopEvent.asStateFlow()
+
+    private val _fitbitSyncProgress = MutableStateFlow<Pair<Int, Int>?>(null)
+    val fitbitSyncProgress = _fitbitSyncProgress.asStateFlow()
 
     // データベースから取得した、常に最新の投稿リスト
     private val allPostsFlow: Flow<List<PostWithTagsAndImages>> =
@@ -2263,7 +2267,9 @@ ${sleepData.startTime} → ${sleepData.endTime} (${sleepData.duration})
                 if (availablePeriod == null) {
                     // 初回取得の場合：デフォルト2ヶ月期間を使用
                     val endDate = LocalDate.now()
-                    val startDate = endDate.minusMonths(2)
+
+                    val startDate = endDate.minusWeeks(1)
+
                     Log.d("Fitbit", "初回取得: $startDate ～ $endDate")
 
                     // 以下は既存のコードと同じ処理を実行
@@ -2272,12 +2278,21 @@ ${sleepData.startTime} → ${sleepData.endTime} (${sleepData.duration})
 
                     var currentDate = startDate
                     var apiCallCount = 0
+                    val totalDays = ChronoUnit.DAYS.between(startDate, endDate).toInt() + 1
+
                     while (!currentDate.isAfter(endDate) && apiCallCount < 120) {
                         syncFitbitActivityData(currentDate, fitbitAccount)
                         apiCallCount++
+
+                        // ← ここに進捗更新を追加
+                        _fitbitSyncProgress.value = Pair(apiCallCount, totalDays)
+
                         delay(100)
                         currentDate = currentDate.plusDays(1)
                     }
+
+// ← ここに完了時のクリアを追加
+                    _fitbitSyncProgress.value = null
 
                     historyManager.recordHistoryPeriod(userId, startDate)
                     Log.d("Fitbit", "初回取得完了: $startDate ～ $endDate (API: $apiCallCount 回)")
@@ -2369,4 +2384,69 @@ ${sleepData.startTime} → ${sleepData.endTime} (${sleepData.duration})
         historyManager.clearAllData(userId)
         Log.d("Fitbit", "履歴制限をクリア: $userId")
     }
+
+
+    // テスト用：ダミーFitbitポストを作成
+    fun createDummyFitbitPosts() {
+        viewModelScope.launch {
+            val today = LocalDate.now()
+
+            // 睡眠データ
+            val dummySleepPost = Post(
+                id = "test_fitbit_sleep_${today}",
+                accountId = "CR9FZ2",
+                text = """
+💤 睡眠記録
+23:30 → 07:15 (7時間45分)
+深い睡眠: 96分
+浅い睡眠: 301分
+レム睡眠: 58分
+覚醒: 10分
+睡眠効率: 85%
+""".trimIndent(),
+                createdAt = today.atTime(7, 0).atZone(ZoneId.systemDefault()),
+                source = SnsType.FITBIT,
+                imageUrl = null,
+                isHealthData = true
+            )
+
+            // アクティビティデータ
+            val dummyActivityPost = Post(
+                id = "test_fitbit_activity_${today}",
+                accountId = "CR9FZ2",
+                text = """
+🏃 アクティビティ記録
+歩数: 8,247歩
+消費カロリー: 287kcal
+""".trimIndent(),
+                createdAt = today.atTime(6, 59).atZone(ZoneId.systemDefault()),
+                source = SnsType.FITBIT,
+                imageUrl = null,
+                isHealthData = true
+            )
+
+            val dummyExercisePost = Post(
+                id = "test_fitbit_exercise_${today}",
+                accountId = "CR9FZ2",
+                text = """
+🏃 運動記録
+運動: ランニング
+開始時刻: 18:30
+継続時間: 45分
+消費カロリー: 420kcal
+""".trimIndent(),
+                createdAt = today.atTime(18, 30).atZone(ZoneId.systemDefault()),
+                source = SnsType.FITBIT,
+                imageUrl = null,
+                isHealthData = true
+            )
+
+            insertFitbitPostWithTags(dummySleepPost, listOf("睡眠"))
+            insertFitbitPostWithTags(dummyActivityPost, listOf("歩数", "カロリー"))
+            insertFitbitPostWithTags(dummyExercisePost, listOf("運動")) // ← この行を追加
+
+            Log.d("Fitbit", "ダミーポスト作成完了")
+        }
+    }
+
 }

@@ -8,6 +8,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.yourpackage.logleaf.ui.components.UserFontText
 import io.ktor.websocket.Frame
@@ -29,8 +30,12 @@ fun FitbitHealthDisplay(
             FitbitSleepDisplay(postText = postText, modifier = modifier)
         }
 
-        // ★ 修正：判定条件を変更
-        postText.contains("📊 今日の健康データ") -> {  // 🏃 から 📊 に変更
+        postText.contains("🏃 運動記録") -> {
+            Log.d("FitbitDisplay", "運動記録マッチ！")
+            FitbitExerciseDisplay(postText = postText, modifier = modifier)
+        }
+
+        postText.contains("🏃 アクティビティ記録") || postText.contains("📊 今日の健康データ") -> {
             Log.d("FitbitDisplay", "アクティビティマッチ！")
             FitbitActivityDisplay(postText = postText, modifier = modifier)
         }
@@ -94,4 +99,41 @@ fun FitbitActivityDisplay(
  */
 private fun extractValue(text: String, pattern: String): String? {
     return pattern.toRegex().find(text)?.groupValues?.get(1)
+}
+
+/**
+ * Fitbit運動データ表示
+ */
+@Composable
+fun FitbitExerciseDisplay(
+    postText: String,
+    modifier: Modifier = Modifier
+) {
+    val exercise = extractValue(postText, "運動:\\s*([^\\n]+)") ?: "不明"
+    val startTime = extractValue(postText, "開始時刻:\\s*([^\\n]+)") ?: "不明"
+    val duration = extractValue(postText, "継続時間:\\s*([^\\n]+)") ?: "不明"
+    val calories = extractValue(postText, "消費カロリー:\\s*(\\d+)kcal")?.toIntOrNull() ?: 0
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier
+    ) {
+        // 運動名と時刻
+        Text(
+            text = "$exercise ($startTime)",
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium
+        )
+
+        // 継続時間
+        Text(
+            text = "継続時間: $duration",
+            style = MaterialTheme.typography.bodyMedium
+        )
+
+        // カロリー表示
+        if (calories > 0) {
+            CaloriesDataDisplay(calories = calories)
+        }
+    }
 }

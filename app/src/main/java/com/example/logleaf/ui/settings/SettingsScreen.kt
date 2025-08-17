@@ -175,33 +175,41 @@ fun SettingsScreen(
                         onClick = { showLogoutDialog = true }
                     )
 
-                    Button(
-                        onClick = {
-                            Log.d("SettingsScreen", "★★★ テストボタン押下")
-                            coroutineScope.launch {
-                                try {
-                                    val testPost = Post(
-                                        id = "googlefit_test_${System.currentTimeMillis()}",
-                                        accountId = "googlefit_user",
-                                        text = "🛏️ テスト睡眠データ",
-                                        createdAt = ZonedDateTime.now(),
-                                        source = SnsType.GOOGLEFIT,
-                                        imageUrl = null
-                                    )
-                                    Log.d("SettingsScreen", "★★★ テスト投稿作成: ${testPost.id}")
+                    // Fitbitダミーデータ作成
 
-                                    // contextは既に取得済みのものを使用
-                                    val db = AppDatabase.getDatabase(context)
-                                    db.postDao().insertPost(testPost)
-
-                                    Log.d("SettingsScreen", "★★★ テスト投稿DB保存完了")
-                                } catch (e: Exception) {
-                                    Log.e("SettingsScreen", "★★★ テスト投稿エラー", e)
-                                }
-                            }
-                        }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { mainViewModel.createDummyFitbitPosts() }
+                            .padding(vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("テスト投稿作成")
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_fitbit),
+                            contentDescription = null,
+                            tint = SnsType.FITBIT.brandColor,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Fitbitテストデータ作成",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "UI確認用のダミーFitbitポストを作成",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                            modifier = Modifier.size(24.dp)
+                        )
                     }
                 }
             }
