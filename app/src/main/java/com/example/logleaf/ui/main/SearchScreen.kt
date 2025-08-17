@@ -296,7 +296,6 @@ fun SearchTopBar(
                                     SnsType.MASTODON -> R.drawable.ic_mastodon
                                     SnsType.LOGLEAF -> R.drawable.ic_logleaf
                                     SnsType.GITHUB -> R.drawable.ic_github
-                                    SnsType.GOOGLEFIT -> R.drawable.ic_googlefit
                                     SnsType.FITBIT -> R.drawable.ic_fitbit
                                 }
                                 Icon(
@@ -465,7 +464,7 @@ fun SearchResultItem(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // GoogleFit投稿かどうかで表示を分岐
+                // Fitbit投稿かどうかで表示を分岐
                 if (post.isHealthData) {
                     if (post.source == SnsType.FITBIT) {
                         FitbitHealthDisplay(postText = post.text, modifier = Modifier)

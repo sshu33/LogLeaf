@@ -1,11 +1,6 @@
 package com.example.logleaf.ui.settings
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.util.Log
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -26,10 +21,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -48,21 +41,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import com.example.logleaf.MainViewModel
 import com.example.logleaf.R
-import com.example.logleaf.api.googlefit.GoogleFitDataManager
-import com.example.logleaf.auth.GoogleFitAuthManager
-import com.example.logleaf.data.model.Post
-import com.example.logleaf.db.AppDatabase
 import com.example.logleaf.ui.components.CustomTopAppBar
-import com.example.logleaf.ui.components.ListCard
 import com.example.logleaf.ui.theme.SnsType
 import com.yourpackage.logleaf.ui.components.UserFontText
-import kotlinx.coroutines.launch
-import java.time.LocalDate
-import java.time.ZonedDateTime
 
 
 @OptIn(ExperimentalMaterial3Api::class)

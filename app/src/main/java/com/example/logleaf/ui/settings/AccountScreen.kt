@@ -56,7 +56,6 @@ fun AccountScreen(
     var blueskyAccountToEdit by remember { mutableStateOf<Account.Bluesky?>(null) }
     var mastodonAccountToEdit by remember { mutableStateOf<Account.Mastodon?>(null) }
     var githubAccountToEdit by remember { mutableStateOf<Account.GitHub?>(null) }
-    var googleFitAccountToEdit by remember { mutableStateOf<Account.GoogleFit?>(null) }
     var fitbitAccountToEdit by remember { mutableStateOf<Account.Fitbit?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -113,9 +112,6 @@ fun AccountScreen(
                                                 account is Account.Mastodon -> {
                                                     mastodonAccountToEdit = account
                                                 }
-                                                account is Account.GoogleFit -> {
-                                                    googleFitAccountToEdit = account
-                                                }
                                                 account is Account.Fitbit -> {
                                                     fitbitAccountToEdit = account  // ← 追加
                                                 }
@@ -130,7 +126,6 @@ fun AccountScreen(
                                                     SnsType.MASTODON -> R.drawable.ic_mastodon
                                                     SnsType.LOGLEAF -> R.drawable.ic_logleaf
                                                     SnsType.GITHUB -> R.drawable.ic_github
-                                                    SnsType.GOOGLEFIT -> R.drawable.ic_googlefit
                                                     SnsType.FITBIT -> R.drawable.ic_fitbit
                                                 }
                                             ),
@@ -257,18 +252,6 @@ fun AccountScreen(
         )
     }
 
-    // Google Fit設定変更ダイアログ
-    googleFitAccountToEdit?.let { account ->
-        GoogleFitPeriodDialog(
-            account = account,
-            onDismiss = { googleFitAccountToEdit = null },
-            onPeriodChanged = { newPeriod ->
-                viewModel.updateGoogleFitAccountPeriod(newPeriod)
-                mainViewModel.refreshPosts()
-            }
-        )
-    }
-
     // Fitbitメニューダイアログ
     fitbitAccountToEdit?.let { account ->
         FitbitMenuDialog(
@@ -300,7 +283,7 @@ fun DeleteDialog(
 ) {
     var deletePostsAlso by remember { mutableStateOf(false) }
 
-    val isConnectedAccount = account is Account.GoogleFit || account is Account.Fitbit
+    val isConnectedAccount = account is Account.Fitbit
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -880,90 +863,6 @@ fun GitHubPeriodDialog(
                         }
                     ) {
                         Text("変更", color = SnsType.GITHUB.brandColor, fontWeight = FontWeight.Medium)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun GoogleFitPeriodDialog(
-    account: Account.GoogleFit,
-    onDismiss: () -> Unit,
-    onPeriodChanged: (String) -> Unit
-) {
-    var selectedPeriod by remember { mutableStateOf(account.period) }
-
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier
-                .wrapContentHeight()
-                .widthIn(min = 300.dp, max = 400.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // タイトル
-                Text(
-                    text = "Google Fit設定",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                // 取得期間段落
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "取得期間",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                    )
-
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf("1ヶ月", "3ヶ月", "6ヶ月").forEach { period ->
-                                val isSelected = selectedPeriod == period
-                                PeriodChip(
-                                    period = period,
-                                    isSelected = isSelected,
-                                    onClick = { selectedPeriod = period },
-                                    brandColor = SnsType.GOOGLEFIT.brandColor
-                                )
-                            }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf("12ヶ月", "24ヶ月", "全期間").forEach { period ->
-                                val isSelected = selectedPeriod == period
-                                PeriodChip(
-                                    period = period,
-                                    isSelected = isSelected,
-                                    onClick = { selectedPeriod = period },
-                                    brandColor = SnsType.GOOGLEFIT.brandColor
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // ボタン
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("キャンセル", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                    }
-                    TextButton(
-                        onClick = {
-                            onPeriodChanged(selectedPeriod)
-                            onDismiss()
-                        }
-                    ) {
-                        Text("変更", color = SnsType.GOOGLEFIT.brandColor, fontWeight = FontWeight.Medium)
                     }
                 }
             }

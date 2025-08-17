@@ -15,7 +15,6 @@ import androidx.lifecycle.viewModelScope
 import com.example.logleaf.api.bluesky.BlueskyApi
 import com.example.logleaf.api.fitbit.FitbitApi
 import com.example.logleaf.api.github.GitHubApi
-import com.example.logleaf.api.googlefit.GoogleFitDataManager
 import com.example.logleaf.api.mastodon.MastodonApi
 import com.example.logleaf.api.mastodon.MastodonPostResult
 import com.example.logleaf.data.model.Account
@@ -35,6 +34,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -42,7 +42,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -189,10 +188,6 @@ class MainViewModel(
         }
     }
 
-    // GoogleFitDataManager のインスタンス追加
-    private val googleFitDataManager = GoogleFitDataManager(getApplication())
-
-
     private val _backupProgress = MutableStateFlow<String?>(null)
     val backupProgress = _backupProgress.asStateFlow()
 
@@ -311,12 +306,6 @@ class MainViewModel(
         return viewModelScope.launch(Dispatchers.IO) {
             val accountsToFetch = accounts.filter { !it.needsReauthentication }
             try {
-                // ★ Google Fit処理を追加
-                val hasGoogleFit = accountsToFetch.any { it is Account.GoogleFit }
-                if (hasGoogleFit) {
-                    Log.d("GoogleFit", "Google Fitアカウントを検出、データ同期開始")
-                    syncGoogleFitData()
-                }
 
                 val hasFitbit = accountsToFetch.any { it is Account.Fitbit }
                 if (hasFitbit) {
@@ -343,9 +332,8 @@ class MainViewModel(
                                     }
                                 }
                             }
-                            is Account.GitHub -> gitHubApi.getPostsForAccount(account)  // ← この行を追加
-                            is Account.GoogleFit -> emptyList() // GoogleFitは別途同期      // ← この行を追加
-                            is Account.Fitbit -> emptyList()    // Fitbitは別途同期        // ← この行を追加
+                            is Account.GitHub -> gitHubApi.getPostsForAccount(account)
+                            is Account.Fitbit -> emptyList()    // Fitbitは別途同期
                         }
                     }
                 }
@@ -904,13 +892,14 @@ class MainViewModel(
         return groupedByDate.map { (date, postList) ->
             val sortedPostList = postList.sortedBy { it.post.createdAt }
 
-            // ★修正点1: GoogleFit投稿を除外してfirstPostを選択
-            val firstNonGoogleFitPost = sortedPostList
-                .firstOrNull { it.post.source != SnsType.GOOGLEFIT }?.post
+            // ★修正点1: 通常通りfirstPostを選択
+            val firstNonHealthPost = sortedPostList
+                .firstOrNull { !it.post.isHealthData }?.post
 
-            // ★修正点2: 画像検索でもGoogleFit投稿を除外（オプション）
+
+            // ★修正点2: 画像検索（GoogleFit除外不要）
             val firstImageInfo: Pair<String, String>? = sortedPostList
-                .filter { it.post.source != SnsType.GOOGLEFIT } // GoogleFit投稿を除外
+                .filter { !it.post.isHealthData } // 健康データ投稿を除外
                 .firstNotNullOfOrNull { postWithTagsAndImages ->
                     // 投稿から画像URLを探す
                     val imageUrl = postWithTagsAndImages.images.firstOrNull()?.let { image ->
@@ -925,8 +914,8 @@ class MainViewModel(
 
             DayLog(
                 date = date,
-                firstPost = firstNonGoogleFitPost, // ★修正: GoogleFit以外の最初の投稿
-                totalPosts = postList.size, // 総投稿数はGoogleFitも含む
+                firstPost = firstNonHealthPost, // ★修正: 健康データ以外の最初の投稿
+                totalPosts = postList.size,
                 imagePostId = firstImageInfo?.first,
                 dayImageUrl = firstImageInfo?.second
             )
@@ -1651,7 +1640,7 @@ class MainViewModel(
                                             .first().userId,
                                         text = sleepText,
                                         createdAt = postTime,
-                                        source = SnsType.GOOGLEFIT,
+                                        source = SnsType.FITBIT,
                                         imageUrl = null,
                                         isHealthData = true
                                     )
@@ -1720,7 +1709,7 @@ class MainViewModel(
                                             .first().userId,
                                         text = sportText,
                                         createdAt = startJST, // 運動開始時刻
-                                        source = SnsType.GOOGLEFIT,
+                                        source = SnsType.FITBIT,
                                         imageUrl = null
                                     )
 
@@ -1772,7 +1761,7 @@ class MainViewModel(
                                             .first().userId,
                                         text = activityText,
                                         createdAt = postTime,
-                                        source = SnsType.GOOGLEFIT,
+                                        source = SnsType.FITBIT,
                                         imageUrl = null
                                     )
 
@@ -1818,264 +1807,6 @@ class MainViewModel(
                 _zeppImportState.value = BackupState.Error(e.message ?: "インポートエラー")
                 Log.e("ZeppImport", "インポートエラー: ${e.message}", e)
             }
-        }
-    }
-
-    /**
-     * GoogleFitデータで既存データを置き換える
-     */
-    private suspend fun replaceWithGoogleFitData(
-        dataType: String, // "sleep", "exercise", "activity"
-        date: LocalDate,
-        newGoogleFitPost: Post
-    ) {
-        // 既存のZeppデータを削除
-        val zeppId = "zepp_${dataType}_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}"
-        postDao.deletePostById(zeppId)
-
-        Log.d("GoogleFit", "既存Zeppデータを削除: $zeppId")
-
-        // GoogleFitデータで置き換え
-        val gfitId = "googlefit_${dataType}_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}"
-        val googleFitPost = newGoogleFitPost.copy(id = gfitId)
-        postDao.insertWithHashtagExtraction(googleFitPost)
-
-        Log.d("GoogleFit", "GoogleFitデータで置き換え: $gfitId")
-    }
-
-    /**
-     * 既存の健康データをチェック
-     */
-    private suspend fun hasExistingHealthData(
-        dataType: String,
-        date: LocalDate
-    ): Boolean {
-        val zeppId = "zepp_${dataType}_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}"
-        val gfitId = "googlefit_${dataType}_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}"
-
-        return postDao.getPostById(zeppId) != null || postDao.getPostById(gfitId) != null
-    }
-
-    /**
-     * GoogleFitから健康データを同期（期間対応版）
-     */
-    fun syncGoogleFitData(targetDate: LocalDate? = null) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val googleFitAccount = sessionManager.getAccounts()
-                    .find { it is Account.GoogleFit } as? Account.GoogleFit
-
-                if (googleFitAccount == null) {
-                    Log.d("GoogleFit", "Google Fitアカウントが見つかりません")
-                    return@launch
-                }
-
-                // 取得範囲を決定（期間設定を考慮）
-                val (startDate, endDate) = determineDateRangeForGoogleFit(googleFitAccount, targetDate)
-
-                Log.d("GoogleFit", "データ同期開始: ${startDate} ～ ${endDate}")
-
-                // 指定期間の各日のデータを取得
-                var currentDate = startDate
-                while (!currentDate.isAfter(endDate)) {
-                    // 睡眠データ同期
-                    syncSleepData(currentDate)
-
-                    // アクティビティデータ同期
-                    syncActivityData(currentDate)
-
-                    currentDate = currentDate.plusDays(1)
-                }
-
-                // 同期完了後、最終同期時刻を更新
-                sessionManager.updateLastSyncedAt("googlefit_user", ZonedDateTime.now())
-
-                // UI更新
-                refreshPostsWithoutScroll()
-
-                Log.d("GoogleFit", "データ同期完了: ${startDate} ～ ${endDate}")
-
-            } catch (e: Exception) {
-                Log.e("GoogleFit", "データ同期エラー", e)
-            }
-        }
-    }
-
-    /**
-     * Google Fit用の取得日付範囲を決定
-     */
-    private fun determineDateRangeForGoogleFit(
-        account: Account.GoogleFit,
-        targetDate: LocalDate?
-    ): Pair<LocalDate, LocalDate> {
-        val endDate = targetDate ?: LocalDate.now()
-
-        return when {
-            // 単発の日付指定がある場合（手動同期）
-            targetDate != null -> {
-                Pair(targetDate, targetDate)
-            }
-
-            // 「全期間」の場合は前回同期時刻以降
-            account.period == "全期間" -> {
-                account.lastSyncedAt?.let { lastSync ->
-                    val lastSyncDate = ZonedDateTime.parse(lastSync).toLocalDate()
-                    Pair(lastSyncDate, endDate)
-                } ?: run {
-                    // 初回は過去2年分（全期間のデフォルト）
-                    Pair(endDate.minusYears(2), endDate)
-                }
-            }
-
-            // 期間指定がある場合
-            else -> {
-                val periodStartDate = when (account.period) {
-                    "1ヶ月" -> endDate.minusMonths(1)
-                    "3ヶ月" -> endDate.minusMonths(3)
-                    "6ヶ月" -> endDate.minusMonths(6)
-                    "12ヶ月" -> endDate.minusMonths(12)
-                    "24ヶ月" -> endDate.minusMonths(24)
-                    else -> endDate.minusMonths(3) // デフォルト3ヶ月
-                }
-
-                // 前回同期時刻と期間指定の新しい方を使用
-                account.lastSyncedAt?.let { lastSync ->
-                    val lastSyncDate = ZonedDateTime.parse(lastSync).toLocalDate()
-                    if (lastSyncDate.isAfter(periodStartDate)) {
-                        Log.d("GoogleFit", "差分取得: 前回同期時刻(${lastSyncDate})以降")
-                        Pair(lastSyncDate, endDate)
-                    } else {
-                        Log.d("GoogleFit", "期間変更: 期間指定(${account.period})で取得")
-                        Pair(periodStartDate, endDate)
-                    }
-                } ?: run {
-                    Log.d("GoogleFit", "初回同期: 期間指定(${account.period})で取得")
-                    Pair(periodStartDate, endDate)
-                }
-            }
-        }
-    }
-
-    private suspend fun syncSleepData(date: LocalDate) {
-        try {
-            val sleepData = googleFitDataManager.getSleepData(date)
-
-            if (sleepData != null) {
-                val timeSettings = timeSettingsRepository.timeSettings.first()
-
-                val postTime = date.atTime(timeSettings.dayStartHour, timeSettings.dayStartMinute)
-                    .atZone(ZoneId.of("Asia/Tokyo"))
-
-                // Zeppと完全に同じフォーマットで投稿テキスト生成
-                val sleepText = """
-🛏️ ${sleepData.startTime} → ${sleepData.endTime} (${sleepData.duration})
-深い睡眠: ${sleepData.deepSleep}分
-浅い睡眠: ${sleepData.shallowSleep}分
-レム睡眠: ${sleepData.remSleep}分
-""".trimIndent()
-
-                val sleepPost = Post(
-                    id = "googlefit_sleep_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}",
-                    accountId = "googlefit_user",
-                    text = sleepText,
-                    createdAt = postTime,
-                    source = SnsType.GOOGLEFIT,
-                    imageUrl = null,
-                    isHealthData = true
-                )
-
-                // 既存データ削除
-                val zeppId = "zepp_sleep_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}"
-                postDao.deletePostById(zeppId)
-
-                val gfitId = "googlefit_sleep_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}"
-                val googleFitPost = sleepPost.copy(id = gfitId)
-
-                // ★★★ 睡眠データのタグを自動付与 ★★★
-                val sleepTags = listOf("睡眠")
-                insertGoogleFitPostWithTags(googleFitPost, sleepTags)
-            }
-        } catch (e: Exception) {
-            Log.e("GoogleFit", "睡眠データ同期エラー", e)
-        }
-    }
-
-    // ===== syncActivityData() の修正 =====
-    private suspend fun syncActivityData(date: LocalDate) {
-        try {
-            val activityData = googleFitDataManager.getActivityData(date)
-
-            if (activityData != null && (activityData.steps > 0 || activityData.calories > 0)) {
-                val timeSettings = timeSettingsRepository.timeSettings.first()
-
-                val postTime = date.atTime(timeSettings.dayStartHour, timeSettings.dayStartMinute)
-                    .minusMinutes(1)
-                    .atZone(ZoneId.of("Asia/Tokyo"))
-
-                val activityText = """
-📊 今日の健康データ
-歩数: ${activityData.steps.toString().replace(Regex("(\\d)(?=(\\d{3})+$)"), "$1,")}歩
-消費カロリー: ${activityData.calories}kcal
-""".trimIndent()
-
-                val activityPost = Post(
-                    id = "googlefit_activity_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}",
-                    accountId = "googlefit_user",
-                    text = activityText,
-                    createdAt = postTime,
-                    source = SnsType.GOOGLEFIT,
-                    imageUrl = null
-                )
-
-                // 既存データ削除
-                val zeppId = "zepp_activity_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}"
-                postDao.deletePostById(zeppId)
-
-                val gfitId = "googlefit_activity_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}"
-                val googleFitPost = activityPost.copy(id = gfitId)
-
-                // ★★★ 健康データのタグを自動付与 ★★★
-                val activityTags = listOf("健康データ", "歩数", "カロリー")
-                insertGoogleFitPostWithTags(googleFitPost, activityTags)
-            }
-        } catch (e: Exception) {
-            Log.e("GoogleFit", "健康データ同期エラー", e)
-        }
-    }
-
-// ===== 新しいヘルパーメソッド =====
-    /**
-     * GoogleFit投稿をタグ付きで保存する
-     */
-    private suspend fun insertGoogleFitPostWithTags(post: Post, tagNames: List<String>) {
-        // 1. 投稿を保存
-        postDao.insertPost(post)
-
-        // 2. タグを処理
-        val tagIds = mutableListOf<Long>()
-        tagNames.forEach { tagName ->
-            var tagId = postDao.getTagIdByName(tagName)
-            if (tagId == null) {
-                // タグが存在しない場合は新規作成
-                tagId = postDao.insertTag(Tag(tagName = tagName))
-            }
-            if (tagId != null && tagId != -1L) {
-                tagIds.add(tagId)
-            }
-        }
-
-        // 3. 投稿とタグの関連付け
-        val crossRefs = tagIds.map { tagId ->
-            PostTagCrossRef(postId = post.id, tagId = tagId)
-        }
-        crossRefs.forEach { crossRef ->
-            postDao.insertPostTagCrossRef(crossRef)
-        }
-    }
-
-    fun insertTestGoogleFitPost(post: Post) {
-        viewModelScope.launch {
-            postDao.insertPost(post)
         }
     }
 

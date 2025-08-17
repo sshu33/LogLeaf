@@ -3,16 +3,13 @@ package com.example.logleaf.data.session
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
-import com.example.logleaf.auth.GoogleFitAuthManager
 import com.example.logleaf.data.model.Account
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
-import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 
 
 class SessionManager(private val context: Context) {
@@ -86,10 +83,6 @@ class SessionManager(private val context: Context) {
         Log.e("ACCOUNT_DELETE_INVESTIGATION", "------------------------------------")
 
         when (accountToDelete) {
-            is Account.GoogleFit -> {
-                // GoogleFit連携解除処理（別途実装）
-                handleGoogleFitDisconnection(accountToDelete)
-            }
             is Account.Fitbit -> {  // ← 追加
                 // Fitbit連携解除処理（新規追加）
                 handleFitbitDisconnection(accountToDelete)
@@ -105,24 +98,6 @@ class SessionManager(private val context: Context) {
         }
     }
 
-    // GoogleFit連携解除の専用処理
-    private fun handleGoogleFitDisconnection(googleFitAccount: Account.GoogleFit) {
-        // 1. アカウント情報を削除
-        val currentAccounts = getAccounts().toMutableList()
-        currentAccounts.removeAll { it is Account.GoogleFit }
-        saveAccountsList(currentAccounts)
-        _accountsFlow.value = currentAccounts
-
-        // 2. Google Fit認証情報をクリア
-        try {
-            val authManager = GoogleFitAuthManager(context)
-            authManager.clearAuthentication()
-            Log.d("SessionManager", "Google Fit認証情報をクリアしました")
-        } catch (e: Exception) {
-            Log.e("SessionManager", "Google Fit認証クリア中にエラー", e)
-        }
-    }
-
     // Fitbit連携解除の専用処理（新規追加）
     private fun handleFitbitDisconnection(fitbitAccount: Account.Fitbit) {
         // 1. アカウント情報を削除
@@ -134,32 +109,12 @@ class SessionManager(private val context: Context) {
         Log.d("SessionManager", "Fitbit連携解除完了")
     }
 
-    /**
-     * GoogleFit連携時にアカウントを追加する新しいメソッド
-     */
-    fun addGoogleFitAccount(period: String = "3ヶ月") {
-        val googleFitAccount = Account.GoogleFit(
-            isConnected = true,
-            period = period,
-            isVisible = true
-        )
-        saveAccount(googleFitAccount)
-    }
-
-    /**
-     * GoogleFit連携状態をチェックする
-     */
-    fun isGoogleFitConnected(): Boolean {
-        return getAccounts().any { it is Account.GoogleFit && it.isConnected }
-    }
-
     fun toggleAccountVisibility(accountId: String) {
         updateAccountState(accountId) { account ->
             when (account) {
                 is Account.Bluesky -> account.copy(needsReauthentication = true)
                 is Account.Mastodon -> account.copy(needsReauthentication = true)
                 is Account.GitHub -> account.copy(needsReauthentication = true)
-                is Account.GoogleFit -> account.copy(needsReauthentication = true)
                 is Account.Fitbit -> account.copy(needsReauthentication = true)  // ← この行を追加
             }
         }
@@ -172,7 +127,6 @@ class SessionManager(private val context: Context) {
                 is Account.Bluesky -> account.copy(needsReauthentication = true)
                 is Account.Mastodon -> account.copy(needsReauthentication = true)
                 is Account.GitHub -> account.copy(needsReauthentication = true)
-                is Account.GoogleFit -> account.copy(needsReauthentication = true)
                 is Account.Fitbit -> account.copy(needsReauthentication = true)  // ← この行を追加
             }
         }
@@ -214,10 +168,6 @@ class SessionManager(private val context: Context) {
                         Log.d("SessionManager", "GitHubアカウント詳細:")
                         Log.d("SessionManager", "ユーザー名: ${account.username}")
                         Log.d("SessionManager", "アクセストークン長さ: ${account.accessToken.length}")
-                    }
-                    is Account.GoogleFit -> {
-                        Log.d("SessionManager", "GoogleFitアカウント詳細:")
-                        Log.d("SessionManager", "連携状態: ${account.isConnected}")
                     }
                     is Account.Fitbit -> {  // ← この部分を追加
                         Log.d("SessionManager", "Fitbitアカウント詳細:")
@@ -362,7 +312,6 @@ class SessionManager(private val context: Context) {
                 is Account.GitHub -> account.copy(lastSyncedAt = syncTimeString)
                 is Account.Bluesky -> account.copy(lastSyncedAt = syncTimeString)
                 is Account.Mastodon -> account.copy(lastSyncedAt = syncTimeString)
-                is Account.GoogleFit -> account.copy(lastSyncedAt = syncTimeString) // ← 追加
                 else -> account
             }
         }
@@ -378,43 +327,5 @@ class SessionManager(private val context: Context) {
             Log.d("SessionManager", "${account.snsType} (${account.displayName}): lastSyncedAt=${account.lastSyncedAt}")
         }
         Log.d("SessionManager", "=== デバッグ情報 終了 ===")
-    }
-
-
-
-    fun getVisibleAccountIds(): Flow<List<String>> {
-        return accountsFlow.map { accounts ->
-            accounts
-                .filter { it.isVisible }
-                .map { it.userId }
-        }
-    }
-
-    fun getShowHiddenPosts(): Flow<Boolean> {
-        return MutableStateFlow(false)
-    }
-
-    /**
-     * GoogleFit連携状況をチェックしてアカウントを自動追加
-     */
-    fun checkAndAddGoogleFitAccount(context: Context) {
-        val authManager = GoogleFitAuthManager(context)
-
-        if (authManager.isSignedIn() && !isGoogleFitConnected()) {
-            addGoogleFitAccount()
-        }
-    }
-
-    /**
-     * GoogleFitアカウントの期間設定を更新する
-     */
-    fun updateGoogleFitAccountPeriod(newPeriod: String) {
-        updateAccountState("googlefit_user") { account ->
-            when (account) {
-                is Account.GoogleFit -> account.copy(period = newPeriod) // lastSyncedAtはリセットしない
-                else -> account
-            }
-        }
-        Log.d("SessionManager", "Google Fitアカウントの期間を${newPeriod}に変更しました。")
     }
 }

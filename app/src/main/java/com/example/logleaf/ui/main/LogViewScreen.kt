@@ -419,7 +419,7 @@ fun LogViewPostCard(
                         }
                     }
 
-                    // ★ 本文表示：健康データか通常投稿かで分岐
+// ★ 本文表示：健康データか通常投稿かで分岐
                     if (post.isHealthData) {
                         Log.d("LogView", "健康データ判定：true")
                         Log.d("LogView", "ソース：${post.source}")
@@ -428,7 +428,7 @@ fun LogViewPostCard(
                             Log.d("LogView", "Fitbit分岐に入った")
                             FitbitHealthDisplay(postText = post.text, modifier = Modifier)
                         } else {
-                            Log.d("LogView", "GoogleFit分岐に入った")
+                            Log.d("LogView", "その他の健康データ分岐に入った")  // ← ログ修正
                             HealthPostDisplay(postText = post.text, modifier = Modifier)
                         }
                     } else {

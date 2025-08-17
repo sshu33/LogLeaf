@@ -33,9 +33,6 @@ class AccountViewModel(
     fun deleteAccountAndPosts(account: Account, deletePostsAlso: Boolean = true) {
         viewModelScope.launch {
             when (account) {
-                is Account.GoogleFit -> {
-                    // 既存のGoogle Fit処理
-                }
                 is Account.Fitbit -> {
                     if (deletePostsAlso) {
                         postDao.deletePostsByAccountId(account.userId)
@@ -88,13 +85,6 @@ class AccountViewModel(
         selectedRepos: List<String>
     ) {
         sessionManager.updateGitHubAccountRepositories(username, fetchMode, selectedRepos)
-    }
-
-    /**
-     * GoogleFitアカウントの期間設定を変更する
-     */
-    fun updateGoogleFitAccountPeriod(newPeriod: String) {
-        sessionManager.updateGoogleFitAccountPeriod(newPeriod)
     }
 
     /**

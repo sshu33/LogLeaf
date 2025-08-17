@@ -42,39 +42,36 @@ import com.example.logleaf.api.fitbit.FitbitAuthHolder
 import com.example.logleaf.api.github.GitHubApi
 import com.example.logleaf.api.mastodon.MastodonApi
 import com.example.logleaf.api.mastodon.MastodonAuthHolder
-import com.example.logleaf.auth.GoogleFitAuthManager
 import com.example.logleaf.data.session.SessionManager
-import com.example.logleaf.ui.font.FontSettingsManager
 import com.example.logleaf.db.AppDatabase
 import com.example.logleaf.ui.auth.BlueskyLoginViewModel
-import com.example.logleaf.ui.components.BottomNavigationBar
-import com.example.logleaf.ui.settings.AccountScreen
-import com.example.logleaf.ui.settings.AccountViewModel
-import com.example.logleaf.ui.settings.BackupSettingsScreen
 import com.example.logleaf.ui.auth.BlueskyViewModelFactory
 import com.example.logleaf.ui.auth.FitbitLoginScreen
-import com.example.logleaf.ui.main.CalendarScreen
-import com.example.logleaf.ui.settings.FontSettingsScreen
 import com.example.logleaf.ui.auth.GitHubLoginScreen
 import com.example.logleaf.ui.auth.GitHubLoginViewModel
-import com.example.logleaf.ui.auth.GoogleFitLoginScreen
 import com.example.logleaf.ui.auth.LoginScreen
 import com.example.logleaf.ui.auth.MastodonInstanceScreen
 import com.example.logleaf.ui.auth.MastodonInstanceViewModel
+import com.example.logleaf.ui.auth.SnsSelectScreen
+import com.example.logleaf.ui.components.BottomNavigationBar
+import com.example.logleaf.ui.font.FontSettingsManager
+import com.example.logleaf.ui.font.FontSettingsViewModel
+import com.example.logleaf.ui.main.CalendarScreen
 import com.example.logleaf.ui.main.SearchScreen
 import com.example.logleaf.ui.main.SearchViewModel
-import com.example.logleaf.ui.settings.SettingsScreen
-import com.example.logleaf.ui.auth.SnsSelectScreen
 import com.example.logleaf.ui.main.TimelineScreen
+import com.example.logleaf.ui.settings.AccountScreen
+import com.example.logleaf.ui.settings.AccountViewModel
+import com.example.logleaf.ui.settings.BackupSettingsScreen
+import com.example.logleaf.ui.settings.BasicSettingsScreen
+import com.example.logleaf.ui.settings.FontSettingsScreen
+import com.example.logleaf.ui.settings.SettingsScreen
 import com.example.logleaf.ui.theme.LogLeafTheme
 import com.example.logleaf.ui.widget.PostWidgetProvider
-import com.example.logleaf.ui.font.FontSettingsViewModel
-import com.example.logleaf.ui.settings.BasicSettingsScreen
 import com.leaf.logleaf.ui.entry.PostEntryDialog
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.time.ZoneId
-
 
 
 class MainActivity : ComponentActivity() {
@@ -151,11 +148,6 @@ fun AppEntry(
 ) {
     val context = LocalContext.current
     val sessionManager = remember { SessionManager(context.applicationContext) }
-
-    // ★ 起動時にGoogle Fit連携状態をチェックして自動でアカウント追加
-    LaunchedEffect(Unit) {
-        sessionManager.checkAndAddGoogleFitAccount(context)
-    }
 
     MainScreen(
         sessionManager = sessionManager,
@@ -416,13 +408,6 @@ fun MainScreen(
                 BasicSettingsScreen(
                     navController = navController,
                     mainViewModel = mainViewModel
-                )
-            }
-
-            composable("google_fit_login") {
-                GoogleFitLoginScreen(
-                    navController = navController,
-                    sessionManager = sessionManager // ← 追加
                 )
             }
 

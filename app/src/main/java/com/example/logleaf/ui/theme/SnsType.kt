@@ -10,6 +10,5 @@ enum class SnsType(val brandColor: Color) {
     MASTODON(brandColor = Color(0xFFb589c3)), // Mastodonのテーマカラー（例：紫色）
     LOGLEAF(brandColor = Color(0xFFb4d95f)),
     GITHUB(brandColor = Color(0xFF8d8d8d)),  // GitHubの黒
-    FITBIT(brandColor = Color(0xFFec909f)),
-    GOOGLEFIT(brandColor = Color(0xFFffffff)),
+    FITBIT(brandColor = Color(0xFFec909f))
 }

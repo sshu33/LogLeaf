@@ -22,7 +22,10 @@ class Converters {
 
     @TypeConverter
     fun fromSnsType(value: String): SnsType {
-        return SnsType.valueOf(value)
+        return when (value) {
+            "GOOGLEFIT" -> SnsType.FITBIT
+            else -> SnsType.valueOf(value)
+        }
     }
 
     @TypeConverter
