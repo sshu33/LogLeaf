@@ -34,12 +34,12 @@ class AccountViewModel(
         viewModelScope.launch {
             when (account) {
                 is Account.GoogleFit -> {
-                    // Google Fit専用処理
+                    // 既存のGoogle Fit処理
+                }
+                is Account.Fitbit -> {  // ← この条件を追加
                     if (deletePostsAlso) {
-                        // Google Fitの投稿のみ削除
-                        postDao.deletePostsByAccountId(account.userId) // "googlefit_user"
+                        postDao.deletePostsByAccountId(account.userId)
                     }
-                    // Google Fit連携解除
                     sessionManager.deleteAccount(account)
                 }
                 else -> {

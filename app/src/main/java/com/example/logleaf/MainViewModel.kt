@@ -314,7 +314,9 @@ class MainViewModel(
                 val hasFitbit = accountsToFetch.any { it is Account.Fitbit }
                 if (hasFitbit) {
                     Log.d("Fitbit", "Fitbitアカウントを検出、データ同期開始")
-                    syncFitbitData()
+                    val fitbitAccount = accountsToFetch.find { it is Account.Fitbit } as Account.Fitbit
+                    clearFitbitHistory(fitbitAccount.userId) // ← この行を追加
+                    fetchFitbitHistoryData(fitbitAccount.userId) {}
                 }
 
                 val postLists = accountsToFetch.map { account ->
@@ -2256,9 +2258,29 @@ ${sleepData.startTime} → ${sleepData.endTime} (${sleepData.duration})
                 }
 
                 // 取得可能期間を計算
+// 取得可能期間を計算
                 val availablePeriod = historyManager.getAvailablePeriod(userId)
                 if (availablePeriod == null) {
-                    Log.d("Fitbit", "取得可能な期間がありません: $userId")
+                    // 初回取得の場合：デフォルト2ヶ月期間を使用
+                    val endDate = LocalDate.now()
+                    val startDate = endDate.minusMonths(2)
+                    Log.d("Fitbit", "初回取得: $startDate ～ $endDate")
+
+                    // 以下は既存のコードと同じ処理を実行
+                    historyManager.setLastHistoryFetchTime(userId)
+                    syncFitbitSleepDataRange(startDate, endDate, fitbitAccount)
+
+                    var currentDate = startDate
+                    var apiCallCount = 0
+                    while (!currentDate.isAfter(endDate) && apiCallCount < 120) {
+                        syncFitbitActivityData(currentDate, fitbitAccount)
+                        apiCallCount++
+                        delay(100)
+                        currentDate = currentDate.plusDays(1)
+                    }
+
+                    historyManager.recordHistoryPeriod(userId, startDate)
+                    Log.d("Fitbit", "初回取得完了: $startDate ～ $endDate (API: $apiCallCount 回)")
                     onComplete()
                     return@launch
                 }
@@ -2309,14 +2331,6 @@ ${sleepData.startTime} → ${sleepData.endTime} (${sleepData.duration})
             }
         }
     }
-    /**
-     * 初回連携時の期間記録
-     */
-    private suspend fun recordInitialFitbitPeriod(userId: String, startDate: LocalDate, endDate: LocalDate) {
-        val context = getApplication<Application>().applicationContext
-        val historyManager = FitbitHistoryManager(context)
-        historyManager.recordInitialPeriod(userId, startDate, endDate)
-    }
 
     // 既存の syncFitbitData メソッドも修正が必要
     fun syncFitbitData(targetDate: LocalDate? = null) {
@@ -2332,44 +2346,27 @@ ${sleepData.startTime} → ${sleepData.endTime} (${sleepData.duration})
 
                 Log.d("Fitbit", "データ同期開始")
 
-                // 取得範囲を決定
-                val endDate = targetDate ?: LocalDate.now()
-                val startDate = if (targetDate != null) {
-                    // 単発指定の場合は1日のみ
-                    targetDate
-                } else {
-                    // 初回または再連携の場合は2ヶ月分
-                    endDate.minusMonths(2)
-                }
+                // 指定日のデータのみ取得（シンプル版）
+                val today = targetDate ?: LocalDate.now()
 
-                Log.d("Fitbit", "取得期間: $startDate ～ $endDate")
+                // 睡眠データ同期
+                syncFitbitSleepData(today, fitbitAccount)
 
-                // 睡眠データ：期間一括取得（1回のAPI）
-                syncFitbitSleepDataRange(startDate, endDate, fitbitAccount)
+                // アクティビティデータ同期
+                syncFitbitActivityData(today, fitbitAccount)
 
-                // 健康データ・運動データ：日別取得
-                var currentDate = startDate
-                var apiCallCount = 0
-                val maxApiCalls = 120
-
-                while (!currentDate.isAfter(endDate) && apiCallCount < maxApiCalls) {
-                    syncFitbitActivityData(currentDate, fitbitAccount)
-                    apiCallCount++
-                    delay(100)
-                    currentDate = currentDate.plusDays(1)
-                }
-
-                // ★ 初回期間を記録
-                if (targetDate == null) {
-                    recordInitialFitbitPeriod(fitbitAccount.userId, startDate, endDate)
-                }
-
-                sessionManager.updateLastSyncedAt(fitbitAccount.userId, ZonedDateTime.now())
-                Log.d("Fitbit", "データ同期完了: $startDate ～ $endDate (API: $apiCallCount 回)")
+                Log.d("Fitbit", "データ同期完了")
 
             } catch (e: Exception) {
                 Log.e("Fitbit", "データ同期エラー", e)
             }
         }
+    }
+
+    fun clearFitbitHistory(userId: String) {
+        val context = getApplication<Application>().applicationContext
+        val historyManager = FitbitHistoryManager(context)
+        historyManager.clearAllData(userId)
+        Log.d("Fitbit", "履歴制限をクリア: $userId")
     }
 }

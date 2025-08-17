@@ -10,10 +10,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,21 +26,21 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavController
-import com.example.logleaf.data.model.Account
-import com.example.logleaf.api.github.GitHubRepository
 import com.example.logleaf.MainViewModel
 import com.example.logleaf.R
+import com.example.logleaf.api.github.GitHubRepository
+import com.example.logleaf.data.model.Account
 import com.example.logleaf.data.session.FitbitHistoryManager
 import com.example.logleaf.ui.components.CustomTopAppBar
 import com.example.logleaf.ui.components.ListCard
 import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
-import com.google.firebase.dataconnect.LocalDate
 import com.yourpackage.logleaf.ui.components.UserFontText
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,6 +57,7 @@ fun AccountScreen(
     var mastodonAccountToEdit by remember { mutableStateOf<Account.Mastodon?>(null) }
     var githubAccountToEdit by remember { mutableStateOf<Account.GitHub?>(null) }
     var googleFitAccountToEdit by remember { mutableStateOf<Account.GoogleFit?>(null) }
+    var fitbitAccountToEdit by remember { mutableStateOf<Account.Fitbit?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
 
@@ -84,19 +84,10 @@ fun AccountScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(accounts) { account ->
-                            // ★ Fitbitアカウントかどうかで分岐
                             when (account) {
-                                is Account.Fitbit -> {
-                                    // Fitbit専用のUIコンポーネント
-                                    FitbitAccountItem(
-                                        account = account,
-                                        viewModel = viewModel,
-                                        mainViewModel = mainViewModel,
-                                        onDeleteClick = { accountToDelete = account }
-                                    )
-                                }
+                                // Fitbit用の分岐を削除し、通常のListCardに統合
                                 else -> {
-                                    // 既存のListCard（他のアカウント用）
+                                    // 既存のListCard（全てのアカウント用に統一）
                                     ListCard(
                                         onClick = {
                                             when {
@@ -124,6 +115,9 @@ fun AccountScreen(
                                                 }
                                                 account is Account.GoogleFit -> {
                                                     googleFitAccountToEdit = account
+                                                }
+                                                account is Account.Fitbit -> {
+                                                    fitbitAccountToEdit = account  // ← 追加
                                                 }
                                             }
                                         }
@@ -166,30 +160,16 @@ fun AccountScreen(
                                                     tint = MaterialTheme.colorScheme.primary,
                                                     modifier = Modifier.size(24.dp)
                                                 )
-
-                                                // GoogleFitの場合はゴミ箱アイコンも表示
-                                                if (account is Account.GoogleFit) {
-                                                    Spacer(Modifier.width(8.dp))
-                                                    Icon(
-                                                        painter = painterResource(id = R.drawable.ic_delete),
-                                                        contentDescription = "削除",
-                                                        tint = MaterialTheme.colorScheme.error,
-                                                        modifier = Modifier
-                                                            .size(32.dp)
-                                                            .clickable { accountToDelete = account }
-                                                            .padding(4.dp)
-                                                    )
-                                                }
                                             }
                                         } else {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Switch(
                                                     checked = account.isVisible,
-                                                    onCheckedChange = { viewModel.toggleAccountVisibility(account.userId) }
+                                                    onCheckedChange = {
+                                                        viewModel.toggleAccountVisibility(account.userId)
+                                                    }
                                                 )
-
                                                 Spacer(Modifier.width(8.dp))
-
                                                 Icon(
                                                     painter = painterResource(id = R.drawable.ic_delete),
                                                     contentDescription = "削除",
@@ -289,6 +269,15 @@ fun AccountScreen(
         )
     }
 
+    // Fitbitメニューダイアログ
+    fitbitAccountToEdit?.let { account ->
+        FitbitMenuDialog(
+            account = account,
+            mainViewModel = mainViewModel,
+            onDismiss = { fitbitAccountToEdit = null }
+        )
+    }
+
     // 削除確認ダイアログ
     accountToDelete?.let { account ->
         DeleteDialog(
@@ -311,7 +300,7 @@ fun DeleteDialog(
 ) {
     var deletePostsAlso by remember { mutableStateOf(false) }
 
-    val isGoogleFit = account is Account.GoogleFit
+    val isConnectedAccount = account is Account.GoogleFit || account is Account.Fitbit
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -334,7 +323,7 @@ fun DeleteDialog(
             ) {
                 // タイトル
                 UserFontText(
-                    text = if (isGoogleFit) "連携解除" else "アカウントの削除",
+                    text = if (isConnectedAccount) "連携解除" else "アカウントの削除",
                     style = MaterialTheme.typography.headlineSmall.copy(
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 24.sp
@@ -344,7 +333,7 @@ fun DeleteDialog(
                 )
 
                 // アカウント名（Google Fit以外のみ）
-                if (!isGoogleFit) {
+                if (!isConnectedAccount) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -365,7 +354,7 @@ fun DeleteDialog(
 
                 // 説明文
                 UserFontText(
-                    text = if (isGoogleFit)
+                    text = if (isConnectedAccount)
                         "新しい健康データの取得が\n停止されます"
                     else
                         "OKを押すと\nすべてのポストが削除されます",
@@ -376,7 +365,7 @@ fun DeleteDialog(
                 )
 
                 // Google Fit用オプション
-                if (isGoogleFit) {
+                if (isConnectedAccount) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -446,8 +435,8 @@ fun DeleteDialog(
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isGoogleFit)
-                                SnsType.GOOGLEFIT.brandColor
+                            containerColor = if (isConnectedAccount)
+                                account.snsType.brandColor
                             else
                                 account.snsType.brandColor // 各アカウントのブランドカラー
                         ),
@@ -983,11 +972,10 @@ fun GoogleFitPeriodDialog(
 }
 
 @Composable
-fun FitbitAccountItem(
+fun FitbitMenuDialog(
     account: Account.Fitbit,
-    viewModel: AccountViewModel,
     mainViewModel: MainViewModel,
-    onDeleteClick: () -> Unit
+    onDismiss: () -> Unit
 ) {
     var isHistoryFetching by remember { mutableStateOf(false) }
     var remainingTime by remember { mutableStateOf("") }
@@ -1002,134 +990,127 @@ fun FitbitAccountItem(
             val canFetch = historyManager.canFetchHistory(account.userId)
             remainingTime = if (canFetch) "" else historyManager.formatRemainingTime(account.userId)
             availablePeriod = historyManager.getAvailablePeriod(account.userId)
-
-            delay(1000) // 1秒ごとに更新
+            delay(1000)
         }
     }
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Column(
+        Card(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
+                .wrapContentHeight()
+                .widthIn(min = 300.dp, max = 300.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            shape = RoundedCornerShape(16.dp)
         ) {
-            // アカウント情報表示
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),  // 24.dp → 20.dpに変更済み
+                horizontalAlignment = Alignment.CenterHorizontally  // 中央配置追加
             ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_fitbit),
-                    contentDescription = "Fitbit",
-                    tint = SnsType.FITBIT.brandColor,
-                    modifier = Modifier.size(26.dp)
-                )
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
+                // ヘッダー
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_fitbit),
+                        contentDescription = "Fitbit",
+                        tint = SnsType.FITBIT.brandColor,
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
                     Text(
                         text = account.displayName,
-                        style = MaterialTheme.typography.bodyLarge
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
                     )
                 }
 
-                // 表示切り替えスイッチ
-                Switch(
-                    checked = account.isVisible,
-                    onCheckedChange = { viewModel.toggleAccountVisibility(account.userId) }
-                )
+                Spacer(modifier = Modifier.height(24.dp))
 
-                Spacer(modifier = Modifier.width(8.dp))
+                // 取得可能期間表示
+                if (availablePeriod != null) {
+                    val (startDate, endDate) = availablePeriod!!
+                    val formatter = DateTimeFormatter.ofPattern("yyyy/M/d")
 
-                // 削除ボタン
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_delete),
-                    contentDescription = "削除",
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clickable { onDeleteClick() }
-                        .padding(4.dp)
-                )
-            }
+                    Text(
+                        text = "取得可能期間",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,  // Medium → Bold
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))  // 8.dp → 12.dpに変更
+                    Text(
+                        text = "${startDate.format(formatter)}〜${endDate.format(formatter)}",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Text(
+                        text = "※最古のデータより2ヶ月分を取得します",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    Spacer(modifier = Modifier.height(20.dp))
+                }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                // 過去データ取得ボタン
+                val canFetch = historyManager.canFetchHistory(account.userId) && availablePeriod != null
 
-            // 取得可能期間表示
-            if (availablePeriod != null) {
-                val (startDate, endDate) = availablePeriod!!
-                val formatter = DateTimeFormatter.ofPattern("yyyy/M/d")
-
-                Text(
-                    text = "取得可能期間",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                )
-                Text(
-                    text = "${startDate.format(formatter)}〜${endDate.format(formatter)}",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-
-            // 過去データ取得ボタン
-            val canFetch = historyManager.canFetchHistory(account.userId) && availablePeriod != null
-
-            Button(
-                onClick = {
-                    if (canFetch && !isHistoryFetching) {
-                        isHistoryFetching = true
-                        // 過去データ取得処理
-                        mainViewModel.fetchFitbitHistoryData(account.userId) {
-                            isHistoryFetching = false
+                Button(
+                    onClick = {
+                        if (canFetch && !isHistoryFetching) {
+                            isHistoryFetching = true
+                            mainViewModel.fetchFitbitHistoryData(account.userId) {
+                                isHistoryFetching = false
+                            }
+                        }
+                    },
+                    enabled = canFetch && !isHistoryFetching,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (canFetch) SnsType.FITBIT.brandColor else Color.LightGray,
+                        disabledContainerColor = Color.LightGray
+                    )
+                ) {
+                    when {
+                        isHistoryFetching -> {
+                            CircularProgressIndicator(
+                                color = Color.White,
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("取得中...")
+                        }
+                        canFetch -> {
+                            Text("過去データを取得")
+                        }
+                        availablePeriod == null -> {
+                            Text("取得可能なデータがありません")
+                        }
+                        else -> {
+                            Text("過去データを取得 (残り $remainingTime)")
                         }
                     }
-                },
-                enabled = canFetch && !isHistoryFetching,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (canFetch) SnsType.FITBIT.brandColor else Color.Gray,
-                    disabledContainerColor = Color.Gray
-                )
-            ) {
-                when {
-                    isHistoryFetching -> {
-                        CircularProgressIndicator(
-                            color = Color.White,
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("取得中...")
-                    }
-                    canFetch -> {
-                        Text("過去データを取得")
-                    }
-                    availablePeriod == null -> {
-                        Text("取得可能なデータがありません")
-                    }
-                    else -> {
-                        Text("過去データを取得 (残り $remainingTime)")
-                    }
                 }
-            }
 
-            // 注意書き
-            if (availablePeriod != null) {
-                Text(
-                    text = "※最古のデータより2ヶ月分を取得します",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                    modifier = Modifier.padding(top = 8.dp)
-                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // 閉じるボタン
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "閉じる",
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
             }
         }
     }

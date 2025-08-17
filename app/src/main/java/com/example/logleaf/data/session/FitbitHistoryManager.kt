@@ -102,7 +102,7 @@ class FitbitHistoryManager(private val context: Context) {
     fun getAvailablePeriod(userId: String): Pair<LocalDate, LocalDate>? {
         val oldestDate = getOldestDataDate(userId) ?: return null
         val endDate = oldestDate.minusDays(1) // 最古データの前日まで
-        val startDate = endDate.minusMonths(2) // 2ヶ月前から
+        val startDate = endDate.minusMonths(1) // 1ヶ月前から
 
         return Pair(startDate, endDate)
     }
