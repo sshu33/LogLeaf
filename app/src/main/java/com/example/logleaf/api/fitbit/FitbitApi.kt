@@ -178,10 +178,14 @@ class FitbitApi(private val sessionManager: SessionManager) {
 
             if (response.status.isSuccess()) {
                 val responseText = response.body<String>()
+                Log.d("FitbitApi", "アクティビティレスポンス内容: $responseText") // ← 追加
+
                 val fitbitResponse = Json { ignoreUnknownKeys = true }
                     .decodeFromString<FitbitActivityResponse>(responseText)
 
-                Log.d("FitbitApi", "アクティビティデータ取得成功: $date")
+                Log.d("FitbitApi", "steps: ${fitbitResponse.summary.steps}") // ← 追加
+                Log.d("FitbitApi", "calories: ${fitbitResponse.summary.caloriesOut}") // ← 追加
+
                 parseActivityData(fitbitResponse)
             } else {
                 Log.e("FitbitApi", "アクティビティデータ取得エラー: ${response.status}")
@@ -306,18 +310,25 @@ class FitbitApi(private val sessionManager: SessionManager) {
     }
 
     private fun parseActivityData(response: FitbitActivityResponse): ActivityData? {
-        val summary = response.summary
+        Log.d("FitbitApi", "parseActivityData呼出")
+        Log.d("FitbitApi", "steps: ${response.summary.steps}")
 
-        if (summary.steps == null && summary.caloriesOut == null) {
+        val summary = response.summary
+        val totalDistance = summary.distances?.find { it.activity == "total" }?.distance
+
+        val steps = summary.steps ?: 0
+        val calories = summary.caloriesOut ?: 0
+
+// 歩数が0以下の場合はnullを返す（データなし判定）
+        if (steps <= 0) {
+            Log.d("FitbitApi", "歩数0以下なのでnullを返す")
             return null
         }
 
-        // 距離データ（総距離を取得）
-        val totalDistance = summary.distances?.find { it.activity == "total" }?.distance
-
+        Log.d("FitbitApi", "ActivityData作成")
         return ActivityData(
-            steps = summary.steps ?: 0,
-            calories = summary.caloriesOut ?: 0,
+            steps = steps,
+            calories = calories,
             distance = totalDistance
         )
     }

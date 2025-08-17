@@ -2161,8 +2161,10 @@ ${sleepData.startTime} → ${sleepData.endTime} (${sleepData.duration})
             Log.e("DEBUG", "date: $date")
 
             val activityData = fitbitApi.getActivityData(account.accessToken, date)
+            Log.d("DEBUG", "activityData結果: $activityData")
 
             if (activityData != null && (activityData.steps > 0 || activityData.calories > 0)) {
+                Log.d("DEBUG", "投稿作成実行")
                 val timeSettings = timeSettingsRepository.timeSettings.first()
 
                 Log.e("DEBUG", "timeSettings: ${timeSettings.dayStartHour}:${timeSettings.dayStartMinute}")
@@ -2204,6 +2206,8 @@ ${sleepData.startTime} → ${sleepData.endTime} (${sleepData.duration})
                 // ★ タグ付きで保存
                 val activityTags = listOf("歩数", "カロリー")
                 insertFitbitPostWithTags(activityPost, activityTags)
+            } else {
+                Log.d("DEBUG", "投稿作成スキップ")
             }
         } catch (e: Exception) {
             Log.e("Fitbit", "アクティビティデータ同期エラー", e)
@@ -2443,8 +2447,7 @@ ${sleepData.startTime} → ${sleepData.endTime} (${sleepData.duration})
 
             insertFitbitPostWithTags(dummySleepPost, listOf("睡眠"))
             insertFitbitPostWithTags(dummyActivityPost, listOf("歩数", "カロリー"))
-            val exerciseType = extractValue(dummyExercisePost.text, "運動:\\s*([^\\n]+)") ?: "運動"
-            insertFitbitPostWithTags(dummyExercisePost, listOf(exerciseType))
+            insertFitbitPostWithTags(dummyExercisePost, listOf("運動")) // ← この行を追加
 
             Log.d("Fitbit", "ダミーポスト作成完了")
         }

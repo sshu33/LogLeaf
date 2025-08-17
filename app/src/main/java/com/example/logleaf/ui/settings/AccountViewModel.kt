@@ -36,7 +36,7 @@ class AccountViewModel(
                 is Account.GoogleFit -> {
                     // 既存のGoogle Fit処理
                 }
-                is Account.Fitbit -> {  // ← この条件を追加
+                is Account.Fitbit -> {
                     if (deletePostsAlso) {
                         postDao.deletePostsByAccountId(account.userId)
                     }
