@@ -2443,7 +2443,8 @@ ${sleepData.startTime} → ${sleepData.endTime} (${sleepData.duration})
 
             insertFitbitPostWithTags(dummySleepPost, listOf("睡眠"))
             insertFitbitPostWithTags(dummyActivityPost, listOf("歩数", "カロリー"))
-            insertFitbitPostWithTags(dummyExercisePost, listOf("運動")) // ← この行を追加
+            val exerciseType = extractValue(dummyExercisePost.text, "運動:\\s*([^\\n]+)") ?: "運動"
+            insertFitbitPostWithTags(dummyExercisePost, listOf(exerciseType))
 
             Log.d("Fitbit", "ダミーポスト作成完了")
         }

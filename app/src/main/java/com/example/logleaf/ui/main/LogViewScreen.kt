@@ -76,7 +76,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
@@ -90,16 +89,13 @@ import coil.compose.AsyncImage
 import com.example.logleaf.R
 import com.example.logleaf.data.model.PostWithTagsAndImages
 import com.example.logleaf.data.model.UiPost
-import com.example.logleaf.ui.components.CompactHealthView
 import com.example.logleaf.ui.components.FitbitHealthDisplay
-import com.example.logleaf.ui.components.HealthDetailView
 import com.example.logleaf.ui.components.HealthPostDisplay
 import com.example.logleaf.ui.components.SmartTagDisplay
 import com.example.logleaf.ui.entry.PostImage
 import com.example.logleaf.ui.entry.Tag
 import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
-import com.example.logleaf.utils.GoogleFitUtils
 import com.yourpackage.logleaf.ui.components.HyperlinkUserFontText
 import com.yourpackage.logleaf.ui.components.UserFontText
 import kotlinx.coroutines.CoroutineScope

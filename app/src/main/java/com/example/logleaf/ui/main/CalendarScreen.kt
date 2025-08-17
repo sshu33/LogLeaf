@@ -94,9 +94,8 @@ import com.example.logleaf.data.model.Post
 import com.example.logleaf.data.model.PostWithTagsAndImages
 import com.example.logleaf.data.model.UiPost
 import com.example.logleaf.data.settings.TimeSettings
+import com.example.logleaf.ui.components.CompactFitbitHealthView
 import com.example.logleaf.ui.components.CompactHealthView
-import com.example.logleaf.ui.components.FitbitHealthDisplay
-import com.example.logleaf.ui.components.HealthPostDisplay
 import com.example.logleaf.ui.entry.PostImage
 import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
@@ -789,7 +788,7 @@ fun CalendarPostCardItem(
                     // 健康データかどうかで表示を分岐
                     if (post.isHealthData) {
                         if (post.source == SnsType.FITBIT) {
-                            FitbitHealthDisplay(postText = post.text, modifier = Modifier)
+                            CompactFitbitHealthView(postText = post.text, modifier = Modifier)  // ← 新しいコンパクト版
                         } else {
                             CompactHealthView(postText = post.text, modifier = Modifier)
                         }
