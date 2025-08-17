@@ -14,8 +14,7 @@ import androidx.compose.ui.unit.dp
 import com.yourpackage.logleaf.ui.components.UserFontText
 
 /**
- * Fitbit専用のコンパクト健康データ表示（カレンダー用）
- * Google FitのCompactHealthViewと完全同じUI
+ * Fitbit専用のコンパクト健康データ表示
  */
 @Composable
 fun CompactFitbitHealthView(
@@ -26,8 +25,8 @@ fun CompactFitbitHealthView(
     Log.d("CompactFitbit", "postText: ${postText.take(100)}")
 
     when {
-        postText.contains("💤 睡眠記録") -> {
-            Log.d("CompactFitbit", "睡眠記録マッチ！")
+        postText.contains("💤 睡眠記録") || postText.contains("😴 仮眠記録") -> {
+            Log.d("CompactFitbit", "睡眠/仮眠記録マッチ！")
             CompactFitbitSleepDisplay(postText = postText, modifier = modifier)
         }
 
@@ -53,7 +52,7 @@ fun CompactFitbitHealthView(
 }
 
 /**
- * コンパクト睡眠データ表示（Google Fitと同じ）
+ * コンパクト睡眠データ表示
  */
 @Composable
 private fun CompactFitbitSleepDisplay(
@@ -88,7 +87,7 @@ private fun CompactFitbitSleepDisplay(
 }
 
 /**
- * コンパクト運動データ表示（Google Fitと同じ）
+ * コンパクト運動データ表示
  */
 @Composable
 private fun CompactFitbitExerciseDisplay(
@@ -120,7 +119,7 @@ private fun CompactFitbitExerciseDisplay(
 }
 
 /**
- * コンパクトアクティビティデータ表示（Google Fitと同じ）
+ * コンパクトアクティビティデータ表示
  */
 @Composable
 private fun CompactFitbitActivityDisplay(

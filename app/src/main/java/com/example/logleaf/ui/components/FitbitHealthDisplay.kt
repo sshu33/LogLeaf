@@ -37,8 +37,8 @@ fun FitbitHealthDisplay(
     Log.d("FitbitDisplay", "postText: ${postText.take(100)}")
 
     when {
-        postText.contains("💤 睡眠記録") -> {
-            Log.d("FitbitDisplay", "睡眠記録マッチ！")
+        postText.contains("💤 睡眠記録") || postText.contains("😴 仮眠記録") -> {
+            Log.d("FitbitDisplay", "睡眠/仮眠記録マッチ！")
             FitbitSleepDisplay(postText = postText, modifier = modifier)
         }
 

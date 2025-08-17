@@ -124,7 +124,7 @@ class FitbitApi(private val sessionManager: SessionManager) {
     /**
      * 睡眠データを取得（詳細情報含む）
      */
-    suspend fun getSleepData(accessToken: String, date: LocalDate): SleepData? {
+    suspend fun getSleepData(accessToken: String, date: LocalDate): Pair<SleepData?, NapData?>? {
         return try {
             val dateStr = date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
 
@@ -146,7 +146,11 @@ class FitbitApi(private val sessionManager: SessionManager) {
                     .decodeFromString<FitbitSleepResponse>(responseText)
 
                 Log.d("FitbitApi", "睡眠データ取得成功: $date")
-                parseSleepData(fitbitResponse)
+                if (fitbitResponse.sleep.isNotEmpty()) {
+                    parseSleepDataFromRecord(fitbitResponse.sleep.first())
+                } else {
+                    Pair(null, null)
+                }
             } else {
                 Log.e("FitbitApi", "睡眠データ取得エラー: ${response.status}")
                 null
@@ -160,7 +164,7 @@ class FitbitApi(private val sessionManager: SessionManager) {
     /**
      * アクティビティデータを取得
      */
-    suspend fun getActivityData(accessToken: String, date: LocalDate): ActivityData? {
+    suspend fun getActivityData(accessToken: String, date: LocalDate): Pair<ActivityData?, List<ExerciseData>>? {
         return try {
             val dateStr = date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
 
@@ -178,21 +182,21 @@ class FitbitApi(private val sessionManager: SessionManager) {
 
             if (response.status.isSuccess()) {
                 val responseText = response.body<String>()
-                Log.d("FitbitApi", "アクティビティレスポンス内容: $responseText") // ← 追加
+                Log.d("FitbitApi", "アクティビティレスポンス内容: $responseText")
 
                 val fitbitResponse = Json { ignoreUnknownKeys = true }
                     .decodeFromString<FitbitActivityResponse>(responseText)
 
-                Log.d("FitbitApi", "steps: ${fitbitResponse.summary.steps}") // ← 追加
-                Log.d("FitbitApi", "calories: ${fitbitResponse.summary.caloriesOut}") // ← 追加
+                Log.d("FitbitApi", "steps: ${fitbitResponse.summary.steps}")
+                Log.d("FitbitApi", "calories: ${fitbitResponse.summary.caloriesOut}")
 
-                parseActivityData(fitbitResponse)
+                parseActivityData(fitbitResponse)  // ← これでPairが返される
             } else {
                 Log.e("FitbitApi", "アクティビティデータ取得エラー: ${response.status}")
                 null
             }
         } catch (e: Exception) {
-            Log.e("FitbitApi", "アクティビティデータ取得エラー: $date", e)
+            Log.e("FitbitApi", "アクティビティデータ取得例外", e)
             null
         }
     }
@@ -214,13 +218,13 @@ class FitbitApi(private val sessionManager: SessionManager) {
     @Serializable
     data class FitbitSleepData(
         val dateOfSleep: String,
-        val duration: Long,
-        val efficiency: Int,
         val startTime: String,
         val endTime: String,
+        val duration: Long,
+        val efficiency: Int,
+        val isMainSleep: Boolean,  // ← 追加
         val levels: FitbitSleepLevels? = null
     )
-
     @Serializable
     data class FitbitSleepLevels(
         val summary: FitbitSleepSummary? = null
@@ -241,8 +245,10 @@ class FitbitApi(private val sessionManager: SessionManager) {
 
     @Serializable
     data class FitbitActivityResponse(
-        val summary: FitbitActivitySummary
+        val summary: FitbitActivitySummary,
+        val activities: List<FitbitExercise> = emptyList()  // ← 追加
     )
+
 
     @Serializable
     data class FitbitActivitySummary(
@@ -255,6 +261,37 @@ class FitbitApi(private val sessionManager: SessionManager) {
     data class FitbitDistance(
         val activity: String,
         val distance: Double
+    )
+
+    @Serializable
+    data class FitbitExercise(
+        val activityName: String,
+        val startTime: String,
+        val duration: Long,
+        val calories: Int? = null,
+        val distance: Double? = null,
+        val logType: String? = null
+    )
+
+    // 運動データ用のデータクラス
+    data class ExerciseData(
+        val name: String,
+        val startTime: String,
+        val duration: String,
+        val calories: Int? = null,
+        val distance: Double? = null
+    )
+
+    // 仮眠データ用のデータクラス
+    data class NapData(
+        val startTime: String,
+        val endTime: String,
+        val duration: String,
+        val deepSleep: Int = 0,
+        val lightSleep: Int = 0,
+        val remSleep: Int = 0,
+        val awakeSleep: Int = 0,
+        val efficiency: Int = 0
     )
 
     // シンプルなデータクラス
@@ -309,9 +346,10 @@ class FitbitApi(private val sessionManager: SessionManager) {
         )
     }
 
-    private fun parseActivityData(response: FitbitActivityResponse): ActivityData? {
+    private fun parseActivityData(response: FitbitActivityResponse): Pair<ActivityData?, List<ExerciseData>> {
         Log.d("FitbitApi", "parseActivityData呼出")
         Log.d("FitbitApi", "steps: ${response.summary.steps}")
+        Log.d("FitbitApi", "activities count: ${response.activities.size}")
 
         val summary = response.summary
         val totalDistance = summary.distances?.find { it.activity == "total" }?.distance
@@ -319,18 +357,40 @@ class FitbitApi(private val sessionManager: SessionManager) {
         val steps = summary.steps ?: 0
         val calories = summary.caloriesOut ?: 0
 
-// 歩数が0以下の場合はnullを返す（データなし判定）
-        if (steps <= 0) {
-            Log.d("FitbitApi", "歩数0以下なのでnullを返す")
-            return null
+        // 健康データ処理（既存ロジック）
+        val activityData = if (steps > 0) {
+            Log.d("FitbitApi", "ActivityData作成")
+            ActivityData(
+                steps = steps,
+                calories = calories,
+                distance = totalDistance
+            )
+        } else {
+            Log.d("FitbitApi", "歩数0以下なのでActivityDataはnull")
+            null
         }
 
-        Log.d("FitbitApi", "ActivityData作成")
-        return ActivityData(
-            steps = steps,
-            calories = calories,
-            distance = totalDistance
-        )
+        // 運動データ処理（新規追加）
+        val exerciseData = response.activities.map { exercise ->
+            Log.d("FitbitApi", "運動データ: ${exercise.activityName} at ${exercise.startTime}")
+            ExerciseData(
+                name = exercise.activityName,
+                startTime = exercise.startTime,
+                duration = formatExerciseDuration(exercise.duration),
+                calories = exercise.calories,
+                distance = exercise.distance
+            )
+        }
+
+        Log.d("FitbitApi", "運動データ${exerciseData.size}件作成")
+        return Pair(activityData, exerciseData)
+    }
+
+    private fun formatExerciseDuration(milliseconds: Long): String {
+        val totalMinutes = milliseconds / (1000 * 60)
+        val hours = totalMinutes / 60
+        val minutes = totalMinutes % 60
+        return if (hours > 0) "${hours}時間${minutes}分" else "${minutes}分"
     }
 
     private fun formatTime(timeString: String): String {
@@ -356,7 +416,8 @@ class FitbitApi(private val sessionManager: SessionManager) {
         accessToken: String,
         startDate: LocalDate,
         endDate: LocalDate
-    ): Map<LocalDate, SleepData>? {
+    ): Pair<Map<LocalDate, SleepData>, Map<LocalDate, NapData>>? {
+
         return try {
             val startDateStr = startDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
             val endDateStr = endDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
@@ -385,15 +446,24 @@ class FitbitApi(private val sessionManager: SessionManager) {
 
                 // 日付ごとにマップ化
                 val sleepDataMap = mutableMapOf<LocalDate, SleepData>()
+                val napDataMap = mutableMapOf<LocalDate, NapData>()
+
                 fitbitResponse.sleep.forEach { sleepRecord ->
-                    val sleepData = parseSleepDataFromRecord(sleepRecord)
+                    val (sleepData, napData) = parseSleepDataFromRecord(sleepRecord)
+                    val date = LocalDate.parse(sleepRecord.dateOfSleep)
+
                     if (sleepData != null) {
-                        val date = LocalDate.parse(sleepRecord.dateOfSleep)
                         sleepDataMap[date] = sleepData
+                    }
+
+                    // 仮眠データの処理（実装）
+                    if (napData != null) {
+                        napDataMap[date] = napData  // ← 仮眠データも保存
+                        Log.d("FitbitApi", "仮眠データ検出: $date")
                     }
                 }
 
-                sleepDataMap
+                Pair(sleepDataMap, napDataMap)
             } else {
                 Log.e("FitbitApi", "睡眠データ期間取得エラー: ${response.status}")
                 null
@@ -407,7 +477,7 @@ class FitbitApi(private val sessionManager: SessionManager) {
     /**
      * 個別の睡眠記録からSleepDataを生成
      */
-    private fun parseSleepDataFromRecord(sleep: FitbitSleepData): SleepData? {
+    private fun parseSleepDataFromRecord(sleep: FitbitSleepData): Pair<SleepData?, NapData?> {
         return try {
             // 時間をフォーマット
             val startTime = formatTime(sleep.startTime)
@@ -424,21 +494,38 @@ class FitbitApi(private val sessionManager: SessionManager) {
             val actualSleepMinutes = deepSleep + lightSleep + remSleep
             val hours = actualSleepMinutes / 60
             val minutes = actualSleepMinutes % 60
-            val actualDuration = "${hours}h${minutes}m"
+            val actualDuration = "${hours}時間${minutes}分"
 
-            SleepData(
-                startTime = startTime,
-                endTime = endTime,
-                duration = actualDuration,
-                deepSleep = deepSleep,
-                lightSleep = lightSleep,
-                remSleep = remSleep,
-                awakeSleep = awakeSleep,
-                efficiency = sleep.efficiency
-            )
+            if (sleep.isMainSleep) {
+                // メイン睡眠
+                val sleepData = SleepData(
+                    startTime = startTime,
+                    endTime = endTime,
+                    duration = actualDuration,
+                    deepSleep = deepSleep,
+                    lightSleep = lightSleep,
+                    remSleep = remSleep,
+                    awakeSleep = awakeSleep,
+                    efficiency = sleep.efficiency
+                )
+                Pair(sleepData, null)
+            } else {
+                // 仮眠
+                val napData = NapData(
+                    startTime = startTime,
+                    endTime = endTime,
+                    duration = actualDuration,
+                    deepSleep = deepSleep,
+                    lightSleep = lightSleep,
+                    remSleep = remSleep,
+                    awakeSleep = awakeSleep,
+                    efficiency = sleep.efficiency
+                )
+                Pair(null, napData)
+            }
         } catch (e: Exception) {
             Log.e("FitbitApi", "睡眠データ解析エラー", e)
-            null
+            Pair(null, null)
         }
     }
 }

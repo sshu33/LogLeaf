@@ -120,7 +120,8 @@ class FitbitHistoryManager(private val context: Context) {
     /**
      * 履歴取得時の期間を記録
      */
-    fun recordHistoryPeriod(userId: String, startDate: LocalDate) {
+    fun recordHistoryPeriod(userId: String, startDate: LocalDate)
+    {
         // 最古データ日付を更新（より古い日付に）
         setOldestDataDate(userId, startDate)
 
