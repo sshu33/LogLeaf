@@ -137,8 +137,7 @@ class MainViewModel(
             postDao.getPostsWithTagsAndImages().map { postsWithTagsAndImages ->
                 // フィルタリング処理を追加
                 postsWithTagsAndImages.filter { pwtai ->
-                    // Fitbit投稿は常に表示 OR アカウントが存在する投稿
-                    (pwtai.post.source == SnsType.FITBIT || pwtai.post.accountId in accountIds) &&
+                    pwtai.post.accountId in accountIds &&
                             (!pwtai.post.isHidden || includeHiddenFlag == 1)
                 }
             }
@@ -894,12 +893,12 @@ class MainViewModel(
 
             // ★修正点1: 通常通りfirstPostを選択
             val firstNonHealthPost = sortedPostList
-                .firstOrNull { !it.post.isHealthData }?.post
-
+                .firstOrNull { !it.post.isHealthData && it.post.source != SnsType.GOOGLEFIT }?.post
+                ?: sortedPostList.firstOrNull()?.post
 
             // ★修正点2: 画像検索（GoogleFit除外不要）
             val firstImageInfo: Pair<String, String>? = sortedPostList
-                .filter { !it.post.isHealthData } // 健康データ投稿を除外
+                .filter { !it.post.isHealthData && it.post.source != SnsType.GOOGLEFIT }
                 .firstNotNullOfOrNull { postWithTagsAndImages ->
                     // 投稿から画像URLを探す
                     val imageUrl = postWithTagsAndImages.images.firstOrNull()?.let { image ->
@@ -907,6 +906,16 @@ class MainViewModel(
                     } ?: postWithTagsAndImages.post.imageUrl
 
                     // 画像URLが見つかった場合、その投稿IDとURLのペアを返す
+                    imageUrl?.let { url ->
+                        Pair(postWithTagsAndImages.post.id, url)
+                    }
+                }
+                ?: sortedPostList.firstNotNullOfOrNull { postWithTagsAndImages ->
+                    // 健康データからも画像検索
+                    val imageUrl = postWithTagsAndImages.images.firstOrNull()?.let { image ->
+                        image.thumbnailUrl ?: image.imageUrl
+                    } ?: postWithTagsAndImages.post.imageUrl
+
                     imageUrl?.let { url ->
                         Pair(postWithTagsAndImages.post.id, url)
                     }
@@ -1710,7 +1719,8 @@ class MainViewModel(
                                         text = sportText,
                                         createdAt = startJST, // 運動開始時刻
                                         source = SnsType.FITBIT,
-                                        imageUrl = null
+                                        imageUrl = null,
+                                        isHealthData = true
                                     )
 
                                     posts.add(sportPost)
@@ -1762,7 +1772,8 @@ class MainViewModel(
                                         text = activityText,
                                         createdAt = postTime,
                                         source = SnsType.FITBIT,
-                                        imageUrl = null
+                                        imageUrl = null,
+                                        isHealthData = true
                                     )
 
                                     posts.add(activityPost)
@@ -1825,10 +1836,10 @@ class MainViewModel(
                 val (sleepDataMap, napDataMap) = result
 
                 // 既存の睡眠データ処理
+                val currentTimeSettings = timeSettings.first() // 関数の最初で一度だけ取得
                 sleepDataMap.forEach { (date, sleepData) ->
-                    val timeSettings = timeSettingsRepository.timeSettings.first()
 
-                    val postTime = date.atTime(timeSettings.dayStartHour, timeSettings.dayStartMinute)
+                    val postTime = date.atTime(currentTimeSettings.dayStartHour, currentTimeSettings.dayStartMinute)
                         .atZone(ZoneId.of("Asia/Tokyo"))
 
                     val sleepText = """
@@ -1858,7 +1869,6 @@ ${sleepData.startTime} → ${sleepData.endTime} (${sleepData.duration})
 
                 // 仮眠データ処理（新規追加）
                 napDataMap.forEach { (date, napData) ->
-                    val timeSettings = timeSettingsRepository.timeSettings.first()
 
                     // 仮眠開始時刻をパース（"14:30:00" → 14:30）
                     val napStartTime = try {
@@ -1918,20 +1928,20 @@ ${napData.startTime} → ${napData.endTime} (${napData.duration})
                 // 健康データ処理（既存ロジック）
                 if (activityData != null && (activityData.steps > 0 || activityData.calories > 0)) {
                     Log.d("DEBUG", "投稿作成実行")
-                    val timeSettings = timeSettingsRepository.timeSettings.first()
+                    val currentTimeSettings = timeSettings.first()
 
-                    Log.e("DEBUG", "timeSettings: ${timeSettings.dayStartHour}:${timeSettings.dayStartMinute}")
+                    Log.e("DEBUG", "timeSettings: ${currentTimeSettings.dayStartHour}:${currentTimeSettings.dayStartMinute}")
 
                     val postTime = date.plusDays(1)
-                        .atTime(timeSettings.dayStartHour, timeSettings.dayStartMinute)
+                        .atTime(currentTimeSettings.dayStartHour, currentTimeSettings.dayStartMinute)
                         .minusMinutes(1)
                         .atZone(ZoneId.of("Asia/Tokyo"))
 
                     Log.e("DEBUG", "計算後のpostTime: $postTime")
                     Log.e("DEBUG", "postTimeの日付: ${postTime.toLocalDate()}")
 
-                    val adjustedDate = postTime.minusHours(timeSettings.dayStartHour.toLong())
-                        .minusMinutes(timeSettings.dayStartMinute.toLong())
+                    val adjustedDate = postTime.minusHours(currentTimeSettings.dayStartHour.toLong())
+                        .minusMinutes(currentTimeSettings.dayStartMinute.toLong())
                         .toLocalDate()
                     Log.e("DEBUG", "調整後の表示日付: $adjustedDate")
 
@@ -1961,8 +1971,6 @@ ${napData.startTime} → ${napData.endTime} (${napData.duration})
                 // 運動データ処理
                 exerciseDataList.forEach { exerciseData ->
                     Log.d("DEBUG", "運動データ処理: ${exerciseData.name}")
-
-                    val timeSettings = timeSettingsRepository.timeSettings.first()
 
                     // 運動開始時刻をパース（"18:30:00" → 18:30）
                     val exerciseStartTime = try {
@@ -2081,7 +2089,7 @@ ${napData.startTime} → ${napData.endTime} (${napData.duration})
                     // 初回取得の場合：デフォルト2ヶ月期間を使用
                     val endDate = LocalDate.now()
 
-                    val startDate = endDate.minusWeeks(1)
+                    val startDate = endDate.minusMonths(2)
 
                     Log.d("Fitbit", "初回取得: $startDate ～ $endDate")
 
@@ -2261,5 +2269,14 @@ ${napData.startTime} → ${napData.endTime} (${napData.duration})
             Log.d("Fitbit", "ダミーポスト作成完了")
         }
     }
-
+    fun fixZeppData() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val count = postDao.fixZeppHealthDataFlag()
+                Log.d("ZeppFix", "${count}件のZeppデータを修正完了")
+            } catch (e: Exception) {
+                Log.e("ZeppFix", "修正エラー", e)
+            }
+        }
+    }
 }

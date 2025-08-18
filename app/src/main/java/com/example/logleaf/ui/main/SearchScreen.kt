@@ -256,7 +256,7 @@ fun SearchTopBar(
                         contentPadding = indentedContentPadding
                     )
 
-                    Text(
+                    UserFontText(
                         text = "SNS Filter",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
@@ -433,7 +433,7 @@ fun SearchResultItem(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
+                    UserFontText(
                         text = post.createdAt
                             .withZoneSameInstant(ZoneId.systemDefault())
                             .format(DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm")),
@@ -451,7 +451,7 @@ fun SearchResultItem(
                                 shape = RoundedCornerShape(12.dp),
                                 color = Color.Gray.copy(alpha = 0.15f)
                             ) {
-                                Text(
+                                UserFontText(
                                     text = "#$matchingTagName",
                                     modifier = Modifier.padding(
                                         horizontal = 8.dp,
@@ -469,7 +469,7 @@ fun SearchResultItem(
 
                 // Fitbit投稿かどうかで表示を分岐
                 if (post.isHealthData) {
-                    if (post.source == SnsType.FITBIT) {
+                    if (post.source == SnsType.FITBIT || post.source == SnsType.GOOGLEFIT) {
                         FitbitHealthDisplay(postText = post.text, modifier = Modifier)
                     } else {
                         CompactHealthView(postText = post.text, modifier = Modifier)

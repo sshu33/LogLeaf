@@ -50,6 +50,8 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.logleaf.DayLog
 import com.example.logleaf.UiState
+import com.example.logleaf.ui.components.CompactFitbitHealthView
+import com.example.logleaf.ui.components.FitbitHealthDisplay
 import com.yourpackage.logleaf.ui.components.UserFontText
 import kotlinx.coroutines.launch
 import java.time.YearMonth
@@ -277,13 +279,20 @@ fun PostItem(
                                     .weight(1f)
                                     .padding(start = 12.dp)
                             ) {
-                                Text(
-                                    text = post.text,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    maxLines = 3,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.defaultMinSize(minHeight = 48.dp)
-                                )
+                                if (post.isHealthData) {
+                                    CompactFitbitHealthView(
+                                        postText = post.text,
+                                        modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                                    )
+                                } else {
+                                    Text(
+                                        text = post.text,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        maxLines = 3,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                                    )
+                                }
 
                                 if (dayLog.totalPosts > 1) {
                                     Text(

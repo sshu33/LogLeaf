@@ -18,6 +18,7 @@ import androidx.navigation.NavController
 import androidx.compose.ui.graphics.Color
 import com.example.logleaf.ui.components.ListCard
 import com.example.logleaf.R
+import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
 
 private data class SnsProvider(
@@ -41,56 +42,62 @@ fun SnsSelectScreen(navController: NavController) {
         SnsProvider("Fitbit", R.drawable.ic_fitbit, "fitbit_login", SnsType.FITBIT.brandColor)
     )
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("アカウントを追加") },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "戻る")
-                    }
-                }
-            )
-        }
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(16.dp), // 上下左右に16dpの余白
-            verticalArrangement = Arrangement.spacedBy(8.dp) // カード間のスペースを8dpに
-        ) {
-            items(snsProviders) { sns ->
-                ListCard(
-                    onClick = {
-                        if (sns.isImplemented && sns.route != null) {
-                            navController.navigate(sns.route)
-                        } else {
-                            Toast.makeText(context, "${sns.name}の連携は開発中です", Toast.LENGTH_SHORT).show()
+    SettingsTheme {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("アカウントを追加") },
+                    navigationIcon = {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "戻る")
                         }
                     }
-                ) {
-                    Icon(
-                        painter = painterResource(id = sns.iconResId),
-                        contentDescription = null,
-                        tint = sns.color,
-                        modifier = Modifier.size(26.dp)
-                    )
-                    Text(
-                        text = sns.name,
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    Box(
-                        modifier = Modifier.size(48.dp), // IconButtonのデフォルトのタッチ領域サイズに合わせる
-                        contentAlignment = Alignment.Center
+                )
+            }
+        ) { padding ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentPadding = PaddingValues(16.dp), // 上下左右に16dpの余白
+                verticalArrangement = Arrangement.spacedBy(8.dp) // カード間のスペースを8dpに
+            ) {
+                items(snsProviders) { sns ->
+                    ListCard(
+                        onClick = {
+                            if (sns.isImplemented && sns.route != null) {
+                                navController.navigate(sns.route)
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    "${sns.name}の連携は開発中です",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            painter = painterResource(id = sns.iconResId),
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = sns.color,
+                            modifier = Modifier.size(26.dp)
                         )
+                        Text(
+                            text = sns.name,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        Box(
+                            modifier = Modifier.size(48.dp), // IconButtonのデフォルトのタッチ領域サイズに合わせる
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }

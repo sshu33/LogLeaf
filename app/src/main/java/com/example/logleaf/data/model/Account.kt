@@ -23,7 +23,8 @@ sealed class Account {
         val period: String = "3ヶ月",
         override val needsReauthentication: Boolean = false,
         override val isVisible: Boolean = true,
-        override val lastSyncedAt: String? = null // ← 追加
+        override val lastSyncedAt: String? = null,
+        val lastPeriodSetting: String? = null
     ) : Account() {
         override val snsType: SnsType get() = SnsType.BLUESKY
         override val userId: String get() = did
@@ -43,7 +44,8 @@ sealed class Account {
         val period: String = "3ヶ月",
         override val needsReauthentication: Boolean = false,
         override val isVisible: Boolean = true,
-        override val lastSyncedAt: String? = null // ← 追加
+        override val lastSyncedAt: String? = null,
+        val lastPeriodSetting: String? = null
     ) : Account() {
         override val snsType: SnsType get() = SnsType.MASTODON
         override val userId: String get() = id
@@ -60,7 +62,8 @@ sealed class Account {
         val selectedRepositories: List<String> = emptyList(),
         override val needsReauthentication: Boolean = false,
         override val isVisible: Boolean = true,
-        override val lastSyncedAt: String? = null // ← 追加
+        override val lastSyncedAt: String? = null,
+        val lastPeriodSetting: String? = null
     ) : Account() {
         override val snsType: SnsType get() = SnsType.GITHUB
         override val userId: String get() = username
@@ -86,7 +89,8 @@ sealed class Account {
         val period: String = "3ヶ月",
         override val needsReauthentication: Boolean = false,
         override val isVisible: Boolean = true,
-        override val lastSyncedAt: String? = null
+        override val lastSyncedAt: String? = null,
+        val lastPeriodSetting: String? = null
     ) : Account() {
         override val snsType: SnsType get() = SnsType.FITBIT
         override val userId: String get() = fitbitUserId  // ← これを追加

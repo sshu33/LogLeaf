@@ -191,8 +191,8 @@ class BlueskyApi(private val sessionManager: SessionManager) {
         return when {
             // 「全期間」の場合は常にnull（制限なし）
             account.period == "全期間" -> {
-                Log.d("BlueskyApi", "全期間設定のため制限なしで取得")
-                null
+                Log.d("BlueskyApi", "全期間設定：前回同期時刻(${account.lastSyncedAt})を使用")
+                account.lastSyncedAt
             }
 
             // 期間指定がある場合

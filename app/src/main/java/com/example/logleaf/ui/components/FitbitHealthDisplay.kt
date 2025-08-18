@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.yourpackage.logleaf.ui.components.UserFontText
 
 // === データクラス ===
@@ -264,19 +265,10 @@ fun FitbitSleepDisplay(
                 stages.forEachIndexed { index, stage ->
                     stage()
                     if (index < stages.size - 1) {
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(0.dp))
                     }
                 }
             }
-        }
-
-        // 睡眠効率（Fitbitのみ）
-        if (efficiency > 0) {
-            UserFontText(
-                text = "睡眠効率: ${efficiency}%",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-            )
         }
     }
 }
@@ -371,20 +363,23 @@ private fun SleepStageItem(
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
+        horizontalArrangement = Arrangement.spacedBy(1.dp) // 最小スペース
     ) {
-        // カラーインジケーター
         Box(
             modifier = Modifier
-                .size(8.dp)
-                .background(color, RoundedCornerShape(4.dp))
+                .size(8.dp) // サイズ縮小
+                .background(color, RoundedCornerShape(3.dp))
         )
-
-        // ラベルと時間
         UserFontText(
-            text = "$label $duration",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+            text = when(label) {
+                "深い睡眠" -> "深い睡眠 $duration"
+                "浅い睡眠" -> "浅い睡眠 $duration"
+                "レム睡眠" -> "レム睡眠 $duration"
+                "覚醒" -> "覚醒 $duration"
+                else -> "$label $duration"
+            },
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
         )
     }
 }

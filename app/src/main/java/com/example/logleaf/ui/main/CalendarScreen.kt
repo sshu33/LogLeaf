@@ -787,14 +787,14 @@ fun CalendarPostCardItem(
                 ) {
                     // 健康データかどうかで表示を分岐
                     if (post.isHealthData || post.source == SnsType.GOOGLEFIT ||
-                        (post.source == SnsType.FITBIT && (post.text.contains("🏃‍♂️") || post.text.contains("📊")))) {
+                        (post.source == SnsType.FITBIT && (post.text.contains("🛏️") || post.text.contains("🏃‍♂️") || post.text.contains("📊")))) {
                         if (post.source == SnsType.FITBIT || post.source == SnsType.GOOGLEFIT) {
                             CompactFitbitHealthView(postText = post.text, modifier = Modifier)
                         } else {
                             CompactHealthView(postText = post.text, modifier = Modifier)
                         }
                     } else {
-                        Log.e("Calendar", "通常投稿として表示: source=${post.source}")
+                        Log.d("Calendar", "通常投稿として表示: source=${post.source}")
                         // 通常投稿の場合：既存の表示
                         Text(
                             text = uiPost.displayText,

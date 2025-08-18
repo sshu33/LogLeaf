@@ -421,7 +421,7 @@ fun LogViewPostCard(
 
 // ★ 本文表示：健康データか通常投稿かで分岐
                     if (post.isHealthData || post.source == SnsType.GOOGLEFIT ||
-                        (post.source == SnsType.FITBIT && (post.text.contains("🏃‍♂️") || post.text.contains("📊")))) {
+                        (post.source == SnsType.FITBIT && (post.text.contains("🛏️") || post.text.contains("🏃‍♂️") || post.text.contains("📊")))) {
                         Log.d("LogView", "健康データ判定：true")
                         Log.d("LogView", "ソース：${post.source}")
 

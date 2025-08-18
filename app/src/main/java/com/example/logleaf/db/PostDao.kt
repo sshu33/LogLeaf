@@ -572,5 +572,8 @@ interface PostDao {
 
     @Query("SELECT * FROM tags WHERE isFavorite = 0 AND isTemporaryShown = 1 ORDER BY tagName ASC")
     fun getTemporaryShownTags(): Flow<List<Tag>>
+
+    @Query("UPDATE posts SET isHealthData = 1 WHERE id LIKE 'zepp_%'")
+    suspend fun fixZeppHealthDataFlag(): Int
 }
 

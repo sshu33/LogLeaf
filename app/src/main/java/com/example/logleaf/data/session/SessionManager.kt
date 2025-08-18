@@ -100,7 +100,11 @@ class SessionManager(private val context: Context) {
 
     // Fitbit連携解除の専用処理（新規追加）
     private fun handleFitbitDisconnection(fitbitAccount: Account.Fitbit) {
-        // 1. アカウント情報を削除
+        // FitbitHistoryManagerの履歴もクリア
+        val historyManager = FitbitHistoryManager(context)
+        historyManager.clearAllData(fitbitAccount.userId)
+
+        // 既存の処理...
         val currentAccounts = getAccounts().toMutableList()
         currentAccounts.removeAll { it is Account.Fitbit }
         saveAccountsList(currentAccounts)
@@ -112,13 +116,12 @@ class SessionManager(private val context: Context) {
     fun toggleAccountVisibility(accountId: String) {
         updateAccountState(accountId) { account ->
             when (account) {
-                is Account.Bluesky -> account.copy(needsReauthentication = true)
-                is Account.Mastodon -> account.copy(needsReauthentication = true)
-                is Account.GitHub -> account.copy(needsReauthentication = true)
-                is Account.Fitbit -> account.copy(needsReauthentication = true)  // ← この行を追加
+                is Account.Bluesky -> account.copy(isVisible = !account.isVisible)
+                is Account.Mastodon -> account.copy(isVisible = !account.isVisible)
+                is Account.GitHub -> account.copy(isVisible = !account.isVisible)
+                is Account.Fitbit -> account.copy(isVisible = !account.isVisible)
             }
         }
-        Log.d("SessionManager", "アカウント($accountId)の表示状態を切り替えました。")
     }
 
     fun markAccountForReauthentication(accountId: String) {

@@ -188,7 +188,7 @@ private fun LogViewTagChip(
             horizontalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             Icon(
-                painter = painterResource(id = R.drawable.ic_tag),
+                painter = painterResource(id = R.drawable.ic_tag2),
                 contentDescription = "タグアイコン",
                 tint = MaterialTheme.colorScheme.primary, // プライマリカラー
                 modifier = Modifier.size(12.dp) // さらに小さめサイズ

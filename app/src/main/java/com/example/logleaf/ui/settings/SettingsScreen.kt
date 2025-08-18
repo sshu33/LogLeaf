@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -160,40 +161,11 @@ fun SettingsScreen(
                     )
 
                     // Fitbitダミーデータ作成
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { mainViewModel.createDummyFitbitPosts() }
-                            .padding(vertical = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    Button(
+                        onClick = { mainViewModel.fixZeppData() },
+                        modifier = Modifier.padding(16.dp)
                     ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_fitbit),
-                            contentDescription = null,
-                            tint = SnsType.FITBIT.brandColor,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Fitbitテストデータ作成",
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "UI確認用のダミーFitbitポストを作成",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            )
-                        }
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                            modifier = Modifier.size(24.dp)
-                        )
+                        Text("Zeppデータ修正")
                     }
                 }
             }
