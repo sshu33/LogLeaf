@@ -282,7 +282,9 @@ fun SearchTopBar(
                     )
 
                     // --- 各SNSのフィルター項目 ---
-                    SnsType.entries.forEach { sns ->
+                    SnsType.entries
+                        .filter { it != SnsType.GOOGLEFIT } // GOOGLEFITを除外
+                        .forEach { sns ->
                         val isSelected = sns in selectedSns
                         DropdownMenuItem(
                             text = {
@@ -296,6 +298,7 @@ fun SearchTopBar(
                                     SnsType.MASTODON -> R.drawable.ic_mastodon
                                     SnsType.LOGLEAF -> R.drawable.ic_logleaf
                                     SnsType.GITHUB -> R.drawable.ic_github
+                                    SnsType.GOOGLEFIT-> R.drawable.ic_googlefit
                                     SnsType.FITBIT -> R.drawable.ic_fitbit
                                 }
                                 Icon(

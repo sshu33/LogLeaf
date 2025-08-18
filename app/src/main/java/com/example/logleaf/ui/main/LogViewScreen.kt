@@ -420,15 +420,17 @@ fun LogViewPostCard(
                     }
 
 // ★ 本文表示：健康データか通常投稿かで分岐
-                    if (post.isHealthData) {
+                    if (post.isHealthData || post.source == SnsType.GOOGLEFIT ||
+                        (post.source == SnsType.FITBIT && (post.text.contains("🏃‍♂️") || post.text.contains("📊")))) {
                         Log.d("LogView", "健康データ判定：true")
                         Log.d("LogView", "ソース：${post.source}")
 
-                        if (post.source == SnsType.FITBIT) {
-                            Log.d("LogView", "Fitbit分岐に入った")
+                        // FitbitデータまたはZeppデータ（GOOGLEFIT）の場合、FitbitUIで表示
+                        if (post.source == SnsType.FITBIT || post.source == SnsType.GOOGLEFIT) {
+                            Log.d("LogView", "Fitbit/Zepp分岐に入った")
                             FitbitHealthDisplay(postText = post.text, modifier = Modifier)
                         } else {
-                            Log.d("LogView", "その他の健康データ分岐に入った")  // ← ログ修正
+                            Log.d("LogView", "その他の健康データ分岐に入った")
                             HealthPostDisplay(postText = post.text, modifier = Modifier)
                         }
                     } else {
@@ -438,7 +440,6 @@ fun LogViewPostCard(
                             style = MaterialTheme.typography.bodyLarge
                         )
                     }
-
                     // 画像表示
                     if (postWithTagsAndImages.images.isNotEmpty()) {
                         Row(
