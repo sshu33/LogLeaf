@@ -226,15 +226,18 @@ class SessionManager(private val context: Context) {
     fun updateBlueskyAccountPeriod(handle: String, newPeriod: String) {
         Log.d("SessionManager", "updateBlueskyAccountPeriod呼び出し: handle=$handle, newPeriod=$newPeriod")
 
-        // ★ handleではなくdidで検索する必要がある
         val account = getAccounts().find { it is Account.Bluesky && it.handle == handle } as? Account.Bluesky
         if (account != null) {
-            updateAccountState(account.did) { acc -> // ← didを使用
+            updateAccountState(account.did) { acc ->
                 Log.d("SessionManager", "アカウント発見: ${acc.displayName}")
                 when (acc) {
                     is Account.Bluesky -> {
                         Log.d("SessionManager", "Blueskyアカウント更新中...")
-                        acc.copy(period = newPeriod, lastSyncedAt = null)
+                        acc.copy(
+                            period = newPeriod,
+                            lastSyncedAt = null,
+                            lastPeriodSetting = acc.period // 現在の期間を前回期間として保存
+                        )
                     }
                     else -> acc
                 }
@@ -252,15 +255,21 @@ class SessionManager(private val context: Context) {
     fun updateMastodonAccountPeriod(acct: String, newPeriod: String) {
         Log.d("SessionManager", "updateMastodonAccountPeriod呼び出し: acct=$acct, newPeriod=$newPeriod")
 
-        // ★ acctではなくidで検索する必要がある
-        val account = getAccounts().find { it is Account.Mastodon && it.acct == acct } as? Account.Mastodon
+        val account = getAccounts().find {
+            it is Account.Mastodon && it.acct == acct
+        } as? Account.Mastodon
+
         if (account != null) {
-            updateAccountState(account.id) { acc -> // ← idを使用
+            updateAccountState(account.userId) { acc ->
                 Log.d("SessionManager", "アカウント発見: ${acc.displayName}")
                 when (acc) {
                     is Account.Mastodon -> {
                         Log.d("SessionManager", "Mastodonアカウント更新中...")
-                        acc.copy(period = newPeriod, lastSyncedAt = null)
+                        acc.copy(
+                            period = newPeriod,
+                            lastSyncedAt = null,
+                            lastPeriodSetting = acc.period
+                        )
                     }
                     else -> acc
                 }
@@ -272,17 +281,66 @@ class SessionManager(private val context: Context) {
         Log.d("SessionManager", "Mastodonアカウント($acct)の期間を${newPeriod}に変更し、同期時刻をリセットしました。")
     }
 
+    fun updateMastodonAccountLastPeriod(acct: String, currentPeriod: String) {
+        val account = getAccounts().find {
+            it is Account.Mastodon && it.acct == acct
+        } as? Account.Mastodon
+
+        if (account != null) {
+            updateAccountState(account.userId) { acc ->
+                when (acc) {
+                    is Account.Mastodon -> acc.copy(lastPeriodSetting = currentPeriod)
+                    else -> acc
+                }
+            }
+        }
+    }
+
     /**
      * GitHubアカウントの期間設定を更新する
      */
     fun updateGitHubAccountPeriod(username: String, newPeriod: String) {
-        updateAccountState(username) { account ->
-            when (account) {
-                is Account.GitHub -> account.copy(period = newPeriod)
-                else -> account
+        Log.d("SessionManager", "updateGitHubAccountPeriod呼び出し: username=$username, newPeriod=$newPeriod")
+
+        val account = getAccounts().find {
+            it is Account.GitHub && it.username == username
+        } as? Account.GitHub
+
+        if (account != null) {
+            updateAccountState(account.userId) { acc ->
+                Log.d("SessionManager", "アカウント発見: ${acc.displayName}")
+                when (acc) {
+                    is Account.GitHub -> {
+                        Log.d("SessionManager", "GitHubアカウント更新中...")
+                        acc.copy(
+                            period = newPeriod,
+                            lastSyncedAt = null,
+                            lastPeriodSetting = acc.period
+                        )
+                    }
+                    else -> acc
+                }
+            }
+        } else {
+            Log.e("SessionManager", "usernameに対応するGitHubアカウントが見つかりません: $username")
+        }
+
+        Log.d("SessionManager", "GitHubアカウント($username)の期間を${newPeriod}に変更し、同期時刻をリセットしました。")
+    }
+
+    fun updateGitHubAccountLastPeriod(username: String, currentPeriod: String) {
+        val account = getAccounts().find {
+            it is Account.GitHub && it.username == username
+        } as? Account.GitHub
+
+        if (account != null) {
+            updateAccountState(account.userId) { acc ->
+                when (acc) {
+                    is Account.GitHub -> acc.copy(lastPeriodSetting = currentPeriod)
+                    else -> acc
+                }
             }
         }
-        Log.d("SessionManager", "GitHubアカウント($username)の期間を${newPeriod}に変更しました。")
     }
 
     /**
@@ -330,5 +388,17 @@ class SessionManager(private val context: Context) {
             Log.d("SessionManager", "${account.snsType} (${account.displayName}): lastSyncedAt=${account.lastSyncedAt}")
         }
         Log.d("SessionManager", "=== デバッグ情報 終了 ===")
+    }
+
+    fun updateBlueskyAccountLastPeriod(handle: String, currentPeriod: String) {
+        val account = getAccounts().find { it is Account.Bluesky && it.handle == handle } as? Account.Bluesky
+        if (account != null) {
+            updateAccountState(account.did) { acc ->
+                when (acc) {
+                    is Account.Bluesky -> acc.copy(lastPeriodSetting = currentPeriod)
+                    else -> acc
+                }
+            }
+        }
     }
 }

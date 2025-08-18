@@ -20,6 +20,11 @@
           <theme>@style/Theme.LogLeaf</theme>
         </config>
       </layout>
+      <layout url="file://$PROJECT_DIR$/app/src/main/res/drawable/ic_googlefit.xml">
+        <config>
+          <theme>@style/Theme.LogLeaf</theme>
+        </config>
+      </layout>
       <layout url="file://$PROJECT_DIR$/app/src/main/res/drawable/ic_radio_button_off.xml">
         <config>
           <theme>@style/Theme.LogLeaf</theme>
@@ -61,21 +66,22 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fcfefcaf-ff37-4bd5-aa0e-d28134bdfd73" name="Changes" comment="削除/連携解除ダイアログUIの調整">
+    <list default="true" id="fcfefcaf-ff37-4bd5-aa0e-d28134bdfd73" name="Changes" comment="Zeppインポートデータに関しての細かい修正">
+      <change afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/components/GradientProgressBar.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.13/executionHistory/executionHistory.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.13/executionHistory/executionHistory.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.13/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.13/executionHistory/executionHistory.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.13/fileHashes/fileHashes.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.13/fileHashes/fileHashes.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.13/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.13/fileHashes/fileHashes.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.13/fileHashes/resourceHashesCache.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.13/fileHashes/resourceHashesCache.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/file-system.probe" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/file-system.probe" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/MainViewModel.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/MainViewModel.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/data/model/Account.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/data/model/Account.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/api/bluesky/BlueskyApi.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/api/bluesky/BlueskyApi.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/api/github/GitHubApi.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/api/github/GitHubApi.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/api/mastodon/MastodonApi.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/api/mastodon/MastodonApi.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/data/session/SessionManager.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/data/session/SessionManager.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/auth/GoogleFitLoginScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/auth/GoogleFitLoginScreen.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/settings/AccountScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/settings/AccountScreen.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/settings/AccountViewModel.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/settings/AccountViewModel.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/settings/SettingsScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/settings/SettingsScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/main/CalendarScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/main/CalendarScreen.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -127,24 +133,31 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Android App.app.executor": "Run",
-    "BundleExportedModule": "LogLeaf2.app",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.cidr.known.project.marker": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.readMode.enableVisualFormatting": "true",
-    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "cf.first.check.clang-format": "false",
-    "cidr.known.project.marker": "true",
-    "com.google.services.firebase.aqiPopupShown": "true",
-    "git-widget-placeholder": "master",
-    "kotlin-language-version-configured": "true",
-    "settings.editor.selected.configurable": "preferences.lookFeel"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Android App.app.executor&quot;: &quot;Run&quot;,
+    &quot;BundleExportedModule&quot;: &quot;LogLeaf2.app&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;PROJECT_TRUSTED_KEY&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
+    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
+    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;com.google.services.firebase.aqiPopupShown&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.lookFeel&quot;
+  },
+  &quot;keyToStringList&quot;: {
+    &quot;com.android.tools.idea.sqlite.queryhistory&quot;: [
+      &quot;SELECT source, isHealthData, text FROM posts WHERE createdAt LIKE '%2022-10-22%';&quot;,
+      &quot;SELECT source, isHealthData, text FROM posts WHERE text LIKE '%ランニング%' OR text LIKE '%今日の健康データ%';&quot;
+    ]
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="C:\Users\mur20\AndroidStudioProjects\LogLeaf2\app\src\main\java\com\example\logleaf\ui\font" />
@@ -242,94 +255,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1752160736127</updated>
-    </task>
-    <task id="LOCAL-00069" summary="タイムラインに画像表示">
-      <option name="closed" value="true" />
-      <created>1754014525072</created>
-      <option name="number" value="00069" />
-      <option name="presentableId" value="LOCAL-00069" />
-      <option name="project" value="LOCAL" />
-      <updated>1754014525072</updated>
-    </task>
-    <task id="LOCAL-00070" summary="ウィジェットとりあえず追加">
-      <option name="closed" value="true" />
-      <created>1754015995116</created>
-      <option name="number" value="00070" />
-      <option name="presentableId" value="LOCAL-00070" />
-      <option name="project" value="LOCAL" />
-      <updated>1754015995116</updated>
-    </task>
-    <task id="LOCAL-00071" summary="ウィジェットとりあえず使えるように調整">
-      <option name="closed" value="true" />
-      <created>1754022847683</created>
-      <option name="number" value="00071" />
-      <option name="presentableId" value="LOCAL-00071" />
-      <option name="project" value="LOCAL" />
-      <updated>1754022847683</updated>
-    </task>
-    <task id="LOCAL-00072" summary="ウィジェット調整中">
-      <option name="closed" value="true" />
-      <created>1754250670965</created>
-      <option name="number" value="00072" />
-      <option name="presentableId" value="LOCAL-00072" />
-      <option name="project" value="LOCAL" />
-      <updated>1754250670965</updated>
-    </task>
-    <task id="LOCAL-00073" summary="ボトムバー高さ調節">
-      <option name="closed" value="true" />
-      <created>1754253843383</created>
-      <option name="number" value="00073" />
-      <option name="presentableId" value="LOCAL-00073" />
-      <option name="project" value="LOCAL" />
-      <updated>1754253843383</updated>
-    </task>
-    <task id="LOCAL-00074" summary="画像投稿できなくなっていたのを修正">
-      <option name="closed" value="true" />
-      <created>1754254418151</created>
-      <option name="number" value="00074" />
-      <option name="presentableId" value="LOCAL-00074" />
-      <option name="project" value="LOCAL" />
-      <updated>1754254418151</updated>
-    </task>
-    <task id="LOCAL-00075" summary="プレースホルダーの色変更">
-      <option name="closed" value="true" />
-      <created>1754258560796</created>
-      <option name="number" value="00075" />
-      <option name="presentableId" value="LOCAL-00075" />
-      <option name="project" value="LOCAL" />
-      <updated>1754258560796</updated>
-    </task>
-    <task id="LOCAL-00076" summary="インポート時の#が重複する問題中世">
-      <option name="closed" value="true" />
-      <created>1754259299368</created>
-      <option name="number" value="00076" />
-      <option name="presentableId" value="LOCAL-00076" />
-      <option name="project" value="LOCAL" />
-      <updated>1754259299368</updated>
-    </task>
-    <task id="LOCAL-00077" summary="ウィジェットとりあえず完成？">
-      <option name="closed" value="true" />
-      <created>1754270882196</created>
-      <option name="number" value="00077" />
-      <option name="presentableId" value="LOCAL-00077" />
-      <option name="project" value="LOCAL" />
-      <updated>1754270882196</updated>
-    </task>
-    <task id="LOCAL-00078" summary="タイムラインで画像タップ時の挙動を修正">
-      <option name="closed" value="true" />
-      <created>1754273479431</created>
-      <option name="number" value="00078" />
-      <option name="presentableId" value="LOCAL-00078" />
-      <option name="project" value="LOCAL" />
-      <updated>1754273479431</updated>
-    </task>
-    <task id="LOCAL-00079" summary="よく使うタグが重複されて表示されていたのを修正">
-      <option name="closed" value="true" />
-      <created>1754274413648</created>
-      <option name="number" value="00079" />
-      <option name="presentableId" value="LOCAL-00079" />
-      <option name="project" value="LOCAL" />
-      <updated>1754274413648</updated>
     </task>
     <task id="LOCAL-00080" summary="細かい調整">
       <option name="closed" value="true" />
@@ -635,7 +560,95 @@
       <option name="project" value="LOCAL" />
       <updated>1755084994923</updated>
     </task>
-    <option name="localTasksCounter" value="118" />
+    <task id="LOCAL-00118" summary="確認用">
+      <option name="closed" value="true" />
+      <created>1755349294199</created>
+      <option name="number" value="00118" />
+      <option name="presentableId" value="LOCAL-00118" />
+      <option name="project" value="LOCAL" />
+      <updated>1755349294199</updated>
+    </task>
+    <task id="LOCAL-00119" summary="Fitbit期間指定取得の大幅改修中">
+      <option name="closed" value="true" />
+      <created>1755364290327</created>
+      <option name="number" value="00119" />
+      <option name="presentableId" value="LOCAL-00119" />
+      <option name="project" value="LOCAL" />
+      <updated>1755364290327</updated>
+    </task>
+    <task id="LOCAL-00120" summary="進捗バーの構想">
+      <option name="closed" value="true" />
+      <created>1755401959149</created>
+      <option name="number" value="00120" />
+      <option name="presentableId" value="LOCAL-00120" />
+      <option name="project" value="LOCAL" />
+      <updated>1755401959149</updated>
+    </task>
+    <task id="LOCAL-00121" summary="引継ぎ用">
+      <option name="closed" value="true" />
+      <created>1755405610681</created>
+      <option name="number" value="00121" />
+      <option name="presentableId" value="LOCAL-00121" />
+      <option name="project" value="LOCAL" />
+      <updated>1755405610681</updated>
+    </task>
+    <task id="LOCAL-00122" summary="Fitbitから取得したポストのUIを調整">
+      <option name="closed" value="true" />
+      <created>1755411089386</created>
+      <option name="number" value="00122" />
+      <option name="presentableId" value="LOCAL-00122" />
+      <option name="project" value="LOCAL" />
+      <updated>1755411089386</updated>
+    </task>
+    <task id="LOCAL-00123" summary="基礎代謝まで取得してしまう問題を修正">
+      <option name="closed" value="true" />
+      <created>1755415265215</created>
+      <option name="number" value="00123" />
+      <option name="presentableId" value="LOCAL-00123" />
+      <option name="project" value="LOCAL" />
+      <updated>1755415265215</updated>
+    </task>
+    <task id="LOCAL-00124" summary="Fitbit健康、睡眠データの取得が安定してできるようになった">
+      <option name="closed" value="true" />
+      <created>1755463003433</created>
+      <option name="number" value="00124" />
+      <option name="presentableId" value="LOCAL-00124" />
+      <option name="project" value="LOCAL" />
+      <updated>1755463003433</updated>
+    </task>
+    <task id="LOCAL-00125" summary="Fitbit連携実装">
+      <option name="closed" value="true" />
+      <created>1755467574207</created>
+      <option name="number" value="00125" />
+      <option name="presentableId" value="LOCAL-00125" />
+      <option name="project" value="LOCAL" />
+      <updated>1755467574207</updated>
+    </task>
+    <task id="LOCAL-00126" summary="GoogleFit関連のコードを削除">
+      <option name="closed" value="true" />
+      <created>1755470762460</created>
+      <option name="number" value="00126" />
+      <option name="presentableId" value="LOCAL-00126" />
+      <option name="project" value="LOCAL" />
+      <updated>1755470762460</updated>
+    </task>
+    <task id="LOCAL-00127" summary="ZeppインポートデータがFitbitと同じUIで表示されるように修正。マジで疲れた">
+      <option name="closed" value="true" />
+      <created>1755488198543</created>
+      <option name="number" value="00127" />
+      <option name="presentableId" value="LOCAL-00127" />
+      <option name="project" value="LOCAL" />
+      <updated>1755488198543</updated>
+    </task>
+    <task id="LOCAL-00128" summary="Zeppインポートデータに関しての細かい修正">
+      <option name="closed" value="true" />
+      <created>1755504344957</created>
+      <option name="number" value="00128" />
+      <option name="presentableId" value="LOCAL-00128" />
+      <option name="project" value="LOCAL" />
+      <updated>1755504344957</updated>
+    </task>
+    <option name="localTasksCounter" value="129" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -650,17 +663,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="BlueskyAPIのセッション切れの際アカウントがリストから消去される問題を修正" />
-    <MESSAGE value="本文検索、本文＋タグ検索追加" />
-    <MESSAGE value="検索にSNSフィルター追加" />
-    <MESSAGE value="拡大画像画面にヒントアイコン追加" />
-    <MESSAGE value="拡大画像画面の細かい調整" />
-    <MESSAGE value="GitHubとの連携とりあえず実装" />
-    <MESSAGE value="GitHubとの連携実装" />
-    <MESSAGE value="ログイン画面改修" />
-    <MESSAGE value="再認証時の処理を全アカウントに対応させた" />
-    <MESSAGE value="GitHub連携が安定して動作するよう調整" />
-    <MESSAGE value="ポストの差分首都機に対応" />
     <MESSAGE value="ポストの期間取得の設定画面を実装" />
     <MESSAGE value="アイコンの変更などUI微調整" />
     <MESSAGE value="GitHubのコミット時刻が大幅にずれる問題を修正" />
@@ -675,19 +677,30 @@
     <MESSAGE value="タイムラインに表示させるポストからGoogleFitを除外" />
     <MESSAGE value="GoogleFitの連携機能の調整" />
     <MESSAGE value="削除/連携解除ダイアログUIの調整" />
-    <option name="LAST_COMMIT_MESSAGE" value="削除/連携解除ダイアログUIの調整" />
+    <MESSAGE value="確認用" />
+    <MESSAGE value="Fitbit期間指定取得の大幅改修中" />
+    <MESSAGE value="進捗バーの構想" />
+    <MESSAGE value="引継ぎ用" />
+    <MESSAGE value="Fitbitから取得したポストのUIを調整" />
+    <MESSAGE value="基礎代謝まで取得してしまう問題を修正" />
+    <MESSAGE value="Fitbit健康、睡眠データの取得が安定してできるようになった" />
+    <MESSAGE value="Fitbit連携実装" />
+    <MESSAGE value="GoogleFit関連のコードを削除" />
+    <MESSAGE value="ZeppインポートデータがFitbitと同じUIで表示されるように修正。マジで疲れた" />
+    <MESSAGE value="Zeppインポートデータに関しての細かい修正" />
+    <option name="LAST_COMMIT_MESSAGE" value="Zeppインポートデータに関しての細かい修正" />
   </component>
   <component name="play_dynamic_filters_status">
     <option name="appIdToCheckInfo">
       <map>
         <entry key="com.example.logleaf">
           <value>
-            <CheckInfo lastCheckTimestamp="1754960035681" />
+            <CheckInfo lastCheckTimestamp="1755463004977" />
           </value>
         </entry>
         <entry key="com.example.logleaf.test">
           <value>
-            <CheckInfo lastCheckTimestamp="1754960035682" />
+            <CheckInfo lastCheckTimestamp="1755463004983" />
           </value>
         </entry>
       </map>

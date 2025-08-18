@@ -1,6 +1,7 @@
 package com.example.logleaf.api.github
 
 import android.util.Log
+import com.example.logleaf.MainViewModel
 import com.example.logleaf.data.model.Account
 import com.example.logleaf.data.model.Post
 import com.example.logleaf.data.model.PostWithImageUrls
@@ -18,11 +19,18 @@ import io.ktor.client.request.headers
 import io.ktor.client.request.parameter
 import io.ktor.http.HttpHeaders
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
 class GitHubApi(private val sessionManager: SessionManager) {
+    private var mainViewModelRef: MainViewModel? = null
+
+    fun setMainViewModel(viewModel: MainViewModel) {
+        this.mainViewModelRef = viewModel
+    }
+
     private val client = HttpClient(CIO) {
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true })
@@ -97,27 +105,59 @@ class GitHubApi(private val sessionManager: SessionManager) {
      * GitHubアカウントの活動を取得（統一処理版）
      */
     suspend fun getPostsForAccount(account: Account.GitHub, period: String = "3ヶ月"): List<PostWithImageUrls> {
-        return when (account.repositoryFetchMode) {
-            Account.RepositoryFetchMode.All -> {
-                // 全リポジトリの場合：リポジトリ一覧を取得して全部処理
-                Log.d("GitHubApi", "全リポジトリモード：リポジトリ一覧を取得中...")
-                val allRepos = getUserRepositories(account.accessToken)
-                val repoNames = allRepos.map { it.fullName }
-                Log.d("GitHubApi", "取得したリポジトリ数: ${repoNames.size}")
+        try {
+            val isExpanded = isPeriodExpanded(account) // 1回だけ判定
 
-                getPostsFromRepositories(account, period, repoNames)
+            // 期間拡大時のプログレス開始
+            if (isExpanded) {
+                mainViewModelRef?.setSyncProgress(0, 100)
+                Log.d("GitHubApi", "期間拡大取得開始：プログレス表示")
             }
-            Account.RepositoryFetchMode.Selected -> {
-                // 選択リポジトリの場合：既存処理
-                getPostsFromRepositories(account, period, account.selectedRepositories)
+
+            val result = when (account.repositoryFetchMode) {
+                Account.RepositoryFetchMode.All -> {
+                    // 全リポジトリの場合：リポジトリ一覧を取得して全部処理
+                    Log.d("GitHubApi", "全リポジトリモード：リポジトリ一覧を取得中...")
+                    val allRepos = getUserRepositories(account.accessToken)
+                    val repoNames = allRepos.map { it.fullName }
+                    Log.d("GitHubApi", "取得したリポジトリ数: ${repoNames.size}")
+
+                    getPostsFromRepositories(account, period, repoNames, isExpanded)
+                }
+                Account.RepositoryFetchMode.Selected -> {
+                    // 選択リポジトリの場合：既存処理
+                    getPostsFromRepositories(account, period, account.selectedRepositories, isExpanded)
+                }
             }
+
+            // プログレス完了
+            if (isExpanded) {
+                mainViewModelRef?.clearSyncState()
+            }
+
+            // 期間拡大処理が完了したらlastPeriodSettingを更新
+            if (isExpanded) {
+                sessionManager.updateGitHubAccountLastPeriod(account.username, account.period)
+                Log.d("GitHubApi", "期間設定を更新: ${account.period}")
+            }
+
+            return result
+
+        } catch (e: Exception) {
+            // エラー時
+            val isExpanded = isPeriodExpanded(account)
+            if (isExpanded) {
+                mainViewModelRef?.setSyncError()
+            }
+            Log.e("GitHubApi", "GitHubアカウント取得失敗: ${e.message}")
+            return emptyList()
         }
     }
 
     /**
      * 指定されたリポジトリ群からコミットを取得（共通処理）
      */
-    private suspend fun getPostsFromRepositories(account: Account.GitHub, period: String, repoNames: List<String>): List<PostWithImageUrls> {
+    private suspend fun getPostsFromRepositories(account: Account.GitHub, period: String, repoNames: List<String>, isExpanded: Boolean): List<PostWithImageUrls> {
         if (repoNames.isEmpty()) {
             Log.d("GitHubApi", "対象リポジトリが空のため、取得をスキップ")
             return emptyList()
@@ -131,14 +171,28 @@ class GitHubApi(private val sessionManager: SessionManager) {
         return try {
             val allPosts = mutableListOf<PostWithImageUrls>()
 
-            repoNames.forEach { repoFullName ->
+            repoNames.forEachIndexed { index, repoFullName ->
                 try {
+                    // プログレス更新（期間拡大時のみ）
+                    if (isExpanded) {
+                        mainViewModelRef?.setSyncProgress(index + 1, repoNames.size)
+                    }
+
                     val commits = getRepositoryCommits(account.accessToken, repoFullName, sinceDate)
                     allPosts.addAll(commits)
                     Log.d("GitHubApi", "$repoFullName から ${commits.size}件のコミットを取得")
+
+                    // API制限対策
+                    delay(100)
                 } catch (e: Exception) {
                     Log.e("GitHubApi", "$repoFullName の取得に失敗: ${e.message}")
                 }
+            }
+
+            // 最終プログレス更新
+            if (isExpanded) {
+                mainViewModelRef?.setSyncProgress(repoNames.size, repoNames.size)
+                delay(500) // 完了状態を表示
             }
 
             // 取得成功後、最終同期時刻を更新
@@ -447,5 +501,43 @@ class GitHubApi(private val sessionManager: SessionManager) {
         )
 
         return PostWithImageUrls(post = post, imageUrls = emptyList())
+    }
+
+    /**
+     * 期間拡大検出機能
+     */
+    private fun isPeriodExpanded(account: Account.GitHub): Boolean {
+        val currentPeriod = account.period
+        val lastPeriod = account.lastPeriodSetting
+
+        Log.d("GitHubApi", "期間拡大判定: currentPeriod=$currentPeriod, lastPeriod=$lastPeriod, lastSyncedAt=${account.lastSyncedAt}")
+
+        // lastSyncedAtがある場合は初回ではない
+        if (lastPeriod == null && account.lastSyncedAt != null) {
+            Log.d("GitHubApi", "既存アカウント（設定変更履歴なし）: 拡大なし")
+            return false
+        }
+
+        if (lastPeriod == null) {
+            Log.d("GitHubApi", "真の初回: 拡大扱い")
+            return true
+        }
+
+        val periodToMonths = mapOf(
+            "1ヶ月" to 1,
+            "3ヶ月" to 3,
+            "6ヶ月" to 6,
+            "12ヶ月" to 12,
+            "24ヶ月" to 24,
+            "全期間" to Int.MAX_VALUE
+        )
+
+        val currentMonths = periodToMonths[currentPeriod] ?: 3
+        val lastMonths = periodToMonths[lastPeriod] ?: 3
+
+        val result = currentMonths > lastMonths
+        Log.d("GitHubApi", "期間比較: $currentMonths > $lastMonths = $result")
+
+        return result
     }
 }

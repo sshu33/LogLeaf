@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import com.example.logleaf.MainViewModel.SyncState
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
@@ -96,6 +97,7 @@ import com.example.logleaf.data.model.UiPost
 import com.example.logleaf.data.settings.TimeSettings
 import com.example.logleaf.ui.components.CompactFitbitHealthView
 import com.example.logleaf.ui.components.CompactHealthView
+import com.example.logleaf.ui.components.GradientProgressBar
 import com.example.logleaf.ui.entry.PostImage
 import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
@@ -253,6 +255,17 @@ fun CalendarScreen(
                     timeSettings = timeSettings
                 )
             }
+
+        val syncState by mainViewModel.syncState.collectAsState()
+        if (syncState is SyncState.Progress) {
+            val currentState = syncState as SyncState.Progress
+            GradientProgressBar(
+                progress = currentState.current.toFloat() / currentState.total,
+                isError = false,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
             Surface(
                 modifier = Modifier.weight(1f),
                 color = MaterialTheme.colorScheme.surfaceVariant

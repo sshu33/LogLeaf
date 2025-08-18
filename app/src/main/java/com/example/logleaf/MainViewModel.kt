@@ -126,6 +126,29 @@ class MainViewModel(
     private val _fitbitSyncProgress = MutableStateFlow<Pair<Int, Int>?>(null)
     val fitbitSyncProgress = _fitbitSyncProgress.asStateFlow()
 
+    // プログレス状態の定義
+    sealed class SyncState {
+        object Idle : SyncState()
+        data class Progress(val current: Int, val total: Int) : SyncState()
+        object ErrorFlashing : SyncState()
+    }
+
+    // 統合プログレス管理
+    private val _syncState = MutableStateFlow<SyncState>(SyncState.Idle)
+    val syncState = _syncState.asStateFlow()
+
+    fun clearSyncState() {
+        _syncState.value = SyncState.Idle
+    }
+
+    fun setSyncProgress(current: Int, total: Int) {
+        _syncState.value = SyncState.Progress(current, total)
+    }
+
+    fun setSyncError() {
+        _syncState.value = SyncState.ErrorFlashing
+    }
+
     // データベースから取得した、常に最新の投稿リスト
     private val allPostsFlow: Flow<List<PostWithTagsAndImages>> =
         combine(sessionManager.accountsFlow, _showHiddenPosts) { accounts, showHidden ->
@@ -292,8 +315,15 @@ class MainViewModel(
                 _showSettingsBadge.value = accounts.any { it.needsReauthentication }
             }
         }
-    }
+        // BlueskyApiにMainViewModelの参照を設定
+        blueskyApi.setMainViewModel(this)
 
+        // MastodonApiにも追加
+        mastodonApi.setMainViewModel(this)
+
+        // GitHubApiにも追加
+        gitHubApi.setMainViewModel(this)
+    }
     private fun loadInitialData() {
         viewModelScope.launch {
             fetchPosts(sessionManager.accountsFlow.first()).join()

@@ -2,6 +2,7 @@ package com.example.logleaf.api.mastodon
 
 import android.text.Html
 import android.util.Log
+import com.example.logleaf.MainViewModel
 import com.example.logleaf.data.model.Account
 import com.example.logleaf.data.model.Post
 import com.example.logleaf.data.model.PostWithImageUrls
@@ -18,6 +19,7 @@ import io.ktor.client.request.post
 import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.delay
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -46,6 +48,11 @@ sealed class MastodonPostResult {
 }
 
 class MastodonApi(private val sessionManager: SessionManager) {
+    private var mainViewModelRef: MainViewModel? = null
+
+    fun setMainViewModel(viewModel: MainViewModel) {
+        this.mainViewModelRef = viewModel
+    }
 
     private val client = HttpClient(CIO) {
         install(ContentNegotiation) {
@@ -140,29 +147,49 @@ class MastodonApi(private val sessionManager: SessionManager) {
     /**
      * 特定のMastodonアカウントの投稿を取得する汎用的なメソッド（差分取得対応版）
      */
+    /**
+     * 特定のMastodonアカウントの投稿を取得する汎用的なメソッド（差分取得対応版）
+     */
+    /**
+     * 特定のMastodonアカウントの投稿を取得する汎用的なメソッド（差分取得対応版）
+     */
     suspend fun getPosts(account: Account.Mastodon): MastodonPostResult {
-        // 差分取得のためのsince日時を決定
-        val sinceDate = determineSinceDate(account)
-        Log.d(
-            "MastodonApi",
-            "Mastodonアカウント(${account.username})の差分取得開始: since=$sinceDate"
-        )
-
-        // 最初に取得するURL（差分取得パラメータ付き）
-        var url: String? = buildInitialUrl(account, sinceDate)
-        val allPosts = mutableListOf<PostWithImageUrls>()
-        var pageCount = 1
-
         try {
+            // 差分取得のためのsince日時を決定
+            val sinceDate = determineSinceDate(account)
+            val isExpanded = isPeriodExpanded(account) // 1回だけ判定
+
+            Log.d("MastodonApi", "Mastodonアカウント(${account.username})の差分取得開始: since=$sinceDate")
+
+            // 期間拡大時のプログレス開始
+            if (isExpanded) {
+                mainViewModelRef?.setSyncProgress(0, 100)
+                Log.d("MastodonApi", "期間拡大取得開始：プログレス表示")
+            }
+
+            // 最初に取得するURL（差分取得パラメータ付き）
+            var url: String? = buildInitialUrl(account, sinceDate)
+            val allPosts = mutableListOf<PostWithImageUrls>()
+            var pageCount = 1
+
             // urlがnullになるまで（=次のページがなくなるまで）ループ
             while (url != null) {
                 Log.d("MastodonApi", "Fetching page $pageCount from: ${url.take(100)}...")
+
+                // 期間拡大時のプログレス更新
+                if (isExpanded) {
+                    mainViewModelRef?.setSyncProgress(pageCount, pageCount + 5)
+                }
 
                 val httpResponse: io.ktor.client.statement.HttpResponse = client.get(url) {
                     headers { append(HttpHeaders.Authorization, "Bearer ${account.accessToken}") }
                 }
 
                 if (!httpResponse.status.isSuccess()) {
+                    // エラー時
+                    if (isExpanded) {
+                        mainViewModelRef?.setSyncError()
+                    }
                     return when (httpResponse.status.value) {
                         401 -> MastodonPostResult.TokenInvalid
                         else -> MastodonPostResult.Error("HTTP ${httpResponse.status.value}")
@@ -177,10 +204,8 @@ class MastodonApi(private val sessionManager: SessionManager) {
                 }
 
                 val postsWithImages = mastodonStatuses.map { mastodonStatus ->
-                    val sanitizedText =
-                        Html.fromHtml(mastodonStatus.content, Html.FROM_HTML_MODE_LEGACY).toString()
-                    val imageUrls =
-                        mastodonStatus.mediaAttachments.filter { it.type == "image" }.map { it.url }
+                    val sanitizedText = Html.fromHtml(mastodonStatus.content, Html.FROM_HTML_MODE_LEGACY).toString()
+                    val imageUrls = mastodonStatus.mediaAttachments.filter { it.type == "image" }.map { it.url }
                     val imageUrl = imageUrls.firstOrNull()
 
                     val post = Post(
@@ -201,10 +226,7 @@ class MastodonApi(private val sessionManager: SessionManager) {
                 if (sinceDate != null) {
                     val sinceDateTime = ZonedDateTime.parse(sinceDate)
                     val oldestPostInPage = postsWithImages.minByOrNull { it.post.createdAt }
-                    if (oldestPostInPage != null && oldestPostInPage.post.createdAt.isBefore(
-                            sinceDateTime
-                        )
-                    ) {
+                    if (oldestPostInPage != null && oldestPostInPage.post.createdAt.isBefore(sinceDateTime)) {
                         Log.d("MastodonApi", "差分取得完了: since日時より古い投稿に到達")
                         break
                     }
@@ -216,21 +238,21 @@ class MastodonApi(private val sessionManager: SessionManager) {
                 url = nextUrlMatch?.substringAfter("<")?.substringBefore(">")
 
                 pageCount++
-                // 念のため、無限ループを防ぐ
-                if (pageCount > 25) { // 40件 * 25ページ = 1000件
-                    Log.w("MastodonApi", "Reached page limit (25). Stopping.")
-                    break
-                }
+                delay(100) // API制限対策
+            }
+
+            // プログレス完了
+            if (isExpanded) {
+                mainViewModelRef?.setSyncProgress(pageCount, pageCount)
+                delay(500) // 完了状態を表示
+                mainViewModelRef?.clearSyncState()
             }
 
             // 差分取得：since日時以降の投稿のみフィルタリング
             val filteredPosts = if (sinceDate != null) {
                 val sinceDateTime = ZonedDateTime.parse(sinceDate)
                 val filtered = allPosts.filter { it.post.createdAt.isAfter(sinceDateTime) }
-                Log.d(
-                    "MastodonApi",
-                    "差分フィルタリング後: ${filtered.size}件（${allPosts.size}件から絞り込み）"
-                )
+                Log.d("MastodonApi", "差分フィルタリング後: ${filtered.size}件（${allPosts.size}件から絞り込み）")
                 filtered
             } else {
                 Log.d("MastodonApi", "初回取得: ${allPosts.size}件")
@@ -240,16 +262,23 @@ class MastodonApi(private val sessionManager: SessionManager) {
             // 取得成功後、最終同期時刻を更新
             if (filteredPosts.isNotEmpty()) {
                 sessionManager.updateLastSyncedAt(account.userId, ZonedDateTime.now())
-            } else {
             }
 
-            Log.d(
-                "MastodonApi",
-                "Total ${filteredPosts.size} posts fetched for ${account.displayName}."
-            )
+            // 期間拡大処理が完了したらlastPeriodSettingを更新
+            if (isExpanded) {
+                sessionManager.updateMastodonAccountLastPeriod(account.acct, account.period)
+                Log.d("MastodonApi", "期間設定を更新: ${account.period}")
+            }
+
+            Log.d("MastodonApi", "Total ${filteredPosts.size} posts fetched for ${account.displayName}.")
             return MastodonPostResult.Success(filteredPosts)
 
         } catch (e: Exception) {
+            // エラー時
+            val isExpanded = isPeriodExpanded(account)
+            if (isExpanded) {
+                mainViewModelRef?.setSyncError()
+            }
             e.printStackTrace()
             return MastodonPostResult.Error(e.message ?: "不明なネットワークエラー")
         }
@@ -321,5 +350,43 @@ class MastodonApi(private val sessionManager: SessionManager) {
                 account.lastSyncedAt
             }
         }
+    }
+
+    /**
+     * 期間拡大検出機能
+     */
+    private fun isPeriodExpanded(account: Account.Mastodon): Boolean {
+        val currentPeriod = account.period
+        val lastPeriod = account.lastPeriodSetting
+
+        Log.d("MastodonApi", "期間拡大判定: currentPeriod=$currentPeriod, lastPeriod=$lastPeriod, lastSyncedAt=${account.lastSyncedAt}")
+
+        // lastSyncedAtがある場合は初回ではない
+        if (lastPeriod == null && account.lastSyncedAt != null) {
+            Log.d("MastodonApi", "既存アカウント（設定変更履歴なし）: 拡大なし")
+            return false
+        }
+
+        if (lastPeriod == null) {
+            Log.d("MastodonApi", "真の初回: 拡大扱い")
+            return true
+        }
+
+        val periodToMonths = mapOf(
+            "1ヶ月" to 1,
+            "3ヶ月" to 3,
+            "6ヶ月" to 6,
+            "12ヶ月" to 12,
+            "24ヶ月" to 24,
+            "全期間" to Int.MAX_VALUE
+        )
+
+        val currentMonths = periodToMonths[currentPeriod] ?: 3
+        val lastMonths = periodToMonths[lastPeriod] ?: 3
+
+        val result = currentMonths > lastMonths
+        Log.d("MastodonApi", "期間比較: $currentMonths > $lastMonths = $result")
+
+        return result
     }
 }
