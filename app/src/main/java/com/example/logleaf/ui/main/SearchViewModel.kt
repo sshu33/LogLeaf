@@ -46,10 +46,10 @@ class SearchViewModel(
     val searchResultPosts: StateFlow<List<Post>> =
         combine(
             _searchQuery,
-            _selectedSns, // ◀ 型は変わったが、監視対象であることは同じ
-            sessionManager.accountsFlow,
+            _selectedSns,
+            flowOf(sessionManager.getAccounts()),  // ← ここを変更
             _searchMode
-        ) { query, selectedSnsSet, accounts, mode -> // ◀ 引数名を selectedSnsSet に変更
+        ) { query, selectedSnsSet, accounts, mode ->
             val keywords = query.split(" ", "　").filter { it.isNotBlank() }
             Quadruple(keywords, selectedSnsSet, accounts, mode) // ◀ Quadrupleに渡す
         }

@@ -12,6 +12,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.room.Transaction
 import com.example.logleaf.api.bluesky.BlueskyApi
 import com.example.logleaf.api.fitbit.FitbitApi
 import com.example.logleaf.api.github.GitHubApi
@@ -19,6 +20,7 @@ import com.example.logleaf.api.mastodon.MastodonApi
 import com.example.logleaf.api.mastodon.MastodonPostResult
 import com.example.logleaf.data.model.Account
 import com.example.logleaf.data.model.Post
+import com.example.logleaf.data.model.PostWithImageUrls
 import com.example.logleaf.data.model.PostWithTagsAndImages
 import com.example.logleaf.data.model.UiPost
 import com.example.logleaf.data.session.FitbitHistoryManager
@@ -43,6 +45,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -151,7 +154,8 @@ class MainViewModel(
 
     // データベースから取得した、常に最新の投稿リスト
     private val allPostsFlow: Flow<List<PostWithTagsAndImages>> =
-        combine(sessionManager.accountsFlow, _showHiddenPosts) { accounts, showHidden ->
+        // ★★★ 一時的に静的にして重複呼び出しを防ぐ ★★★
+        combine(flowOf(sessionManager.getAccounts()), _showHiddenPosts) { accounts, showHidden ->
             val visibleAccountIds =
                 accounts.filter { it.isVisible }.map { it.userId } + "LOGLEAF_INTERNAL_POST"
             val includeHidden = if (showHidden) 1 else 0
@@ -309,10 +313,12 @@ class MainViewModel(
     init {
         // 初回ロード処理
         loadInitialData()
-        // アカウント変更の監視
+        // アカウント変更の監視（設定バッジ用のみ）
         viewModelScope.launch {
             sessionManager.accountsFlow.collect { accounts ->
+                Log.d("MainViewModel", "=== アカウント情報変更検知：設定バッジ更新のみ ===")
                 _showSettingsBadge.value = accounts.any { it.needsReauthentication }
+                // fetchPosts(accounts) ← これは削除したまま
             }
         }
         // BlueskyApiにMainViewModelの参照を設定
@@ -335,13 +341,14 @@ class MainViewModel(
         return viewModelScope.launch(Dispatchers.IO) {
             val accountsToFetch = accounts.filter { !it.needsReauthentication }
             try {
+                Log.d("MainViewModel", "=== 投稿取得開始 ===")
 
                 val hasFitbit = accountsToFetch.any { it is Account.Fitbit }
                 if (hasFitbit) {
                     Log.d("Fitbit", "Fitbitアカウントを検出、データ同期開始")
                     val fitbitAccount = accountsToFetch.find { it is Account.Fitbit } as Account.Fitbit
-                    fetchFitbitHistoryData(fitbitAccount.userId) {} // 過去データ（差分取得）
-                    syncFitbitData() // 今日のデータ（2回のAPI）
+                    fetchFitbitHistoryData(fitbitAccount.userId) {}
+                    syncFitbitData()
                 }
 
                 val postLists = accountsToFetch.map { account ->
@@ -356,69 +363,75 @@ class MainViewModel(
                                         emptyList()
                                     }
                                     is MastodonPostResult.Error -> {
-                                        println("Mastodon API Error: ${result.message}")
+                                        Log.e("MainViewModel", "Mastodon API Error: ${result.message}")
                                         emptyList()
                                     }
                                 }
                             }
                             is Account.GitHub -> gitHubApi.getPostsForAccount(account)
-                            is Account.Fitbit -> emptyList()    // Fitbitは別途同期
+                            is Account.Fitbit -> emptyList()
                         }
                     }
                 }
 
                 val allPostsWithImages = postLists.awaitAll().flatten()
                 val allNewPosts = allPostsWithImages.map { it.post }
+
+                Log.d("MainViewModel", "=== API取得完了、データベース保存開始 ===")
+
                 if (allPostsWithImages.isNotEmpty()) {
-                    allPostsWithImages.forEach { postWithImageUrls ->
-                        val post = postWithImageUrls.post
-                        val imageUrls = postWithImageUrls.imageUrls
-
-                        // 1. 既存投稿かチェック
-                        val existingPost = postDao.getPostById(post.id)
-
-                        // 2. 投稿を保存
-                        postDao.insertPost(post)
-
-                        // 3. 新規投稿のみハッシュタグ抽出
-                        if (existingPost == null) {
-                            val hashtagPattern = "#(\\w+)".toRegex()
-                            val hashtags =
-                                hashtagPattern.findAll(post.text).map { it.groupValues[1] }.toList()
-
-                            hashtags.forEach { tagName ->
-                                val tagId = postDao.insertTag(Tag(tagName = tagName))
-                                val finalTagId = if (tagId == -1L) postDao.getTagIdByName(tagName)
-                                    ?: 0L else tagId
-                                if (finalTagId != 0L) {
-                                    postDao.insertPostTagCrossRef(
-                                        PostTagCrossRef(
-                                            post.id,
-                                            finalTagId
-                                        )
-                                    )
-                                }
-                            }
-                        }
-
-                        // 3. 複数画像を保存
-                        postDao.deletePostImagesByPostId(post.id)
-
-                        imageUrls.forEachIndexed { index, imageUrl ->
-                            val postImage = PostImage(
-                                postId = post.id,
-                                imageUrl = imageUrl,
-                                orderIndex = index
-                            )
-                            postDao.insertPostImage(postImage)
+                    allPostsWithImages.chunked(BATCH_SIZE).forEach { batch ->
+                        try {
+                            insertPostsBatch(batch)
+                        } catch (e: Exception) {
+                            Log.e("MainViewModel", "バッチ処理失敗: ${e.message}")
                         }
                     }
                 }
 
                 checkForDeletedPosts(accountsToFetch, allNewPosts)
 
+                Log.d("MainViewModel", "=== データベース保存完了 ===")
+
             } catch (e: Exception) {
-                println("Error fetching posts: ${e.message}")
+                Log.e("MainViewModel", "投稿取得エラー: ${e.message}")
+            } finally {
+                Log.d("MainViewModel", "=== fetchPosts完全終了 ===")
+            }
+        }
+    }
+
+    @Transaction
+    private suspend fun insertPostsBatch(batch: List<PostWithImageUrls>) {
+        batch.forEach { postWithImageUrls ->
+            val post = postWithImageUrls.post  // ← ここに移動
+            val imageUrls = postWithImageUrls.imageUrls
+
+            try {
+                val existingPost = postDao.getPostById(post.id)
+
+                if (existingPost == null) {
+                    postDao.insertPost(post)
+
+                    val hashtagPattern = "#(\\w+)".toRegex()
+                    val hashtags = hashtagPattern.findAll(post.text).map { it.groupValues[1] }.toList()
+
+                    hashtags.forEach { tagName ->
+                        val tagId = postDao.insertTag(Tag(tagName = tagName))
+                        val finalTagId = if (tagId == -1L) postDao.getTagIdByName(tagName) ?: 0L else tagId
+                        if (finalTagId != 0L) {
+                            postDao.insertPostTagCrossRef(PostTagCrossRef(post.id, finalTagId))
+                        }
+                    }
+
+                    postDao.deletePostImagesByPostId(post.id)
+                    imageUrls.forEachIndexed { index, imageUrl ->
+                        val postImage = PostImage(postId = post.id, imageUrl = imageUrl, orderIndex = index)
+                        postDao.insertPostImage(postImage)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("MainViewModel", "投稿保存失敗: ${post.id}, ${e.message}")  // ← これでOK
             }
         }
     }
@@ -962,6 +975,7 @@ class MainViewModel(
     }
 
     companion object {
+        private const val BATCH_SIZE = 20
         fun provideFactory(
             application: Application,
             blueskyApi: BlueskyApi,

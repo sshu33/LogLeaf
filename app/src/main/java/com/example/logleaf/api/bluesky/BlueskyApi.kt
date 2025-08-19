@@ -115,12 +115,11 @@ class BlueskyApi(private val sessionManager: SessionManager) {
     suspend fun getPostsForAccount(account: Account.Bluesky): List<PostWithImageUrls> {
         try {
             val sinceDate = determineSinceDate(account)
-            val isExpanded = isPeriodExpanded(account) // 1回だけ判定
+            val isExpanded = isPeriodExpanded(account)
 
-            // 期間拡大時のプログレス開始
             if (isExpanded) {
                 mainViewModel?.setSyncProgress(0, 100)
-                Log.d("BlueskyApi", "期間拡大取得開始：プログレス表示")
+                Log.d("BlueskyApi", "期間拡大検出：全データ取得開始")
             }
 
             val posts = tryToGetPosts(
@@ -133,18 +132,15 @@ class BlueskyApi(private val sessionManager: SessionManager) {
                 } else null
             )
 
-            // プログレス完了
             if (isExpanded) {
                 mainViewModel?.clearSyncState()
             }
 
-            // 取得成功後、最終同期時刻を更新
             if (posts.isNotEmpty()) {
                 sessionManager.updateLastSyncedAt(account.userId, ZonedDateTime.now())
                 Log.d("BlueskyApi", "Blueskyアカウント(${account.handle})の同期時刻を更新")
             }
 
-            // 期間拡大処理が完了したらlastPeriodSettingを更新
             if (isExpanded) {
                 sessionManager.updateBlueskyAccountLastPeriod(account.handle, account.period)
                 Log.d("BlueskyApi", "期間設定を更新: ${account.period}")
@@ -153,19 +149,18 @@ class BlueskyApi(private val sessionManager: SessionManager) {
             return posts
 
         } catch (e: Exception) {
-            // エラー時
             if (isPeriodExpanded(account)) {
                 mainViewModel?.setSyncError()
             }
 
-            Log.e("BlueskyApi", "1回目の投稿取得に失敗しました: ${e.message}")
+            Log.e("BlueskyApi", "投稿取得失敗: ${e.message}")
             val refreshedAccount = refreshSession(account)
 
             return if (refreshedAccount != null) {
-                Log.d("BlueskyApi", "セッション更新成功。投稿を再取得します。")
+                Log.d("BlueskyApi", "セッション更新成功、投稿を再取得")
                 try {
                     val sinceDate = determineSinceDate(refreshedAccount)
-                    val isRefreshedExpanded = isPeriodExpanded(refreshedAccount) // 再取得時も1回だけ判定
+                    val isRefreshedExpanded = isPeriodExpanded(refreshedAccount)
 
                     val posts = tryToGetPosts(
                         refreshedAccount.accessToken,
@@ -177,18 +172,14 @@ class BlueskyApi(private val sessionManager: SessionManager) {
                         } else null
                     )
 
-                    // プログレス完了（再取得成功時も）
                     if (isRefreshedExpanded) {
                         mainViewModel?.clearSyncState()
                     }
 
-                    // 再取得成功後も同期時刻を更新
                     if (posts.isNotEmpty()) {
                         sessionManager.updateLastSyncedAt(refreshedAccount.userId, ZonedDateTime.now())
-                        Log.d("BlueskyApi", "Blueskyアカウント(${refreshedAccount.handle})の同期時刻を更新（再取得後）")
                     }
 
-                    // 期間拡大処理が完了したらlastPeriodSettingを更新
                     if (isRefreshedExpanded) {
                         sessionManager.updateBlueskyAccountLastPeriod(refreshedAccount.handle, refreshedAccount.period)
                         Log.d("BlueskyApi", "期間設定を更新: ${refreshedAccount.period}")
@@ -196,15 +187,14 @@ class BlueskyApi(private val sessionManager: SessionManager) {
 
                     posts
                 } catch (e2: Exception) {
-                    Log.e("BlueskyApi", "再取得にも失敗しました: ${e2.message}")
-                    // 再取得も失敗時のプログレスクリア
+                    Log.e("BlueskyApi", "再取得失敗: ${e2.message}")
                     if (isPeriodExpanded(refreshedAccount)) {
                         mainViewModel?.setSyncError()
                     }
                     emptyList()
                 }
             } else {
-                Log.e("BlueskyApi", "セッション更新に失敗しました。再ログインが必要です。")
+                Log.e("BlueskyApi", "セッション更新失敗、再ログインが必要")
                 emptyList()
             }
         }
@@ -225,7 +215,6 @@ class BlueskyApi(private val sessionManager: SessionManager) {
 
         do {
             pageCount++
-            // プログレス表示（終了条件不明なので、進行中であることを示す）
             onProgress?.invoke(pageCount, pageCount + 5)
 
             val response: BskyFeedResponse = client.get("https://bsky.social/xrpc/app.bsky.feed.getAuthorFeed") {
@@ -234,8 +223,6 @@ class BlueskyApi(private val sessionManager: SessionManager) {
                 parameter("limit", 100)
                 cursor?.let { parameter("cursor", it) }
             }.body()
-
-            Log.d("BlueskyApi", "ページ$pageCount: ${response.feed.size}件取得")
 
             val pagePosts = response.feed.map { feedItem ->
                 val post = feedItem.post
@@ -254,7 +241,6 @@ class BlueskyApi(private val sessionManager: SessionManager) {
                 PostWithImageUrls(post = postEntity, imageUrls = imageUrls)
             }
 
-            // 期間フィルタリング
             val filteredPosts = if (sinceDate != null) {
                 val sinceDateTime = ZonedDateTime.parse(sinceDate)
                 pagePosts.filter { it.post.createdAt.isAfter(sinceDateTime) }
@@ -264,22 +250,20 @@ class BlueskyApi(private val sessionManager: SessionManager) {
 
             allPosts.addAll(filteredPosts)
 
-            // 期間外の投稿が含まれた場合は終了（制限なし）
             if (sinceDate != null && filteredPosts.size < pagePosts.size) {
-                Log.d("BlueskyApi", "期間外投稿検出。取得終了")
+                Log.d("BlueskyApi", "期間外投稿検出、取得終了")
                 break
             }
 
             cursor = response.cursor
-            delay(100) // API制限対策
+            delay(100)
 
-        } while (cursor != null && response.feed.isNotEmpty()) // maxPages制限を削除
+        } while (cursor != null && response.feed.isNotEmpty())
 
-        // 完了時に100%表示
         onProgress?.invoke(pageCount, pageCount)
-        delay(500) // 完了状態を表示
+        delay(500)
 
-        Log.d("BlueskyApi", "ページネーション完了: 総${allPosts.size}件（${pageCount}ページ）")
+        Log.d("BlueskyApi", "取得完了: 総${allPosts.size}件（${pageCount}ページ）")
         return allPosts
     }
 
@@ -288,17 +272,14 @@ class BlueskyApi(private val sessionManager: SessionManager) {
      */
     private fun determineSinceDate(account: Account.Bluesky): String? {
         return when {
-            // 「全期間」の場合は常にnull（制限なし）
             account.period == "全期間" -> {
                 if (isPeriodExpanded(account)) {
                     Log.d("BlueskyApi", "期間拡大検出：全データ取得")
                     null
                 } else {
-                    Log.d("BlueskyApi", "全期間：差分取得")
                     account.lastSyncedAt
                 }
             }
-            // 期間指定がある場合
             account.period != "全期間" -> {
                 val periodSinceDate = when (account.period) {
                     "1ヶ月" -> ZonedDateTime.now().minusMonths(1)
@@ -306,37 +287,25 @@ class BlueskyApi(private val sessionManager: SessionManager) {
                     "6ヶ月" -> ZonedDateTime.now().minusMonths(6)
                     "12ヶ月" -> ZonedDateTime.now().minusMonths(12)
                     "24ヶ月" -> ZonedDateTime.now().minusMonths(24)
-                    else -> ZonedDateTime.now().minusMonths(3) // デフォルト3ヶ月
+                    else -> ZonedDateTime.now().minusMonths(3)
                 }.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
 
-                // 前回同期時刻と期間指定の新しい方（最近の方）を使用
                 account.lastSyncedAt?.let { lastSync ->
                     val lastSyncDateTime = ZonedDateTime.parse(lastSync)
                     val periodDateTime = ZonedDateTime.parse(periodSinceDate)
 
                     if (lastSyncDateTime.isAfter(periodDateTime)) {
-                        Log.d("BlueskyApi", "差分取得: 前回同期時刻($lastSync)を使用")
                         lastSync
                     } else {
-                        Log.d("BlueskyApi", "期間変更: 期間指定(${account.period} -> $periodSinceDate)を使用")
                         periodSinceDate
                     }
-                } ?: run {
-                    Log.d("BlueskyApi", "初回同期: 期間指定(${account.period} -> $periodSinceDate)を使用")
-                    periodSinceDate
-                }
+                } ?: periodSinceDate
             }
-
-            // その他の場合（念のため）
-            else -> {
-                Log.d("BlueskyApi", "フォールバック: 前回同期時刻を使用")
-                account.lastSyncedAt
-            }
+            else -> account.lastSyncedAt
         }
     }
 
     suspend fun refreshSession(accountToRefresh: Account.Bluesky): Account.Bluesky? {
-        println("セッションの更新を試みます...")
         return try {
             val response: LoginResponse = client.post("https://bsky.social/xrpc/com.atproto.server.refreshSession") {
                 headers {
@@ -344,19 +313,16 @@ class BlueskyApi(private val sessionManager: SessionManager) {
                 }
             }.body()
 
-            // ★ 変更：新しい情報でAccountオブジェクトを再作成
             val refreshedAccount = accountToRefresh.copy(
                 accessToken = response.accessJwt,
                 refreshToken = response.refreshJwt
             )
-            // 新しいアカウント情報で上書き保存
             sessionManager.saveAccount(refreshedAccount)
 
-            println("セッションの更新に成功！新しいアクセストークンを保存しました。")
-            refreshedAccount // 更新されたアカウント情報を返す
+            Log.d("BlueskyApi", "セッション更新成功")
+            refreshedAccount
         } catch (e: Exception) {
-            println("セッションの更新に失敗しました: ${e.message}")
-            // ★ 変更：削除ではなく要再認証状態にマーク
+            Log.e("BlueskyApi", "セッション更新失敗: ${e.message}")
             sessionManager.markAccountForReauthentication(accountToRefresh.userId)
             null
         }
@@ -369,17 +335,12 @@ class BlueskyApi(private val sessionManager: SessionManager) {
         val currentPeriod = account.period
         val lastPeriod = account.lastPeriodSetting
 
-        Log.d("BlueskyApi", "期間拡大判定: currentPeriod=$currentPeriod, lastPeriod=$lastPeriod, lastSyncedAt=${account.lastSyncedAt}")
-
-        // lastSyncedAtがある場合は初回ではない
         if (lastPeriod == null && account.lastSyncedAt != null) {
-            Log.d("BlueskyApi", "既存アカウント（設定変更履歴なし）: 拡大なし")
-            return false // 既存アカウントで設定変更履歴がない場合は拡大なし
+            return false
         }
 
         if (lastPeriod == null) {
-            Log.d("BlueskyApi", "真の初回: 拡大扱い")
-            return true // 真の初回は拡大扱い
+            return true
         }
 
         val periodToMonths = mapOf(
@@ -394,9 +355,6 @@ class BlueskyApi(private val sessionManager: SessionManager) {
         val currentMonths = periodToMonths[currentPeriod] ?: 3
         val lastMonths = periodToMonths[lastPeriod] ?: 3
 
-        val result = currentMonths > lastMonths
-        Log.d("BlueskyApi", "期間比較: $currentMonths > $lastMonths = $result")
-
-        return result
+        return currentMonths > lastMonths
     }
 }

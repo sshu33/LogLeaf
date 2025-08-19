@@ -66,8 +66,7 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fcfefcaf-ff37-4bd5-aa0e-d28134bdfd73" name="Changes" comment="Zeppインポートデータに関しての細かい修正">
-      <change afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/components/GradientProgressBar.kt" afterDir="false" />
+    <list default="true" id="fcfefcaf-ff37-4bd5-aa0e-d28134bdfd73" name="Changes" comment="取得期間変更時の処理を最適化">
       <change beforePath="$PROJECT_DIR$/.gradle/8.13/executionHistory/executionHistory.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.13/executionHistory/executionHistory.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.13/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.13/executionHistory/executionHistory.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.13/fileHashes/fileHashes.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.13/fileHashes/fileHashes.bin" afterDir="false" />
@@ -78,10 +77,8 @@
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/MainViewModel.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/MainViewModel.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/api/bluesky/BlueskyApi.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/api/bluesky/BlueskyApi.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/api/github/GitHubApi.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/api/github/GitHubApi.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/api/mastodon/MastodonApi.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/api/mastodon/MastodonApi.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/data/session/SessionManager.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/data/session/SessionManager.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/main/CalendarScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/main/CalendarScreen.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/main/SearchViewModel.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/example/logleaf/ui/main/SearchViewModel.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -91,7 +88,7 @@
   <component name="ClangdSettings">
     <option name="formatViaClangd" value="false" />
   </component>
-  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[DeviceId(pluginId=LocalEmulator, isTemplate=false, identifier=path=C:\Users\mur20\.android\avd\Pixel_6.avd)]" />
+  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[DeviceId(pluginId=PhysicalDevice, isTemplate=false, identifier=serial=R5CNA062PHJ)]" />
   <component name="ExternalProjectsData">
     <projectState path="$PROJECT_DIR$">
       <ProjectState />
@@ -255,14 +252,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1752160736127</updated>
-    </task>
-    <task id="LOCAL-00080" summary="細かい調整">
-      <option name="closed" value="true" />
-      <created>1754321300432</created>
-      <option name="number" value="00080" />
-      <option name="presentableId" value="LOCAL-00080" />
-      <option name="project" value="LOCAL" />
-      <updated>1754321300432</updated>
     </task>
     <task id="LOCAL-00081" summary="カレンダー画面の細かい修正">
       <option name="closed" value="true" />
@@ -648,7 +637,15 @@
       <option name="project" value="LOCAL" />
       <updated>1755504344957</updated>
     </task>
-    <option name="localTasksCounter" value="129" />
+    <task id="LOCAL-00129" summary="取得期間変更時の処理を最適化">
+      <option name="closed" value="true" />
+      <created>1755519212062</created>
+      <option name="number" value="00129" />
+      <option name="presentableId" value="LOCAL-00129" />
+      <option name="project" value="LOCAL" />
+      <updated>1755519212063</updated>
+    </task>
+    <option name="localTasksCounter" value="130" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -663,7 +660,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="ポストの期間取得の設定画面を実装" />
     <MESSAGE value="アイコンの変更などUI微調整" />
     <MESSAGE value="GitHubのコミット時刻が大幅にずれる問題を修正" />
     <MESSAGE value="基本の設定画面を追加" />
@@ -688,7 +684,8 @@
     <MESSAGE value="GoogleFit関連のコードを削除" />
     <MESSAGE value="ZeppインポートデータがFitbitと同じUIで表示されるように修正。マジで疲れた" />
     <MESSAGE value="Zeppインポートデータに関しての細かい修正" />
-    <option name="LAST_COMMIT_MESSAGE" value="Zeppインポートデータに関しての細かい修正" />
+    <MESSAGE value="取得期間変更時の処理を最適化" />
+    <option name="LAST_COMMIT_MESSAGE" value="取得期間変更時の処理を最適化" />
   </component>
   <component name="play_dynamic_filters_status">
     <option name="appIdToCheckInfo">
