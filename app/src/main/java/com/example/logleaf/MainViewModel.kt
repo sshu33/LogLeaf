@@ -129,6 +129,9 @@ class MainViewModel(
     private val _fitbitSyncProgress = MutableStateFlow<Pair<Int, Int>?>(null)
     val fitbitSyncProgress = _fitbitSyncProgress.asStateFlow()
 
+    private val _isFitbitHistoryFetching = MutableStateFlow(false)
+    val isFitbitHistoryFetching = _isFitbitHistoryFetching.asStateFlow()
+
     // プログレス状態の定義
     sealed class SyncState {
         object Idle : SyncState()
@@ -151,6 +154,10 @@ class MainViewModel(
     fun setSyncError() {
         _syncState.value = SyncState.ErrorFlashing
     }
+
+    // 期間変更プログレス用
+    private val _periodChangeProgress = MutableStateFlow<Float?>(null)
+    val periodChangeProgress = _periodChangeProgress.asStateFlow()
 
     // データベースから取得した、常に最新の投稿リスト
     private val allPostsFlow: Flow<List<PostWithTagsAndImages>> =
@@ -347,7 +354,7 @@ class MainViewModel(
                 if (hasFitbit) {
                     Log.d("Fitbit", "Fitbitアカウントを検出、データ同期開始")
                     val fitbitAccount = accountsToFetch.find { it is Account.Fitbit } as Account.Fitbit
-                    fetchFitbitHistoryData(fitbitAccount.userId) {}
+                    fetchFitbitHistoryData(fitbitAccount.userId)
                     syncFitbitData()
                 }
 
@@ -380,12 +387,32 @@ class MainViewModel(
                 Log.d("MainViewModel", "=== API取得完了、データベース保存開始 ===")
 
                 if (allPostsWithImages.isNotEmpty()) {
-                    allPostsWithImages.chunked(BATCH_SIZE).forEach { batch ->
+                    val batches = allPostsWithImages.chunked(BATCH_SIZE)
+                    val totalBatches = batches.size
+
+                    // 大量データの場合のみプログレス表示
+                    if (totalBatches > 5) {
+                        _periodChangeProgress.value = 0.0f
+                    }
+
+                    batches.forEachIndexed { index, batch ->
                         try {
                             insertPostsBatch(batch)
+
+                            // プログレス更新
+                            if (totalBatches > 5) {
+                                _periodChangeProgress.value = (index + 1).toFloat() / totalBatches
+                            }
+
                         } catch (e: Exception) {
                             Log.e("MainViewModel", "バッチ処理失敗: ${e.message}")
                         }
+                    }
+
+                    // プログレス完了
+                    if (totalBatches > 5) {
+                        delay(500) // 完了状態を少し表示
+                        _periodChangeProgress.value = null
                     }
                 }
 
@@ -441,7 +468,6 @@ class MainViewModel(
             if (_isRefreshing.value) return@launch
             _isRefreshing.value = true
             try {
-                sessionManager.debugLastSyncedAt()
                 _scrollToTopEvent.value = true
 
                 val accounts = sessionManager.accountsFlow.first()
@@ -462,14 +488,12 @@ class MainViewModel(
                 }
 
                 fetchPosts(accountsToFetch).join()
-                sessionManager.debugLastSyncedAt()
             } finally {
                 _isRefreshing.value = false
             }
         }
     }
 
-    // ▼▼▼ [変更点5] UI操作の関数は、トリガーの状態を更新するだけ ▼▼▼
     fun toggleShowHiddenPosts() {
         _showHiddenPosts.value = !_showHiddenPosts.value
     }
@@ -2098,16 +2122,17 @@ ${napData.startTime} → ${napData.endTime} (${napData.duration})
     /**
      * Fitbit過去データを取得（2ヶ月分）
      */
-    fun fetchFitbitHistoryData(userId: String, onComplete: () -> Unit = {}) {
+    fun fetchFitbitHistoryData(userId: String) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
+                _isFitbitHistoryFetching.value = true
+
                 val context = getApplication<Application>().applicationContext
                 val historyManager = FitbitHistoryManager(context)
 
                 // 取得制限チェック
                 if (!historyManager.canFetchHistory(userId)) {
                     Log.d("Fitbit", "履歴取得制限中: $userId")
-                    onComplete()
                     return@launch
                 }
 
@@ -2116,7 +2141,6 @@ ${napData.startTime} → ${napData.endTime} (${napData.duration})
 
                 if (fitbitAccount == null) {
                     Log.e("Fitbit", "Fitbitアカウントが見つかりません: $userId")
-                    onComplete()
                     return@launch
                 }
 
@@ -2161,7 +2185,6 @@ ${napData.startTime} → ${napData.endTime} (${napData.duration})
 
                     historyManager.recordInitialPeriod(userId, startDate, endDate)  // ← 修正
                     Log.d("Fitbit", "初回取得完了: $startDate ～ $endDate (API: $apiCallCount 回)")
-                    onComplete()
                     return@launch
                 }
 
@@ -2207,7 +2230,7 @@ ${napData.startTime} → ${napData.endTime} (${napData.duration})
             } catch (e: Exception) {
                 Log.e("Fitbit", "履歴取得エラー: $userId", e)
             } finally {
-                onComplete()
+                _isFitbitHistoryFetching.value = false  // ← 追加（onComplete()の代わり）
             }
         }
     }

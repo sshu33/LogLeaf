@@ -152,7 +152,11 @@ fun CalendarScreen(
     val showDetailDialog = postForDetail != null
 
     val timeSettings by mainViewModel.timeSettings.collectAsState()
-    Log.d("CalendarDebug", "週の始まり: ${timeSettings.weekStartDay}")
+    val periodChangeProgress by mainViewModel.periodChangeProgress.collectAsState()
+    val restoreState by mainViewModel.restoreState.collectAsState()
+    val zeppImportState by mainViewModel.zeppImportState.collectAsState()
+    val isFitbitHistoryFetching by mainViewModel.isFitbitHistoryFetching.collectAsState()
+    val fitbitSyncProgress by mainViewModel.fitbitSyncProgress.collectAsState()
 
     val (enlargedImageState, setEnlargedImageState) = remember { mutableStateOf<EnlargedImageState?>(null) }
 
@@ -266,6 +270,43 @@ fun CalendarScreen(
             )
         }
 
+        if (periodChangeProgress != null) {
+            GradientProgressBar(
+                progress = periodChangeProgress!!,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+        }
+
+        if (restoreState.isInProgress) {
+            GradientProgressBar(
+                progress = restoreState.progress,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+            )
+        }
+
+        if (zeppImportState.isInProgress) {
+            GradientProgressBar(
+                progress = zeppImportState.progress,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+            )
+        }
+
+        if (isFitbitHistoryFetching && fitbitSyncProgress != null) {
+            val (current, total) = fitbitSyncProgress!!
+            GradientProgressBar(
+                progress = current.toFloat() / total,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+            )
+        }
+
             Surface(
                 modifier = Modifier.weight(1f),
                 color = MaterialTheme.colorScheme.surfaceVariant
@@ -278,8 +319,7 @@ fun CalendarScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        // ここに、あなたが実装している「投稿がありません」のUIが入ります。
-                        // もし、まだ実装していなければ、以下のTextを入れてください。
+
                         UserFontText(
                             text = "投稿がありません",
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)

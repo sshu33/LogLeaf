@@ -32,6 +32,7 @@ import com.example.logleaf.api.github.GitHubRepository
 import com.example.logleaf.data.model.Account
 import com.example.logleaf.data.session.FitbitHistoryManager
 import com.example.logleaf.ui.components.CustomTopAppBar
+import com.example.logleaf.ui.components.GradientProgressBar
 import com.example.logleaf.ui.components.ListCard
 import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
@@ -877,7 +878,8 @@ fun FitbitMenuDialog(
     mainViewModel: MainViewModel,
     onDismiss: () -> Unit
 ) {
-    var isHistoryFetching by remember { mutableStateOf(false) }
+    val isHistoryFetching by mainViewModel.isFitbitHistoryFetching.collectAsState()
+    val fitbitSyncProgress by mainViewModel.fitbitSyncProgress.collectAsState()
     var remainingTime by remember { mutableStateOf("") }
     var availablePeriod by remember { mutableStateOf<Pair<LocalDate, LocalDate>?>(null) }
 
@@ -964,10 +966,7 @@ fun FitbitMenuDialog(
                 Button(
                     onClick = {
                         if (canFetch && !isHistoryFetching) {
-                            isHistoryFetching = true
-                            mainViewModel.fetchFitbitHistoryData(account.userId) {
-                                isHistoryFetching = false
-                            }
+                            mainViewModel.fetchFitbitHistoryData(account.userId)
                         }
                     },
                     enabled = canFetch && !isHistoryFetching,
@@ -979,13 +978,22 @@ fun FitbitMenuDialog(
                 ) {
                     when {
                         isHistoryFetching -> {
-                            CircularProgressIndicator(
-                                color = Color.White,
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("取得中...")
+                            // プログレスバーまたはクルクルを表示
+                            if (fitbitSyncProgress != null) {
+                                val (current, total) = fitbitSyncProgress!!
+                                Column {
+                                    Text("取得中... ($current/$total)")
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    GradientProgressBar(
+                                        progress = current.toFloat() / total,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            } else {
+                                // フォールバック：クルクル表示
+                                CircularProgressIndicator(/*...*/)
+                                Text("取得中...")
+                            }
                         }
                         canFetch -> {
                             Text("過去データを取得")

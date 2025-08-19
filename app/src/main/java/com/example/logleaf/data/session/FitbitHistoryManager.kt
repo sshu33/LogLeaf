@@ -100,9 +100,10 @@ class FitbitHistoryManager(private val context: Context) {
      * 取得可能期間を計算（次に取得できる2ヶ月分）
      */
     fun getAvailablePeriod(userId: String): Pair<LocalDate, LocalDate>? {
+        validateAndFixHistoryData(userId)  // ← 追加
         val oldestDate = getOldestDataDate(userId) ?: return null
         val endDate = oldestDate.minusDays(1) // 最古データの前日まで
-        val startDate = endDate.minusMonths(2) // 1ヶ月前から
+        val startDate = endDate.minusMonths(2) // 2ヶ月前から
 
         return Pair(startDate, endDate)
     }
@@ -153,5 +154,23 @@ class FitbitHistoryManager(private val context: Context) {
             .apply()
 
         Log.d("FitbitHistory", "履歴データクリア: userId=$userId")
+    }
+
+    /**
+     * 履歴データの検証と修正（不正な古いデータをクリア）
+     */
+    private fun validateAndFixHistoryData(userId: String) {
+        val oldestInPrefs = getOldestDataDate(userId) ?: return
+
+        // 明らかに古すぎる値（1年以上前）をチェック
+        val oneYearAgo = LocalDate.now().minusYears(1)
+        if (oldestInPrefs.isBefore(oneYearAgo)) {
+            Log.w("FitbitHistory", "不正な古い履歴データを検出・削除: $oldestInPrefs")
+            // 不正な値をクリア
+            prefs.edit()
+                .remove("${KEY_OLDEST_DATA_DATE}_$userId")
+                .remove("${KEY_NEWEST_DATA_DATE}_$userId")
+                .apply()
+        }
     }
 }
