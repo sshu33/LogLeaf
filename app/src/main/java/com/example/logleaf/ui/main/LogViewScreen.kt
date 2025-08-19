@@ -92,11 +92,11 @@ import com.example.logleaf.data.model.UiPost
 import com.example.logleaf.ui.components.FitbitHealthDisplay
 import com.example.logleaf.ui.components.HealthPostDisplay
 import com.example.logleaf.ui.components.SmartTagDisplay
+import com.example.logleaf.ui.components.UrlPreviewText
 import com.example.logleaf.ui.entry.PostImage
 import com.example.logleaf.ui.entry.Tag
 import com.example.logleaf.ui.theme.SettingsTheme
 import com.example.logleaf.ui.theme.SnsType
-import com.yourpackage.logleaf.ui.components.HyperlinkUserFontText
 import com.yourpackage.logleaf.ui.components.UserFontText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -435,7 +435,7 @@ fun LogViewPostCard(
                         }
                     } else {
                         Log.d("LogView", "健康データ判定：false")
-                        HyperlinkUserFontText(
+                        UrlPreviewText(
                             fullText = uiPost.displayText,
                             style = MaterialTheme.typography.bodyLarge
                         )

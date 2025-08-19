@@ -104,6 +104,9 @@ fun AccountScreen(
                                                 account.needsReauthentication && account is Account.GitHub -> {
                                                     navController.navigate("github_login")
                                                 }
+                                                account.needsReauthentication && account is Account.Fitbit -> {
+                                                    navController.navigate("fitbit_login")
+                                                }
                                                 account is Account.GitHub -> {
                                                     githubAccountToEdit = account
                                                 }

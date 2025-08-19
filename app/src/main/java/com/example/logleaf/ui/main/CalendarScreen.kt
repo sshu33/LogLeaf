@@ -177,11 +177,13 @@ fun CalendarScreen(
 
     LaunchedEffect(scrollToTopEvent) {
         if (scrollToTopEvent) {
-            // 今日の日付に切り替え（新規投稿は今日の日付で作られるため）
-            selectedDate = LocalDate.now()
-            // スムーズにトップまでスクロール
+            // 日の変わり目を考慮した今日の日付を計算
+            val now = ZonedDateTime.now()
+            val adjustedDateTime = now.minusHours(timeSettings.dayStartHour.toLong())
+                .minusMinutes(timeSettings.dayStartMinute.toLong())
+            selectedDate = adjustedDateTime.toLocalDate()
+
             listState.animateScrollToItem(0)
-            // イベントを消費
             onConsumeScrollToTopEvent()
         }
     }
@@ -197,6 +199,7 @@ fun CalendarScreen(
     if (pullToRefreshState.isRefreshing) {
         LaunchedEffect(true) {
             onRefresh()
+            listState.animateScrollToItem(0)
         }
     }
 
@@ -327,11 +330,15 @@ fun CalendarScreen(
                     }
                 } else {
                     LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize(),
+                        modifier = Modifier.fillMaxSize(),
                         state = listState,
                         verticalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp)
+                        contentPadding = PaddingValues(
+                            start = 16.dp,
+                            end = 16.dp,
+                            top = 16.dp,
+                            bottom = 80.dp
+                        )
                     ) {
                         items(postsForSelectedDay, key = { it.post.id }) { postWithTagsAndImages ->
                             CalendarPostCardItem(

@@ -31,6 +31,7 @@ import com.example.logleaf.R
 import com.example.logleaf.data.settings.TimeFormat
 import com.example.logleaf.data.settings.displayName
 import com.example.logleaf.ui.components.CustomTopAppBar
+import com.example.logleaf.ui.theme.MinSizeSettingsTheme
 import com.yourpackage.logleaf.ui.components.UserFontText
 import java.time.DayOfWeek
 
@@ -60,286 +61,293 @@ fun BasicSettingsScreen(
             .statusBarsPadding()
     ) {
 
-        Spacer(modifier = Modifier.height(30.dp))
+        MinSizeSettingsTheme {
 
-        // タイトルバー
-        CustomTopAppBar(
-            title = "基本の設定",
-            onNavigateBack = { navController.popBackStack() }
-        )
+            Spacer(modifier = Modifier.height(30.dp))
 
-        // スクロール可能なコンテンツエリア
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp)
-        ) {
-            // 時間設定セクション
-            UserFontText(
-                text = "時間設定",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+            // タイトルバー
+            CustomTopAppBar(
+                title = "基本の設定",
+                onNavigateBack = { navController.popBackStack() }
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // 時間設定項目
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top
+            // スクロール可能なコンテンツエリア
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp)
             ) {
-                Spacer(modifier = Modifier.width(16.dp))
 
-                Box(
-                    modifier = Modifier
-                        .width(4.dp)
-                        .height(160.dp)
-                        .background(
-                            MaterialTheme.colorScheme.primary,
-                            RoundedCornerShape(2.dp)
-                        )
+                // 時間設定セクション
+                UserFontText(
+                    text = "時間設定",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                 )
 
-                Spacer(modifier = Modifier.width(16.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                Column {
-                    // 日の変わり目時刻
-                    Row(
+                // 時間設定項目
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showTimeDialog = true }
-                            .padding(vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_time),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "日の変わりめ",
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface
+                            .width(4.dp)
+                            .height(160.dp)
+                            .background(
+                                MaterialTheme.colorScheme.primary,
+                                RoundedCornerShape(2.dp)
                             )
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "${timeSettings.dayStartHour}:${timeSettings.dayStartMinute.toString().padStart(2, '0')}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
+                    )
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    Column {
+                        // 日の変わり目時刻
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showTimeDialog = true }
+                                .padding(vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Icon(
-                                imageVector = Icons.Default.KeyboardArrowRight,
+                                painter = painterResource(id = R.drawable.ic_time),
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                                 modifier = Modifier.size(24.dp)
                             )
-                        }
-                    }
-
-                    // 週の始まり
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                showWeekDialog = true
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "日の変わりめ",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
                             }
-                            .padding(vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_week),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "週のはじまり",
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "${timeSettings.dayStartHour}:${
+                                        timeSettings.dayStartMinute.toString().padStart(2, '0')
+                                    }",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Icon(
+                                    imageVector = Icons.Default.KeyboardArrowRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = timeSettings.weekStartDay.displayName,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Icon(
-                                imageVector = Icons.Default.KeyboardArrowRight,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    }
 
-                    // 時間表示形式
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                val newFormat = if (timeSettings.timeFormat == TimeFormat.TWENTY_FOUR_HOUR) {
-                                    TimeFormat.TWELVE_HOUR
-                                } else {
-                                    TimeFormat.TWENTY_FOUR_HOUR
+                        // 週の始まり
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    showWeekDialog = true
                                 }
-                                mainViewModel.updateTimeFormat(newFormat)
-                            }
-                            .padding(vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_date),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "時間表示",
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = timeSettings.timeFormat.displayName,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
+                                .padding(vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Icon(
-                                imageVector = Icons.Default.KeyboardArrowRight,
+                                painter = painterResource(id = R.drawable.ic_week),
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                                 modifier = Modifier.size(24.dp)
                             )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "週のはじまり",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = timeSettings.weekStartDay.displayName,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Icon(
+                                    imageVector = Icons.Default.KeyboardArrowRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+
+                        // 時間表示形式
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    val newFormat =
+                                        if (timeSettings.timeFormat == TimeFormat.TWENTY_FOUR_HOUR) {
+                                            TimeFormat.TWELVE_HOUR
+                                        } else {
+                                            TimeFormat.TWENTY_FOUR_HOUR
+                                        }
+                                    mainViewModel.updateTimeFormat(newFormat)
+                                }
+                                .padding(vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_date),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "時間表示",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = timeSettings.timeFormat.displayName,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Icon(
+                                    imageVector = Icons.Default.KeyboardArrowRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
                         }
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
-            // SNS設定セクション
-            UserFontText(
-                text = "SNS設定",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // SNS設定項目
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top
-            ) {
-                Spacer(modifier = Modifier.width(16.dp))
-
-                Box(
-                    modifier = Modifier
-                        .width(4.dp)
-                        .height(110.dp)
-                        .background(
-                            MaterialTheme.colorScheme.primary,
-                            RoundedCornerShape(2.dp)
-                        )
+                // SNS設定セクション
+                UserFontText(
+                    text = "SNS設定",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                 )
 
-                Spacer(modifier = Modifier.width(16.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                Column {
-                    // 自動タグ付け
-                    Row(
+                // SNS設定項目
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { autoTagging = !autoTagging }
-                            .padding(vertical = 14.dp), // これのまま
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_tag),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "自動タグ付け",
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface
+                            .width(4.dp)
+                            .height(110.dp)
+                            .background(
+                                MaterialTheme.colorScheme.primary,
+                                RoundedCornerShape(2.dp)
                             )
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = if (autoTagging) "ON" else "OFF",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
+                    )
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    Column {
+                        // 自動タグ付け
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { autoTagging = !autoTagging }
+                                .padding(vertical = 14.dp), // これのまま
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Icon(
-                                imageVector = Icons.Default.KeyboardArrowRight,
+                                painter = painterResource(id = R.drawable.ic_tag),
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                                 modifier = Modifier.size(24.dp)
                             )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "自動タグ付け",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = if (autoTagging) "ON" else "OFF",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Icon(
+                                    imageVector = Icons.Default.KeyboardArrowRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
                         }
-                    }
 
-                    // 返信取得
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { fetchReplies = !fetchReplies }
-                            .padding(vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_reply),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "返信を取得",
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = if (fetchReplies) "ON" else "OFF",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
+                        // 返信取得
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { fetchReplies = !fetchReplies }
+                                .padding(vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Icon(
-                                imageVector = Icons.Default.KeyboardArrowRight,
+                                painter = painterResource(id = R.drawable.ic_reply),
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                                 modifier = Modifier.size(24.dp)
                             )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "返信を取得",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = if (fetchReplies) "ON" else "OFF",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Icon(
+                                    imageVector = Icons.Default.KeyboardArrowRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -352,7 +360,11 @@ fun BasicSettingsScreen(
         Dialog(onDismissRequest = { showTimeDialog = false }) {
 
             var localHour by remember(timeSettings.dayStartHour) { mutableIntStateOf(timeSettings.dayStartHour) }
-            var localMinute by remember(timeSettings.dayStartMinute) { mutableIntStateOf(timeSettings.dayStartMinute) }
+            var localMinute by remember(timeSettings.dayStartMinute) {
+                mutableIntStateOf(
+                    timeSettings.dayStartMinute
+                )
+            }
 
 
             Card(
@@ -428,18 +440,32 @@ fun BasicSettingsScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
 
-                    val weekDays = listOf("日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日")
+                    val weekDays =
+                        listOf("日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日")
                     val weekDaysEnum = listOf(
-                        DayOfWeek.SUNDAY, DayOfWeek.MONDAY, DayOfWeek.TUESDAY,
-                        DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY
+                        DayOfWeek.SUNDAY,
+                        DayOfWeek.MONDAY,
+                        DayOfWeek.TUESDAY,
+                        DayOfWeek.WEDNESDAY,
+                        DayOfWeek.THURSDAY,
+                        DayOfWeek.FRIDAY,
+                        DayOfWeek.SATURDAY
                     )
-                    var localWeekStart by remember(timeSettings.weekStartDay) { mutableStateOf(timeSettings.weekStartDay) }
+                    var localWeekStart by remember(timeSettings.weekStartDay) {
+                        mutableStateOf(
+                            timeSettings.weekStartDay
+                        )
+                    }
 
                     StringDrumRollPicker(
                         items = weekDays,
-                        selectedIndex = weekDaysEnum.indexOf(localWeekStart).let { if (it == -1) 0 else it },
+                        selectedIndex = weekDaysEnum.indexOf(localWeekStart)
+                            .let { if (it == -1) 0 else it },
                         onSelectionChanged = {
-                            Log.d("Debug", "StringDrumRollPicker onSelectionChanged: $it -> ${weekDaysEnum[it]}")
+                            Log.d(
+                                "Debug",
+                                "StringDrumRollPicker onSelectionChanged: $it -> ${weekDaysEnum[it]}"
+                            )
                             localWeekStart = weekDaysEnum[it]
                         },
                         modifier = Modifier.height(120.dp)
@@ -530,7 +556,9 @@ fun ProperDrumRollPicker(
                         .fillMaxWidth()
                         .padding(vertical = 12.dp),
                     textAlign = TextAlign.Center,
-                    color = if (isCenterPosition) Color.Black else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                    color = if (isCenterPosition) Color.Black else MaterialTheme.colorScheme.onSurface.copy(
+                        alpha = 0.4f
+                    ),
                     fontWeight = if (isCenterPosition) FontWeight.Bold else FontWeight.Normal
                 )
             }
@@ -589,7 +617,10 @@ fun StringDrumRollPicker(
     }
 
     LaunchedEffect(centerItemIndex) {
-        Log.d("Debug", "LaunchedEffect: centerItemIndex=$centerItemIndex, selectedIndex=$selectedIndex")
+        Log.d(
+            "Debug",
+            "LaunchedEffect: centerItemIndex=$centerItemIndex, selectedIndex=$selectedIndex"
+        )
         if (centerItemIndex != selectedIndex) {
             Log.d("Debug", "onSelectionChangedを呼び出します")
             onSelectionChanged(centerItemIndex)
@@ -618,7 +649,9 @@ fun StringDrumRollPicker(
                         .fillMaxWidth()
                         .padding(vertical = 12.dp),
                     textAlign = TextAlign.Center,
-                    color = if (isCenterPosition) Color.Black else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                    color = if (isCenterPosition) Color.Black else MaterialTheme.colorScheme.onSurface.copy(
+                        alpha = 0.4f
+                    ),
                     fontWeight = if (isCenterPosition) FontWeight.Bold else FontWeight.Normal
                 )
             }

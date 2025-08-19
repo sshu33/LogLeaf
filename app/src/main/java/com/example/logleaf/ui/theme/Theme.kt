@@ -133,3 +133,35 @@ fun SettingsTheme(
         content = content
     )
 }
+
+@Composable
+fun MinSizeSettingsTheme(
+    content: @Composable () -> Unit
+) {
+    // 現在のユーザーフォント設定を取得
+    val currentTypography = MaterialTheme.typography
+
+    // 最小サイズ制限付きの Typography を作成
+    val minSizeTypography = Typography(
+        titleLarge = currentTypography.titleLarge.copy(
+            fontSize = maxOf(currentTypography.titleLarge.fontSize.value, 28f).sp
+        ),
+        titleMedium = currentTypography.titleMedium.copy(
+            fontSize = maxOf(currentTypography.titleMedium.fontSize.value, 22f).sp
+        ),
+        bodyLarge = currentTypography.bodyLarge.copy(
+            fontSize = maxOf(currentTypography.bodyLarge.fontSize.value, 18f).sp
+        ),
+        bodyMedium = currentTypography.bodyMedium.copy(
+            fontSize = maxOf(currentTypography.bodyMedium.fontSize.value, 18f).sp
+        ),
+        bodySmall = currentTypography.bodySmall.copy(
+            fontSize = maxOf(currentTypography.bodySmall.fontSize.value, 14f).sp
+        )
+    )
+
+    MaterialTheme(
+        typography = minSizeTypography,
+        content = content
+    )
+}

@@ -2,7 +2,9 @@ package com.example.logleaf.ui.settings
 
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -37,15 +39,21 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.example.logleaf.MainViewModel
 import com.example.logleaf.R
 import com.example.logleaf.ui.components.CustomTopAppBar
+import com.example.logleaf.ui.theme.MinSizeSettingsTheme
 import com.example.logleaf.ui.theme.SnsType
 import com.yourpackage.logleaf.ui.components.UserFontText
 
@@ -82,90 +90,114 @@ fun SettingsScreen(
                 .weight(1f) // タイトルバー以外の残りの領域をすべて使う
                 .verticalScroll(rememberScrollState())
         ) {
-            // スクロールするコンテンツ全体に上下の余白を追加
-            Column(modifier = Modifier.padding(vertical = 16.dp)) {
-                UpgradeBanner()
-                Spacer(modifier = Modifier.height(24.dp))
+            MinSizeSettingsTheme {
+                // スクロールするコンテンツ全体に上下の余白を追加
+                Column(modifier = Modifier.padding(vertical = 16.dp)) {
+                    UpgradeBanner()
+                    Spacer(modifier = Modifier.height(24.dp))
 
-                // 各セクションの左右にだけpaddingを適用
-                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    StyledSettingsSection(title = "Account") {
+                    // 各セクションの左右にだけpaddingを適用
+                    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        StyledSettingsSection(title = "Account") {
+                            StyledSettingsItem(
+                                icon = painterResource(id = R.drawable.ic_account),
+                                title = "アカウント管理",
+                                onClick = { navController.navigate("accounts") }
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        StyledSettingsSection(title = "Custom") {
+                            StyledSettingsItem(
+                                icon = painterResource(id = R.drawable.ic_setting),
+                                title = "基本の設定",
+                                onClick = { navController.navigate("basic_settings") }
+                            )
+                            StyledSettingsItem(
+                                icon = painterResource(id = R.drawable.ic_font),
+                                title = "文字の設定",
+                                onClick = { navController.navigate("font_settings") }
+                            )
+                            StyledSettingsItem(
+                                icon = painterResource(id = R.drawable.ic_color),
+                                title = "外観の設定",
+                                onClick = {
+                                    Toast.makeText(
+                                        context,
+                                        "「外観の設定」は開発中です",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        StyledSettingsSection(title = "Premium") {
+                            StyledSettingsItem(
+                                icon = painterResource(id = R.drawable.ic_print),
+                                title = "日記の印刷",
+                                onClick = {
+                                    Toast.makeText(
+                                        context,
+                                        "「日記の印刷」は開発中です",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            )
+                            StyledSettingsItem(
+                                icon = painterResource(id = R.drawable.ic_widget),
+                                title = "ウィジェット",
+                                onClick = {
+                                    Toast.makeText(
+                                        context,
+                                        "「ウィジェット」は開発中です",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            )
+                            StyledSettingsItem(
+                                icon = painterResource(id = R.drawable.ic_analytics),
+                                title = "統計機能",
+                                onClick = {
+                                    Toast.makeText(
+                                        context,
+                                        "「統計機能」は開発中です",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        StyledSettingsSection(title = "Backup & Privacy") {
+                            StyledSettingsItem(
+                                icon = painterResource(id = R.drawable.ic_backup),
+                                title = "バックアップ",
+                                onClick = { navController.navigate("backup_settings") }
+                            )
+                            StyledSettingsItem(
+                                icon = painterResource(id = R.drawable.ic_password),
+                                title = "パスワード",
+                                onClick = {
+                                    Toast.makeText(
+                                        context,
+                                        "「パスワード」は開発中です",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
                         StyledSettingsItem(
-                            icon = painterResource(id = R.drawable.ic_account),
-                            title = "アカウント管理",
-                            onClick = { navController.navigate("accounts") }
+                            icon = painterResource(id = R.drawable.ic_logout),
+                            title = "ログアウト",
+                            onClick = { showLogoutDialog = true }
                         )
-                    }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    StyledSettingsSection(title = "Custom") {
-                        StyledSettingsItem(
-                            icon = painterResource(id = R.drawable.ic_setting),
-                            title = "基本の設定",
-                            onClick = { navController.navigate("basic_settings") }
-                        )
-                        StyledSettingsItem(
-                            icon = painterResource(id = R.drawable.ic_font),
-                            title = "文字の設定",
-                            onClick = { navController.navigate("font_settings") }
-                        )
-                        StyledSettingsItem(
-                            icon = painterResource(id = R.drawable.ic_color),
-                            title = "外観の設定",
-                            onClick = { Toast.makeText(context, "「外観の設定」は開発中です", Toast.LENGTH_SHORT).show() }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    StyledSettingsSection(title = "Premium") {
-                        StyledSettingsItem(
-                            icon = painterResource(id = R.drawable.ic_print),
-                            title = "日記の印刷",
-                            onClick = { Toast.makeText(context, "「日記の印刷」は開発中です", Toast.LENGTH_SHORT).show() }
-                        )
-                        StyledSettingsItem(
-                            icon = painterResource(id = R.drawable.ic_widget),
-                            title = "ウィジェット",
-                            onClick = { Toast.makeText(context, "「ウィジェット」は開発中です", Toast.LENGTH_SHORT).show() }
-                        )
-                        StyledSettingsItem(
-                            icon = painterResource(id = R.drawable.ic_analytics),
-                            title = "統計機能",
-                            onClick = { Toast.makeText(context, "「統計機能」は開発中です", Toast.LENGTH_SHORT).show() }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    StyledSettingsSection(title = "Backup & Privacy") {
-                        StyledSettingsItem(
-                            icon = painterResource(id = R.drawable.ic_backup),
-                            title = "バックアップ",
-                            onClick = { navController.navigate("backup_settings") }
-                        )
-                        StyledSettingsItem(
-                            icon = painterResource(id = R.drawable.ic_password),
-                            title = "パスワード",
-                            onClick = { Toast.makeText(context, "「パスワード」は開発中です", Toast.LENGTH_SHORT).show() }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    StyledSettingsItem(
-                        icon = painterResource(id = R.drawable.ic_logout),
-                        title = "ログアウト",
-                        onClick = { showLogoutDialog = true }
-                    )
-
-                    // Fitbitダミーデータ作成
-                    Button(
-                        onClick = { mainViewModel.fixZeppData() },
-                        modifier = Modifier.padding(16.dp)
-                    ) {
-                        Text("Zeppデータ修正")
                     }
                 }
             }
@@ -267,5 +299,4 @@ fun StyledSettingsItem(
 // UpgradeBannerは変更なし
 @Composable
 fun UpgradeBanner() {
-
 }

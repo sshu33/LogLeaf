@@ -467,9 +467,8 @@ class MainViewModel(
         viewModelScope.launch {
             if (_isRefreshing.value) return@launch
             _isRefreshing.value = true
-            try {
-                _scrollToTopEvent.value = true
 
+            try {
                 val accounts = sessionManager.accountsFlow.first()
                 val accountsToFetch = accounts.filter { !it.needsReauthentication }
 
