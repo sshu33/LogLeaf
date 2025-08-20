@@ -126,32 +126,84 @@ object UrlMetadataExtractor {
 
 
     /**
-     * HTMLからタイトルを抽出
+     * HTMLからタイトルを抽出（フォールバック付き）
      */
     private fun extractTitle(html: String): String? {
-        // 優先順位: og:title -> twitter:title -> title タグ
+        // 優先順位: og:title -> twitter:title -> title タグ -> h1 タグ
         return extractMetaProperty(html, "og:title")
             ?: extractMetaProperty(html, "twitter:title")
             ?: extractTitleTag(html)
+            ?: extractFirstH1Tag(html)
     }
 
     /**
-     * HTMLから説明文を抽出
+     * HTMLから説明文を抽出（フォールバック付き）
      */
     private fun extractDescription(html: String): String? {
         return extractMetaProperty(html, "og:description")
             ?: extractMetaProperty(html, "twitter:description")
             ?: extractMetaProperty(html, "description")
+            ?: extractFirstParagraph(html)
     }
 
     /**
-     * HTMLから画像URLを抽出
+     * HTMLから画像URLを抽出（フォールバック付き）
      */
     private fun extractImageUrl(html: String, baseUrl: String): String? {
         val imageUrl = extractMetaProperty(html, "og:image")
             ?: extractMetaProperty(html, "twitter:image")
+            ?: extractFavicon(html, baseUrl)
 
         return imageUrl?.let { resolveUrl(it, baseUrl) }
+    }
+
+    /**
+     * 最初のh1タグからタイトルを抽出
+     */
+    private fun extractFirstH1Tag(html: String): String? {
+        val pattern = Pattern.compile("<h1[^>]*>([^<]*)</h1>", Pattern.CASE_INSENSITIVE)
+        val matcher = pattern.matcher(html)
+        return if (matcher.find()) {
+            matcher.group(1)?.trim()?.takeIf { it.isNotEmpty() }
+        } else null
+    }
+
+    /**
+     * 最初のpタグから説明文を抽出
+     */
+    private fun extractFirstParagraph(html: String): String? {
+        val pattern = Pattern.compile("<p[^>]*>([^<]{10,100})</p>", Pattern.CASE_INSENSITIVE)
+        val matcher = pattern.matcher(html)
+        return if (matcher.find()) {
+            matcher.group(1)?.trim()?.takeIf { it.length >= 10 }
+        } else null
+    }
+
+    /**
+     * ファビコンのURLを抽出
+     */
+    private fun extractFavicon(html: String, baseUrl: String): String? {
+        val patterns = listOf(
+            // <link rel="icon" href="...">
+            Pattern.compile("<link[^>]+rel=[\"'](?:icon|shortcut icon)[\"'][^>]+href=[\"']([^\"']*)[\"']", Pattern.CASE_INSENSITIVE),
+            // <link href="..." rel="icon">
+            Pattern.compile("<link[^>]+href=[\"']([^\"']*)[\"'][^>]+rel=[\"'](?:icon|shortcut icon)[\"']", Pattern.CASE_INSENSITIVE)
+        )
+
+        patterns.forEach { pattern ->
+            val matcher = pattern.matcher(html)
+            if (matcher.find()) {
+                return matcher.group(1)?.trim()?.takeIf { it.isNotEmpty() }
+            }
+        }
+
+        // フォールバック: /favicon.ico
+        return try {
+            val baseUri = URL(baseUrl)
+            "${baseUri.protocol}://${baseUri.host}/favicon.ico"
+        } catch (e: Exception) {
+            null
+        }
     }
 
     /**

@@ -1981,140 +1981,255 @@ ${napData.startTime} → ${napData.endTime} (${napData.duration})
         }
     }
 
+    private suspend fun syncFitbitSleepData(date: LocalDate, account: Account.Fitbit) {
+        try {
+            Log.e("DEBUG", "=== syncFitbitSleepData開始 ===")
+            Log.e("DEBUG", "date: $date")
+
+            val result = fitbitApi.getSleepData(account.accessToken, date)
+            Log.d("DEBUG", "sleep result: $result")
+
+            if (result != null) {
+                val (sleepData, napData) = result
+                val currentTimeSettings = timeSettings.first()
+
+                // メイン睡眠データ処理
+                if (sleepData != null) {
+                    Log.d("DEBUG", "睡眠データ投稿作成実行")
+
+                    // 投稿時刻の処理
+                    val adjustedDateTime = date.atTime(
+                        currentTimeSettings.dayStartHour,
+                        currentTimeSettings.dayStartMinute
+                    ).atZone(ZoneId.of("Asia/Tokyo"))
+
+                    val sleepText = """
+💤 睡眠記録
+${sleepData.startTime} → ${sleepData.endTime} (${sleepData.duration})
+深い睡眠: ${sleepData.deepSleep}分
+浅い睡眠: ${sleepData.lightSleep}分
+レム睡眠: ${sleepData.remSleep}分
+覚醒: ${sleepData.awakeSleep}分
+睡眠効率: ${sleepData.efficiency}%
+""".trimIndent()
+
+                    val sleepPost = Post(
+                        id = "fitbit_sleep_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}_${account.userId}",
+                        accountId = account.userId,
+                        text = sleepText,
+                        createdAt = adjustedDateTime,
+                        source = SnsType.FITBIT,
+                        imageUrl = null,
+                        isHealthData = true
+                    )
+
+                    postDao.deletePostById(sleepPost.id)
+                    insertFitbitPostWithTags(sleepPost, listOf("睡眠"))
+
+                    Log.d("Fitbit", "睡眠データ投稿作成完了: ${sleepData.duration}")
+                }
+
+                // 仮眠データ処理
+                if (napData != null) {
+                    Log.d("DEBUG", "仮眠データ投稿作成実行")
+
+                    // 実際の仮眠時刻に投稿
+                    val napStartTime = try {
+                        val (hour, minute) = napData.startTime.split(":").map { it.toInt() }
+                        date.atTime(hour, minute).atZone(ZoneId.of("Asia/Tokyo"))
+                    } catch (e: Exception) {
+                        Log.e("Fitbit", "仮眠開始時刻パースエラー: ${napData.startTime}", e)
+                        date.atTime(12, 0).atZone(ZoneId.of("Asia/Tokyo"))
+                    }
+
+                    val napText = """
+😴 仮眠記録
+${napData.startTime} → ${napData.endTime} (${napData.duration})
+深い睡眠: ${napData.deepSleep}分
+浅い睡眠: ${napData.lightSleep}分
+レム睡眠: ${napData.remSleep}分
+覚醒: ${napData.awakeSleep}分
+睡眠効率: ${napData.efficiency}%
+""".trimIndent()
+
+                    val napPost = Post(
+                        id = "fitbit_nap_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}_${napData.startTime.replace(":", "")}_${account.userId}",
+                        accountId = account.userId,
+                        text = napText,
+                        createdAt = napStartTime,
+                        source = SnsType.FITBIT,
+                        imageUrl = null,
+                        isHealthData = true
+                    )
+
+                    postDao.deletePostById(napPost.id)
+                    insertFitbitPostWithTags(napPost, listOf("仮眠"))
+
+                    Log.d("Fitbit", "仮眠データ投稿作成完了: ${napData.startTime}")
+                }
+            }
+
+            Log.e("DEBUG", "=== syncFitbitSleepData完了 ===")
+        } catch (e: Exception) {
+            Log.e("Fitbit", "睡眠データ同期エラー: $date", e)
+        }
+    }
+
     private suspend fun syncFitbitActivityData(date: LocalDate, account: Account.Fitbit) {
         try {
             Log.e("DEBUG", "=== syncFitbitActivityData開始 ===")
             Log.e("DEBUG", "date: $date")
 
-            val result = fitbitApi.getActivityData(account.accessToken, date)  // ← 変更
+            // 新しいシグネチャで呼び出し（fitbitAccountパラメータを追加）
+            val result = fitbitApi.getActivityData(account.accessToken, date)
             Log.d("DEBUG", "result: $result")
 
-            if (result != null) {  // ← 変更
-                val (activityData, exerciseDataList) = result  // ← 追加：Pairを分解
+            if (result != null) {
+                val (activityData, exerciseDataList) = result
 
                 // 健康データ処理（既存ロジック）
                 if (activityData != null && (activityData.steps > 0 || activityData.calories > 0)) {
                     Log.d("DEBUG", "投稿作成実行")
-                    val currentTimeSettings = timeSettings.first()
 
-                    Log.e("DEBUG", "timeSettings: ${currentTimeSettings.dayStartHour}:${currentTimeSettings.dayStartMinute}")
+                    Log.e("DEBUG", "timeSettings.first()取得開始")
+                    val currentTimeSettings = try {
+                        timeSettings.first()
+                    } catch (e: Exception) {
+                        Log.e("DEBUG", "timeSettings.first()でエラー", e)
+                        throw e
+                    }
+                    Log.e("DEBUG", "timeSettings取得完了: ${currentTimeSettings.dayStartHour}:${currentTimeSettings.dayStartMinute}")
 
-                    val postTime = date.plusDays(1)
-                        .atTime(currentTimeSettings.dayStartHour, currentTimeSettings.dayStartMinute)
-                        .minusMinutes(1)
-                        .atZone(ZoneId.of("Asia/Tokyo"))
+                    Log.e("DEBUG", "時刻計算開始")
 
-                    Log.e("DEBUG", "計算後のpostTime: $postTime")
-                    Log.e("DEBUG", "postTimeの日付: ${postTime.toLocalDate()}")
+                    // 投稿時刻の処理
+                    val adjustedDateTime = date.plusDays(1).atTime(
+                        currentTimeSettings.dayStartHour,
+                        currentTimeSettings.dayStartMinute
+                    ).minusMinutes(1).atZone(ZoneId.of("Asia/Tokyo"))
 
-                    val adjustedDate = postTime.minusHours(currentTimeSettings.dayStartHour.toLong())
-                        .minusMinutes(currentTimeSettings.dayStartMinute.toLong())
-                        .toLocalDate()
-                    Log.e("DEBUG", "調整後の表示日付: $adjustedDate")
-
+                    Log.e("DEBUG", "投稿テキスト作成開始")
                     val activityText = """
-📊 今日の健康データ
-歩数: ${activityData.steps.toString().replace(Regex("(\\d)(?=(\\d{3})+$)"), "$1,")}歩
+🏃 アクティビティ記録
+歩数: ${String.format("%,d", activityData.steps)}歩
 消費カロリー: ${activityData.calories}kcal
 """.trimIndent()
+                    Log.e("DEBUG", "投稿テキスト作成完了")
 
+                    Log.e("DEBUG", "Postオブジェクト作成開始")
                     val activityPost = Post(
                         id = "fitbit_activity_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}_${account.userId}",
                         accountId = account.userId,
                         text = activityText,
-                        createdAt = postTime,
+                        createdAt = adjustedDateTime,
                         source = SnsType.FITBIT,
                         imageUrl = null,
                         isHealthData = true
                     )
+                    Log.e("DEBUG", "Postオブジェクト作成完了: ${activityPost.id}")
 
+                    Log.e("DEBUG", "既存投稿削除開始")
                     postDao.deletePostById(activityPost.id)
-                    val activityTags = listOf("歩数", "カロリー")
-                    insertFitbitPostWithTags(activityPost, activityTags)
-                } else {
-                    Log.d("DEBUG", "健康データ投稿作成スキップ")
+                    Log.e("DEBUG", "既存投稿削除完了")
+
+                    Log.e("DEBUG", "insertFitbitPostWithTags呼び出し開始")
+                    insertFitbitPostWithTags(activityPost, listOf("歩数", "カロリー"))
+                    Log.e("DEBUG", "insertFitbitPostWithTags呼び出し完了")
+
+                    Log.d("Fitbit", "アクティビティデータ投稿作成完了: ${activityData.steps}歩, ${activityData.calories}kcal")
                 }
 
                 // 運動データ処理
                 exerciseDataList.forEach { exerciseData ->
-                    Log.d("DEBUG", "運動データ処理: ${exerciseData.name}")
-
-                    // 運動開始時刻をパース（"18:30:00" → 18:30）
-                    val exerciseStartTime = try {
-                        val timeParts = exerciseData.startTime.split(":")
-                        val hour = timeParts[0].toInt()
-                        val minute = timeParts[1].toInt()
+                    val exerciseDateTime = try {
+                        val (hour, minute) = exerciseData.startTime.split(":").map { it.toInt() }
                         date.atTime(hour, minute).atZone(ZoneId.of("Asia/Tokyo"))
                     } catch (e: Exception) {
-                        Log.e("DEBUG", "運動開始時刻パースエラー: ${exerciseData.startTime}", e)
+                        Log.e("Fitbit", "運動開始時刻パースエラー: ${exerciseData.startTime}", e)
                         date.atTime(12, 0).atZone(ZoneId.of("Asia/Tokyo")) // デフォルト時刻
                     }
 
-                    // 運動データのテキスト作成
-                    val exerciseText = buildString {
-                        append("🏃 運動記録\n")
-                        append("運動: ${exerciseData.name}\n")
-                        append("開始時刻: ${exerciseData.startTime}\n")
-                        append("継続時間: ${exerciseData.duration}\n")
-                        if (exerciseData.calories != null) {
-                            append("消費カロリー: ${exerciseData.calories}kcal\n")
-                        }
-                        if (exerciseData.distance != null) {
-                            append("距離: ${String.format("%.2f", exerciseData.distance)}km")
-                        }
-                    }.trimEnd()
+                    val exerciseText = """
+🏃 運動記録
+運動: ${exerciseData.name}
+開始時刻: ${exerciseData.startTime}
+継続時間: ${exerciseData.duration}
+消費カロリー: ${exerciseData.calories}kcal
+""".trimIndent()
 
                     val exercisePost = Post(
                         id = "fitbit_exercise_${date.format(DateTimeFormatter.BASIC_ISO_DATE)}_${exerciseData.startTime.replace(":", "")}_${account.userId}",
                         accountId = account.userId,
                         text = exerciseText,
-                        createdAt = exerciseStartTime,
+                        createdAt = exerciseDateTime,
                         source = SnsType.FITBIT,
                         imageUrl = null,
                         isHealthData = true
                     )
 
-                    // 既存データを削除してから保存
                     postDao.deletePostById(exercisePost.id)
+                    insertFitbitPostWithTags(exercisePost, listOf("運動"))
 
-                    // 運動種類をタグとして使用
-                    val exerciseTags = listOf(exerciseData.name)
-                    insertFitbitPostWithTags(exercisePost, exerciseTags)
-
-                    Log.d("DEBUG", "運動データ投稿作成完了: ${exerciseData.name}")
+                    Log.d("Fitbit", "運動データ投稿作成完了: ${exerciseData.name}")
                 }
-
-            } else {
-                Log.d("DEBUG", "データなしのためスキップ")
             }
+
+            Log.e("DEBUG", "=== syncFitbitActivityData完了 ===")
         } catch (e: Exception) {
-            Log.e("Fitbit", "アクティビティデータ同期エラー", e)
+            Log.e("Fitbit", "アクティビティデータ同期エラー: $date", e)
         }
     }
 
     private suspend fun insertFitbitPostWithTags(post: Post, tagNames: List<String>) {
-        // 1. 投稿を保存（ハッシュタグ抽出なし）
-        postDao.insert(post)  // ← insertPostから変更
+        try {
+            Log.e("DEBUG", "=== insertFitbitPostWithTags 開始 ===")
+            Log.e("DEBUG", "postId: ${post.id}")
+            Log.e("DEBUG", "tagNames: $tagNames")
 
-        // 2. タグを処理
-        val tagIds = mutableListOf<Long>()
-        tagNames.forEach { tagName ->
-            var tagId = postDao.getTagIdByName(tagName)
-            if (tagId == null) {
-                // タグが存在しない場合は新規作成
-                tagId = postDao.insertTag(Tag(tagName = tagName))
-            }
-            if (tagId != null && tagId != -1L) {
-                tagIds.add(tagId)
-            }
-        }
+            // 1. 投稿を保存（ハッシュタグ抽出なし）
+            Log.e("DEBUG", "1. 投稿保存開始")
+            postDao.insert(post)
+            Log.e("DEBUG", "1. 投稿保存完了")
 
-        // 3. 投稿とタグの関連付け
-        val crossRefs = tagIds.map { tagId ->
-            PostTagCrossRef(postId = post.id, tagId = tagId)
-        }
-        crossRefs.forEach { crossRef ->
-            postDao.insertPostTagCrossRef(crossRef)
+            // 2. タグを処理
+            Log.e("DEBUG", "2. タグ処理開始")
+            val tagIds = mutableListOf<Long>()
+            tagNames.forEach { tagName ->
+                Log.e("DEBUG", "タグ処理中: $tagName")
+                var tagId = postDao.getTagIdByName(tagName)
+                Log.e("DEBUG", "既存タグID取得結果: $tagId")
+
+                if (tagId == null) {
+                    // タグが存在しない場合は新規作成
+                    Log.e("DEBUG", "新規タグ作成: $tagName")
+                    tagId = postDao.insertTag(Tag(tagName = tagName))
+                    Log.e("DEBUG", "新規タグ作成完了: $tagId")
+                }
+                if (tagId != null && tagId != -1L) {
+                    tagIds.add(tagId)
+                    Log.e("DEBUG", "タグID追加: $tagId")
+                }
+            }
+            Log.e("DEBUG", "2. タグ処理完了, tagIds: $tagIds")
+
+            // 3. 投稿とタグの関連付け
+            Log.e("DEBUG", "3. 関連付け開始")
+            val crossRefs = tagIds.map { tagId ->
+                PostTagCrossRef(postId = post.id, tagId = tagId)
+            }
+            crossRefs.forEach { crossRef ->
+                Log.e("DEBUG", "関連付け保存中: ${crossRef.postId} -> ${crossRef.tagId}")
+                postDao.insertPostTagCrossRef(crossRef)
+                Log.e("DEBUG", "関連付け保存完了")
+            }
+            Log.e("DEBUG", "3. 関連付け完了")
+
+            Log.e("DEBUG", "=== insertFitbitPostWithTags 完了 ===")
+        } catch (e: Exception) {
+            Log.e("DEBUG", "=== insertFitbitPostWithTags エラー ===", e)
+            Log.e("DEBUG", "エラー詳細: ${e.message}")
+            Log.e("DEBUG", "スタックトレース: ${e.stackTraceToString()}")
+            throw e // エラーを再スロー
         }
     }
 
@@ -2252,7 +2367,7 @@ ${napData.startTime} → ${napData.endTime} (${napData.duration})
                 val today = targetDate ?: LocalDate.now()
 
                 // 睡眠データ同期
-                //syncFitbitSleepData(today, fitbitAccount)
+                syncFitbitSleepData(today, fitbitAccount)
 
                 // アクティビティデータ同期
                 syncFitbitActivityData(today, fitbitAccount)

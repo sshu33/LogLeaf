@@ -25,6 +25,7 @@ import coil.compose.AsyncImage
 import com.example.logleaf.utils.UrlMetadata
 import com.example.logleaf.utils.UrlMetadataExtractor
 import com.yourpackage.logleaf.ui.components.HyperlinkUserFontText
+import com.yourpackage.logleaf.ui.components.UserFontText
 import java.util.regex.Pattern
 
 @Composable
@@ -165,7 +166,7 @@ fun UrlPreviewCard(
         ) {
             Column {
                 // サイト名/ドメイン
-                Text(
+                UserFontText(
                     text = siteName ?: domain,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
@@ -177,7 +178,7 @@ fun UrlPreviewCard(
                 // タイトル
                 if (!title.isNullOrBlank()) {
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text(
+                    UserFontText  (
                         text = title,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -190,7 +191,7 @@ fun UrlPreviewCard(
 
             // 説明（下部に配置）
             if (!description.isNullOrBlank()) {
-                Text(
+                UserFontText(
                     text = description,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
@@ -203,10 +204,11 @@ fun UrlPreviewCard(
 }
 
 /**
- * テキストからURLを抽出する関数（修正版）
+ * テキストからURLを抽出する関数（重複修正版）
  */
 private fun extractUrlsFromText(text: String): List<String> {
     val urls = mutableListOf<String>()
+    val normalizedUrls = mutableSetOf<String>() // 正規化後URLの重複チェック用
 
     // より厳密なURL検出パターン
     val urlPatterns = listOf(
@@ -231,18 +233,50 @@ private fun extractUrlsFromText(text: String): List<String> {
             val url = matcher.group().trim()
             Log.d("UrlExtraction", "パターン${index + 1}で検出: $url")
 
-            // 重複チェック & 有効性チェック
-            if (!urls.contains(url) && isValidUrl(url)) {
-                urls.add(url)
-                Log.d("UrlExtraction", "追加: $url")
+            // 有効性チェック
+            if (isValidUrl(url)) {
+                // 正規化して重複チェック
+                val normalizedUrl = normalizeUrlForExtraction(url)
+
+                if (!normalizedUrls.contains(normalizedUrl)) {
+                    urls.add(url)
+                    normalizedUrls.add(normalizedUrl)
+                    Log.d("UrlExtraction", "追加: $url -> $normalizedUrl")
+                } else {
+                    Log.d("UrlExtraction", "重複スキップ: $url -> $normalizedUrl")
+                }
             } else {
-                Log.d("UrlExtraction", "スキップ: $url (重複または無効)")
+                Log.d("UrlExtraction", "無効URLスキップ: $url")
             }
         }
     }
 
     Log.d("UrlExtraction", "最終結果: $urls")
     return urls
+}
+
+/**
+ * URL抽出用の正規化関数（重複チェック専用）
+ */
+private fun normalizeUrlForExtraction(url: String): String {
+    return when {
+        url.startsWith("http://") || url.startsWith("https://") -> {
+            // 既にプロトコルがある場合はそのまま
+            url
+        }
+        url.startsWith("www.") -> {
+            // www.で始まる場合
+            "https://$url"
+        }
+        url.startsWith("//") -> {
+            // //で始まる場合
+            "https:$url"
+        }
+        else -> {
+            // その他の場合
+            "https://$url"
+        }
+    }
 }
 
 /**
