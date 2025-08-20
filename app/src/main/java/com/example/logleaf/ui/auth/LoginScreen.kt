@@ -27,11 +27,20 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.autofill.AutofillNode
+import androidx.compose.ui.autofill.AutofillType
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalAutofill
+import androidx.compose.ui.platform.LocalAutofillManager
+import androidx.compose.ui.platform.LocalAutofillTree
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
+import com.example.logleaf.data.credentials.CredentialsManager
 import com.example.logleaf.ui.theme.SnsType
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -60,6 +69,17 @@ fun LoginScreen(
     var passwordVisible by remember { mutableStateOf(false) }
     val selectedPeriod by viewModel.selectedPeriod.collectAsState()
     val keyboardController = LocalSoftwareKeyboardController.current
+    val credentialsManager = remember { CredentialsManager(context) }
+    var rememberPassword by remember { mutableStateOf(false) }
+
+    // 画面初期化時に保存された認証情報を読み込み
+    LaunchedEffect(Unit) {
+        credentialsManager.getBlueskyCredentials()?.let { (savedHandle, savedPassword) ->
+            viewModel.onHandleChange(savedHandle)
+            viewModel.onPasswordChange(savedPassword)
+            rememberPassword = true
+        }
+    }
 
     // イベント処理（既存のまま）
     LaunchedEffect(Unit) {
@@ -145,9 +165,9 @@ fun LoginScreen(
                 .padding(padding)
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Blueskyアイコン
             Icon(
@@ -211,94 +231,196 @@ fun LoginScreen(
                 }
             }
 
-            // ハンドル名入力
-            OutlinedTextField(
-                value = uiState.handle,
-                onValueChange = { viewModel.onHandleChange(it) },
-                label = { Text("ハンドル名") },
-                placeholder = { Text("example.bsky.social") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                keyboardActions = KeyboardActions(onNext = {
-                    focusManager.moveFocus(FocusDirection.Down)
-                }),
-                enabled = !uiState.isLoading
-            )
-
-            // アプリパスワード入力
-            OutlinedTextField(
-                value = uiState.password,
-                onValueChange = { viewModel.onPasswordChange(it) },
-                label = { Text("アプリパスワード") },
-                placeholder = {
-                    Text(
-                        text = "xxxx-xxxx-xxxx-xxxx",
-                        color = Color.LightGray
+                // AutofillNode作成
+                val handleAutofillNode = remember {
+                    AutofillNode(
+                        autofillTypes = listOf(AutofillType.Username),
+                        onFill = { viewModel.onHandleChange(it) }
                     )
-                },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                trailingIcon = {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        // 表示/非表示切り替えボタン
-                        IconButton(
-                            onClick = { passwordVisible = !passwordVisible },
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Icon(
-                                painter = painterResource(
-                                    id = if (passwordVisible) R.drawable.ic_visibility_off else R.drawable.ic_visibility
-                                ),
-                                contentDescription = if (passwordVisible) "非表示" else "表示",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
+                }
+                val autofill = LocalAutofill.current
+                LocalAutofillTree.current += handleAutofillNode
 
-                        // ヒントボタン
-                        IconButton(
-                            onClick = { showBottomSheet = true },
-                            modifier = Modifier
-                                .size(40.dp)
-                                .padding(end = 10.dp)
-                        ) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.ic_help),
-                                contentDescription = "アプリパスワードとは？",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp)
-                            )
+                // ハンドル名入力
+                OutlinedTextField(
+                    value = uiState.handle,
+                    onValueChange = { viewModel.onHandleChange(it) },
+                    label = { Text("ハンドル名") },
+                    placeholder = { Text("example.bsky.social") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onGloballyPositioned {
+                            handleAutofillNode.boundingBox = it.boundsInWindow()
                         }
-                    }
-                },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = {
-                    keyboardController?.hide()
-                    if (uiState.handle.isNotBlank() && uiState.password.isNotBlank()) {
-                        viewModel.onLoginSubmitted()
-                    }
-                }),
-                enabled = !uiState.isLoading
-            )
-
-            if (uiState.error != null) {
-                Text(
-                    text = uiState.error!!,
-                    color = MaterialTheme.colorScheme.error,
-                    fontSize = 14.sp,
-                    textAlign = TextAlign.Center
+                        .onFocusChanged { focusState ->
+                            println("DEBUG: Focus changed: ${focusState.isFocused}")
+                            autofill?.run {
+                                println("DEBUG: Autofill is available")
+                                if (focusState.isFocused) {
+                                    println("DEBUG: Requesting autofill")
+                                    requestAutofillForNode(handleAutofillNode)
+                                } else {
+                                    println("DEBUG: Canceling autofill")
+                                    cancelAutofillForNode(handleAutofillNode)
+                                }
+                            } ?: println("DEBUG: Autofill is null")
+                        },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                    keyboardActions = KeyboardActions(onNext = {
+                        focusManager.moveFocus(FocusDirection.Down)
+                    }),
+                    enabled = !uiState.isLoading
                 )
+
+                // パスワード用AutofillNode作成
+                val passwordAutofillNode = remember {
+                    AutofillNode(
+                        autofillTypes = listOf(AutofillType.Password),
+                        onFill = { viewModel.onPasswordChange(it) }
+                    )
+                }
+                LocalAutofillTree.current += passwordAutofillNode
+
+
+            Column {
+
+                // アプリパスワード入力
+                OutlinedTextField(
+                    value = uiState.password,
+                    onValueChange = { viewModel.onPasswordChange(it) },
+                    label = { Text("アプリパスワード") },
+                    placeholder = {
+                        Text(
+                            text = "xxxx-xxxx-xxxx-xxxx",
+                            color = Color.LightGray
+                        )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onGloballyPositioned {
+                            passwordAutofillNode.boundingBox = it.boundsInWindow()
+                        }
+                        .onFocusChanged { focusState ->
+                            autofill?.run {
+                                if (focusState.isFocused) {
+                                    requestAutofillForNode(passwordAutofillNode)
+                                } else {
+                                    cancelAutofillForNode(passwordAutofillNode)
+                                }
+                            }
+                        },
+                    singleLine = true,
+                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            // 表示/非表示切り替えボタン
+                            IconButton(
+                                onClick = { passwordVisible = !passwordVisible },
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Icon(
+                                    painter = painterResource(
+                                        id = if (passwordVisible) R.drawable.ic_visibility_off else R.drawable.ic_visibility
+                                    ),
+                                    contentDescription = if (passwordVisible) "非表示" else "表示",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+
+                            // ヒントボタン
+                            IconButton(
+                                onClick = { showBottomSheet = true },
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .padding(end = 10.dp)
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_help),
+                                    contentDescription = "アプリパスワードとは？",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                    },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = {
+                        keyboardController?.hide()
+                        if (uiState.handle.isNotBlank() && uiState.password.isNotBlank()) {
+                            viewModel.onLoginSubmitted()
+                        }
+                    }),
+                    enabled = !uiState.isLoading
+                )
+
+                if (uiState.error != null) {
+                    Text(
+                        text = uiState.error!!,
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                // チェックボックス
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 自前のアイコンを使ったチェックボックス
+                    IconButton(
+                        onClick = { rememberPassword = !rememberPassword },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(
+                                id = if (rememberPassword)
+                                    R.drawable.ic_toggle_on
+                                else
+                                    R.drawable.ic_toggle_off
+                            ),
+                            contentDescription = if (rememberPassword) "チェック済み" else "未チェック",
+                            tint = if (rememberPassword)
+                                SnsType.BLUESKY.brandColor // ブランドカラー
+                            else
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(4.dp)) // 間隔を少し狭く
+                    Text(
+                        text = "ログイン情報を記憶",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
             }
+
+            val autofillManager = LocalAutofillManager.current
 
             // ログインボタン
             Button(
                 onClick = {
                     keyboardController?.hide()
-                    viewModel.onLoginSubmitted()
+                    if (uiState.handle.isNotBlank() && uiState.password.isNotBlank()) {
+                        // ログイン情報の保存・削除
+                        if (rememberPassword) {
+                            credentialsManager.saveBlueskyCredentials(uiState.handle, uiState.password)
+                        } else {
+                            credentialsManager.clearBlueskyCredentials()
+                        }
+
+                        viewModel.onLoginSubmitted()
+
+                        // AutofillManagerのcommit（既存のAutofill用）
+                        autofillManager?.commit()
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()

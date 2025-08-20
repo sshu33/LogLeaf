@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
@@ -29,6 +30,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.logleaf.api.github.GitHubApi
 import com.example.logleaf.R
+import com.example.logleaf.data.credentials.CredentialsManager
 import com.example.logleaf.ui.theme.SnsType
 import kotlinx.coroutines.launch
 
@@ -92,6 +94,18 @@ fun GitHubLoginScreen(
     val isLoading by viewModel.isLoading
     val loginResult by viewModel.loginResult
 
+    val context = LocalContext.current
+    val credentialsManager = remember { CredentialsManager(context) }
+    var rememberToken by remember { mutableStateOf(false) }
+
+// 画面初期化時に保存されたトークンを読み込み
+    LaunchedEffect(Unit) {
+        credentialsManager.getGitHubCredentials()?.let { (_, savedToken) ->
+            accessToken = savedToken
+            rememberToken = true
+        }
+    }
+
     LaunchedEffect(loginResult) {
         if (loginResult == "success") {
             navController.popBackStack()
@@ -118,7 +132,7 @@ fun GitHubLoginScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // GitHubアイコン
             Icon(
@@ -181,77 +195,123 @@ fun GitHubLoginScreen(
                     }
                 }
             }
-            // アクセストークン入力
-            OutlinedTextField(
-                value = accessToken,
-                onValueChange = { accessToken = it },
-                label = { Text("Personal Access Token") },
-                placeholder = { Text("github_pat_11A...") },
-                modifier = Modifier.fillMaxWidth(),
-                visualTransformation = if (isTokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                trailingIcon = {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        // 表示/非表示切り替えボタン
-                        IconButton(
-                            onClick = { isTokenVisible = !isTokenVisible },
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Icon(
-                                painter = painterResource(
-                                    id = if (isTokenVisible) R.drawable.ic_visibility_off else R.drawable.ic_visibility
-                                ),
-                                contentDescription = if (isTokenVisible) "非表示" else "表示",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
 
-                        // ヒントボタン
-                        IconButton(
-                            onClick = { showBottomSheet = true },
-                            modifier = Modifier
-                                .size(40.dp)
-                                .padding(end = 10.dp)
+            Column {
+                // アクセストークン入力
+                OutlinedTextField(
+                    value = accessToken,
+                    onValueChange = { accessToken = it },
+                    label = { Text("Personal Access Token") },
+                    placeholder = { Text("github_pat_11A...") },
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = if (isTokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.ic_help),
-                                contentDescription = "作成方法",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    }
-                },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(
-                    onDone = {
-                        keyboardController?.hide()
-                        if (accessToken.isNotEmpty()) {
-                            viewModel.login(accessToken, selectedPeriod)
-                        }
-                    }
-                ),
-                enabled = !isLoading,
-                isError = loginResult != null && loginResult != "success"
-            )
+                            // 表示/非表示切り替えボタン
+                            IconButton(
+                                onClick = { isTokenVisible = !isTokenVisible },
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Icon(
+                                    painter = painterResource(
+                                        id = if (isTokenVisible) R.drawable.ic_visibility_off else R.drawable.ic_visibility
+                                    ),
+                                    contentDescription = if (isTokenVisible) "非表示" else "表示",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
 
-            // エラーメッセージ
-            if (loginResult != null && loginResult != "success") {
-                Text(
-                    text = loginResult!!,
-                    color = MaterialTheme.colorScheme.error,
-                    fontSize = 14.sp,
-                    textAlign = TextAlign.Center
+                            // ヒントボタン
+                            IconButton(
+                                onClick = { showBottomSheet = true },
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .padding(end = 10.dp)
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_help),
+                                    contentDescription = "作成方法",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                    },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            keyboardController?.hide()
+                            if (accessToken.isNotEmpty()) {
+                                viewModel.login(accessToken, selectedPeriod)
+                            }
+                        }
+                    ),
+                    enabled = !isLoading,
+                    isError = loginResult != null && loginResult != "success"
                 )
+
+                // エラーメッセージ
+                if (loginResult != null && loginResult != "success") {
+                    Text(
+                        text = loginResult!!,
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                // ログイン情報を記憶するチェックボックス
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = { rememberToken = !rememberToken },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(
+                                id = if (rememberToken)
+                                    R.drawable.ic_toggle_on
+                                else
+                                    R.drawable.ic_toggle_off
+                            ),
+                            contentDescription = if (rememberToken) "チェック済み" else "未チェック",
+                            tint = if (rememberToken)
+                                SnsType.GITHUB.brandColor // GitHubブランドカラー
+                            else
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "トークンを記憶",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
             }
 
             // ログインボタン
             Button(
                 onClick = {
                     keyboardController?.hide()
-                    viewModel.login(accessToken, selectedPeriod)
+                    if (accessToken.isNotEmpty()) {
+                        // トークンの保存・削除
+                        if (rememberToken) {
+                            credentialsManager.saveGitHubCredentials("", accessToken) // usernameは空文字
+                        } else {
+                            credentialsManager.clearGitHubCredentials()
+                        }
+
+                        viewModel.login(accessToken, selectedPeriod)
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()

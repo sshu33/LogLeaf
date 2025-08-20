@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -56,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.logleaf.R
+import com.example.logleaf.data.credentials.CredentialsManager
 import com.example.logleaf.ui.theme.SnsType
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -71,16 +73,33 @@ fun MastodonInstanceScreen(
     val focusManager = LocalFocusManager.current
     val selectedPeriod by viewModel.selectedPeriod.collectAsState()
     val keyboardController = LocalSoftwareKeyboardController.current
+    val credentialsManager = remember { CredentialsManager(context) }
+    var rememberCredentials by remember { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
+
+    // 画面初期化時に保存された認証情報を読み込み
+    LaunchedEffect(Unit) {
+        credentialsManager.getMastodonCredentials()?.let { (savedInstanceUrl, _) ->
+            viewModel.onInstanceUrlChange(savedInstanceUrl)
+            rememberCredentials = true
+        }
+    }
 
     // イベント処理（既存のまま）
     LaunchedEffect(Unit) {
         viewModel.eventFlow.collectLatest { event ->
             when (event) {
                 is MastodonInstanceEvent.NavigateToBrowser -> {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(event.authUrl))
-                    context.startActivity(intent)
+                    uriHandler.openUri(event.authUrl)
                 }
                 is MastodonInstanceEvent.AuthenticationSuccess -> {
+                    // ここに追加：認証成功時に保存
+                    if (rememberCredentials) {
+                        credentialsManager.saveMastodonCredentials(
+                            uiState.instanceUrl,
+                            "authenticated"
+                        )
+                    }
                     navController.popBackStack("accounts", inclusive = false)
                 }
                 is MastodonInstanceEvent.HideKeyboard -> {
@@ -148,7 +167,7 @@ fun MastodonInstanceScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Mastodonアイコン
             Icon(
@@ -217,53 +236,89 @@ fun MastodonInstanceScreen(
                     }
                 }
 
-                // インスタンスURL入力
-                OutlinedTextField(
-                    value = uiState.instanceUrl,
-                    onValueChange = { viewModel.onInstanceUrlChange(it) },
-                    label = { Text("インスタンスURL") },
-                    placeholder = {
+                Column {
+
+                    // インスタンスURL入力
+                    OutlinedTextField(
+                        value = uiState.instanceUrl,
+                        onValueChange = { viewModel.onInstanceUrlChange(it) },
+                        label = { Text("インスタンスURL") },
+                        placeholder = {
+                            Text(
+                                text = "mstdn.jp",
+                                color = Color.LightGray
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        trailingIcon = {
+                            IconButton(
+                                onClick = { showBottomSheet = true },
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .padding(end = 10.dp)
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_help),
+                                    contentDescription = "インスタンスURLとは？",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = {
+                            keyboardController?.hide()
+                            if (uiState.instanceUrl.isNotBlank()) {
+                                viewModel.onInstanceSubmitted()
+                            }
+                        }),
+                        enabled = !uiState.isLoading,
+                        isError = uiState.error != null,
+                        singleLine = true
+                    )
+
+                    // エラーメッセージ（GitHubスタイル）
+                    if (uiState.error != null) {
                         Text(
-                            text = "mstdn.jp",
-                            color = Color.LightGray
+                            text = uiState.error!!,
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 14.sp,
+                            textAlign = TextAlign.Center
                         )
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    trailingIcon = {
+                    }
+                    // インスタンス情報を記憶するチェックボックス
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         IconButton(
-                            onClick = { showBottomSheet = true },
-                            modifier = Modifier
-                                .size(40.dp)
-                                .padding(end = 10.dp)
+                            onClick = { rememberCredentials = !rememberCredentials },
+                            modifier = Modifier.size(24.dp)
                         ) {
                             Icon(
-                                painter = painterResource(id = R.drawable.ic_help),
-                                contentDescription = "インスタンスURLとは？",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp)
+                                painter = painterResource(
+                                    id = if (rememberCredentials)
+                                        R.drawable.ic_toggle_on
+                                    else
+                                        R.drawable.ic_toggle_off
+                                ),
+                                contentDescription = if (rememberCredentials) "チェック済み" else "未チェック",
+                                tint = if (rememberCredentials)
+                                    SnsType.MASTODON.brandColor // Mastodonブランドカラー
+                                else
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                modifier = Modifier.size(20.dp)
                             )
                         }
-                    },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = {
-                        keyboardController?.hide()
-                        if (uiState.instanceUrl.isNotBlank()) {
-                            viewModel.onInstanceSubmitted()
-                        }
-                    }),
-                    enabled = !uiState.isLoading,
-                    isError = uiState.error != null,
-                    singleLine = true
-                )
-
-                // エラーメッセージ（GitHubスタイル）
-                if (uiState.error != null) {
-                    Text(
-                        text = uiState.error!!,
-                        color = MaterialTheme.colorScheme.error,
-                        fontSize = 14.sp,
-                        textAlign = TextAlign.Center
-                    )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "インスタンス情報を記憶",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
 
                 // 次へボタン
@@ -295,6 +350,7 @@ fun MastodonInstanceScreen(
                             color = Color.White
                         )
                     }
+
                 }
             }
 

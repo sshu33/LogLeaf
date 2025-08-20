@@ -32,6 +32,7 @@ import androidx.navigation.NavController
 import com.example.logleaf.R
 import com.example.logleaf.api.fitbit.FitbitApi
 import com.example.logleaf.api.fitbit.FitbitAuthHolder
+import com.example.logleaf.data.credentials.CredentialsManager
 import com.example.logleaf.data.session.SessionManager
 import com.example.logleaf.ui.theme.SnsType
 import kotlinx.coroutines.delay
@@ -73,6 +74,18 @@ fun FitbitLoginScreen(
 
     // パスワード表示切り替え
     var clientSecretVisible by remember { mutableStateOf(false) }
+
+    val credentialsManager = remember { CredentialsManager(context) }
+    var rememberCredentials by remember { mutableStateOf(false) }
+
+// 画面初期化時に保存された認証情報を読み込み
+    LaunchedEffect(Unit) {
+        credentialsManager.getFitbitCredentials()?.let { (savedClientId, savedClientSecret) ->
+            clientId = savedClientId
+            clientSecret = savedClientSecret
+            rememberCredentials = true
+        }
+    }
 
     LaunchedEffect(Unit) {
         FitbitAuthHolder.authCodeFlow.collectLatest { code ->
@@ -173,7 +186,7 @@ fun FitbitLoginScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Fitbitアイコン
             Icon(
@@ -225,72 +238,111 @@ fun FitbitLoginScreen(
                     enabled = !isLoading,
                 )
 
-                // Client Secret入力
-                OutlinedTextField(
-                    value = clientSecret,
-                    onValueChange = {
-                        clientSecret = it
-                        errorMessage = null
-                    },
-                    label = { Text("Client Secret") },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(
-                        onDone = {
-                            keyboardController?.hide()
-                            if (clientId.trim().isNotBlank() && clientSecret.trim().isNotBlank()) {
-                                // ログイン処理実行（上記のonClickと同じ処理）
+                Column {
+
+                    // Client Secret入力
+                    OutlinedTextField(
+                        value = clientSecret,
+                        onValueChange = {
+                            clientSecret = it
+                            errorMessage = null
+                        },
+                        label = { Text("Client Secret") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(
+                            onDone = {
+                                keyboardController?.hide()
+                                if (clientId.trim().isNotBlank() && clientSecret.trim()
+                                        .isNotBlank()
+                                ) {
+                                    // ログイン処理実行（上記のonClickと同じ処理）
+                                }
+                            }
+                        ),
+                        singleLine = true,
+                        enabled = !isLoading,
+                        visualTransformation = if (clientSecretVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                // 表示/非表示切り替えボタン
+                                IconButton(
+                                    onClick = { clientSecretVisible = !clientSecretVisible },
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Icon(
+                                        painter = painterResource(
+                                            id = if (clientSecretVisible) R.drawable.ic_visibility_off else R.drawable.ic_visibility
+                                        ),
+                                        contentDescription = if (clientSecretVisible) "非表示" else "表示",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+
+                                // ヒントボタン
+                                IconButton(
+                                    onClick = { showBottomSheet = true },
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .padding(end = 10.dp)
+                                ) {
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.ic_help),
+                                        contentDescription = "Client Secretとは？",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
                             }
                         }
-                    ),
-                    singleLine = true,
-                    enabled = !isLoading,
-                    visualTransformation = if (clientSecretVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            // 表示/非表示切り替えボタン
-                            IconButton(
-                                onClick = { clientSecretVisible = !clientSecretVisible },
-                                modifier = Modifier.size(40.dp)
-                            ) {
-                                Icon(
-                                    painter = painterResource(
-                                        id = if (clientSecretVisible) R.drawable.ic_visibility_off else R.drawable.ic_visibility
-                                    ),
-                                    contentDescription = if (clientSecretVisible) "非表示" else "表示",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-
-                            // ヒントボタン
-                            IconButton(
-                                onClick = { showBottomSheet = true },
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .padding(end = 10.dp)
-                            ) {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.ic_help),
-                                    contentDescription = "Client Secretとは？",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                        }
-                    }
-                )
-
-                // エラーメッセージ
-                if (errorMessage != null) {
-                    Text(
-                        text = errorMessage!!,
-                        color = MaterialTheme.colorScheme.error,
-                        fontSize = 14.sp,
-                        textAlign = TextAlign.Center
                     )
+
+                    // エラーメッセージ
+                    if (errorMessage != null) {
+                        Text(
+                            text = errorMessage!!,
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 14.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+
+                    // 認証情報を記憶するチェックボックス
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = { rememberCredentials = !rememberCredentials },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(
+                                    id = if (rememberCredentials)
+                                        R.drawable.ic_toggle_on
+                                    else
+                                        R.drawable.ic_toggle_off
+                                ),
+                                contentDescription = if (rememberCredentials) "チェック済み" else "未チェック",
+                                tint = if (rememberCredentials)
+                                    SnsType.FITBIT.brandColor // Fitbitブランドカラー
+                                else
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "認証情報を記憶",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
 
                 // 連携ボタン
@@ -302,6 +354,13 @@ fun FitbitLoginScreen(
                         if (cleanClientId.isBlank() || cleanClientSecret.isBlank()) {
                             errorMessage = "Client IDとClient Secretを入力してください"
                             return@Button
+                        }
+
+                        // 認証情報の保存・削除
+                        if (rememberCredentials) {
+                            credentialsManager.saveFitbitCredentials(cleanClientId, cleanClientSecret)
+                        } else {
+                            credentialsManager.clearFitbitCredentials()
                         }
 
                         isLoading = true
@@ -321,7 +380,7 @@ fun FitbitLoginScreen(
                                 context.startActivity(intent)
                             } catch (e: Exception) {
                                 isLoading = false
-                                errorMessage = "認証エラーが発生しました: ${e.message}"
+                                // 既存のエラー処理...
                             }
                         }
                     },
