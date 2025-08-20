@@ -1986,7 +1986,7 @@ ${napData.startTime} → ${napData.endTime} (${napData.duration})
             Log.e("DEBUG", "=== syncFitbitSleepData開始 ===")
             Log.e("DEBUG", "date: $date")
 
-            val result = fitbitApi.getSleepData(account.accessToken, date)
+            val result = fitbitApi.getSleepData(account.accessToken, date, account)
             Log.d("DEBUG", "sleep result: $result")
 
             if (result != null) {
@@ -2081,7 +2081,7 @@ ${napData.startTime} → ${napData.endTime} (${napData.duration})
             Log.e("DEBUG", "date: $date")
 
             // 新しいシグネチャで呼び出し（fitbitAccountパラメータを追加）
-            val result = fitbitApi.getActivityData(account.accessToken, date)
+            val result = fitbitApi.getActivityData(account.accessToken, date, account)
             Log.d("DEBUG", "result: $result")
 
             if (result != null) {

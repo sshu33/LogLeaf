@@ -122,9 +122,113 @@ class FitbitApi(private val sessionManager: SessionManager) {
     }
 
     /**
+     * リフレッシュトークンを使ってアクセストークンを更新
+     */
+    /**
+     * リフレッシュトークンを使ってアクセストークンを更新
+     */
+    suspend fun refreshAccessToken(refreshToken: String): FitbitTokenResponse? {
+        return try {
+            Log.d("FitbitApi", "トークンリフレッシュ開始")
+
+            // FitbitAuthHolderからクライアント認証情報を取得
+            val clientId = com.example.logleaf.api.fitbit.FitbitAuthHolder.clientId
+            val clientSecret = com.example.logleaf.api.fitbit.FitbitAuthHolder.clientSecret
+
+            if (clientId == null || clientSecret == null) {
+                Log.e("FitbitApi", "クライアント認証情報が見つかりません")
+                return null
+            }
+
+            // Basic認証のためのクレデンシャル
+            val credentials = "$clientId:$clientSecret"
+            val encodedCredentials = android.util.Base64.encodeToString(
+                credentials.toByteArray(),
+                android.util.Base64.NO_WRAP
+            )
+
+            val httpResponse = client.post(TOKEN_URL) {
+                headers {
+                    append(HttpHeaders.Authorization, "Basic $encodedCredentials")
+                    append(HttpHeaders.ContentType, "application/x-www-form-urlencoded")
+                }
+                parameter("grant_type", "refresh_token")
+                parameter("refresh_token", refreshToken)
+            }
+
+            if (httpResponse.status.isSuccess()) {
+                val response = Json { ignoreUnknownKeys = true }
+                    .decodeFromString<FitbitTokenResponse>(httpResponse.body())
+                Log.d("FitbitApi", "トークンリフレッシュ成功")
+                response
+            } else {
+                val errorBody = httpResponse.body<String>()
+                Log.e("FitbitApi", "トークンリフレッシュ失敗: ${httpResponse.status}")
+                Log.e("FitbitApi", "エラーレスポンス: $errorBody")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e("FitbitApi", "トークンリフレッシュエラー", e)
+            null
+        }
+    }
+
+    /**
+     * アクセストークンを更新してアカウント情報を保存
+     */
+    suspend fun updateAccountToken(newTokenResponse: FitbitTokenResponse, period: String): Boolean {
+        return try {
+            val fitbitAccount = Account.Fitbit(
+                accessToken = newTokenResponse.access_token,
+                refreshToken = newTokenResponse.refresh_token,
+                fitbitUserId = newTokenResponse.user_id,
+                period = period,
+                needsReauthentication = false,
+                isVisible = true,
+                lastSyncedAt = null
+            )
+
+            sessionManager.saveAccount(fitbitAccount)
+            Log.d("FitbitApi", "トークン更新完了")
+            true
+        } catch (e: Exception) {
+            Log.e("FitbitApi", "トークン更新エラー", e)
+            false
+        }
+    }
+
+    /**
+     * 401エラー時の処理（トークンリフレッシュを試行）
+     */
+    private suspend fun handle401Error(fitbitAccount: Account.Fitbit): String? {
+        Log.d("FitbitApi", "401エラー処理開始")
+
+        // リフレッシュトークンを試行
+        val newTokenResponse = refreshAccessToken(fitbitAccount.refreshToken)
+
+        return if (newTokenResponse != null) {
+            // トークン更新成功
+            val updateSuccess = updateAccountToken(newTokenResponse, fitbitAccount.period)
+            if (updateSuccess) {
+                Log.d("FitbitApi", "トークン更新成功、新しいアクセストークンを返却")
+                newTokenResponse.access_token
+            } else {
+                Log.e("FitbitApi", "トークン更新後の保存に失敗")
+                sessionManager.markAccountForReauthentication(fitbitAccount.userId)
+                null
+            }
+        } else {
+            // トークンリフレッシュ失敗 → 再認証が必要
+            Log.e("FitbitApi", "トークンリフレッシュ失敗、再認証が必要")
+            sessionManager.markAccountForReauthentication(fitbitAccount.userId)
+            null
+        }
+    }
+
+    /**
      * 睡眠データを取得（詳細情報含む）
      */
-    suspend fun getSleepData(accessToken: String, date: LocalDate): Pair<SleepData?, NapData?>? {
+    suspend fun getSleepData(accessToken: String, date: LocalDate, fitbitAccount: Account.Fitbit): Pair<SleepData?, NapData?>? {
         return try {
             val dateStr = date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
 
@@ -140,20 +244,38 @@ class FitbitApi(private val sessionManager: SessionManager) {
 
             Log.d("FitbitApi", "睡眠データHTTPステータス: ${response.status}")
 
-            if (response.status.isSuccess()) {
-                val responseText = response.body<String>()
-                val fitbitResponse = Json { ignoreUnknownKeys = true }
-                    .decodeFromString<FitbitSleepResponse>(responseText)
+            when {
+                response.status.isSuccess() -> {
+                    // 成功時の処理（既存のコードと同じ）
+                    val responseText = response.body<String>()
+                    val fitbitResponse = Json { ignoreUnknownKeys = true }
+                        .decodeFromString<FitbitSleepResponse>(responseText)
 
-                Log.d("FitbitApi", "睡眠データ取得成功: $date")
-                if (fitbitResponse.sleep.isNotEmpty()) {
-                    parseSleepDataFromRecord(fitbitResponse.sleep.first())
-                } else {
-                    Pair(null, null)
+                    Log.d("FitbitApi", "睡眠データ取得成功: $date")
+                    if (fitbitResponse.sleep.isNotEmpty()) {
+                        parseSleepDataFromRecord(fitbitResponse.sleep.first())
+                    } else {
+                        Pair(null, null)
+                    }
                 }
-            } else {
-                Log.e("FitbitApi", "睡眠データ取得エラー: ${response.status}")
-                null
+
+                response.status.value == 401 -> {
+                    Log.w("FitbitApi", "401エラー検出、トークンリフレッシュを試行")
+                    val newAccessToken = handle401Error(fitbitAccount)
+
+                    if (newAccessToken != null) {
+                        Log.d("FitbitApi", "新しいトークンで睡眠データ取得をリトライ")
+                        getSleepData(newAccessToken, date, fitbitAccount)
+                    } else {
+                        Log.e("FitbitApi", "トークンリフレッシュ失敗")
+                        null
+                    }
+                }
+
+                else -> {
+                    Log.e("FitbitApi", "睡眠データ取得エラー: ${response.status}")
+                    null
+                }
             }
         } catch (e: Exception) {
             Log.e("FitbitApi", "睡眠データ取得エラー: $date", e)
@@ -164,7 +286,7 @@ class FitbitApi(private val sessionManager: SessionManager) {
     /**
      * アクティビティデータを取得
      */
-    suspend fun getActivityData(accessToken: String, date: LocalDate): Pair<ActivityData?, List<ExerciseData>>? {
+    suspend fun getActivityData(accessToken: String, date: LocalDate, fitbitAccount: Account.Fitbit): Pair<ActivityData?, List<ExerciseData>>? {
         return try {
             val dateStr = date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
 
@@ -180,20 +302,38 @@ class FitbitApi(private val sessionManager: SessionManager) {
 
             Log.d("FitbitApi", "アクティビティHTTPステータス: ${response.status}")
 
-            if (response.status.isSuccess()) {
-                val responseText = response.body<String>()
-                Log.d("FitbitApi", "アクティビティレスポンス内容: $responseText")
+            when {
+                response.status.isSuccess() -> {
+                    // 成功時の処理（既存のコードと同じ）
+                    val responseText = response.body<String>()
+                    Log.d("FitbitApi", "アクティビティレスポンス内容: $responseText")
 
-                val fitbitResponse = Json { ignoreUnknownKeys = true }
-                    .decodeFromString<FitbitActivityResponse>(responseText)
+                    val fitbitResponse = Json { ignoreUnknownKeys = true }
+                        .decodeFromString<FitbitActivityResponse>(responseText)
 
-                Log.d("FitbitApi", "steps: ${fitbitResponse.summary.steps}")
-                Log.d("FitbitApi", "calories: ${fitbitResponse.summary.caloriesOut}")
+                    Log.d("FitbitApi", "steps: ${fitbitResponse.summary.steps}")
+                    Log.d("FitbitApi", "calories: ${fitbitResponse.summary.caloriesOut}")
 
-                parseActivityData(fitbitResponse)  // ← これでPairが返される
-            } else {
-                Log.e("FitbitApi", "アクティビティデータ取得エラー: ${response.status}")
-                null
+                    parseActivityData(fitbitResponse)
+                }
+
+                response.status.value == 401 -> {
+                    Log.w("FitbitApi", "401エラー検出、トークンリフレッシュを試行")
+                    val newAccessToken = handle401Error(fitbitAccount)
+
+                    if (newAccessToken != null) {
+                        Log.d("FitbitApi", "新しいトークンでアクティビティデータ取得をリトライ")
+                        getActivityData(newAccessToken, date, fitbitAccount)
+                    } else {
+                        Log.e("FitbitApi", "トークンリフレッシュ失敗")
+                        null
+                    }
+                }
+
+                else -> {
+                    Log.e("FitbitApi", "アクティビティデータ取得エラー: ${response.status}")
+                    null
+                }
             }
         } catch (e: Exception) {
             Log.e("FitbitApi", "アクティビティデータ取得例外", e)

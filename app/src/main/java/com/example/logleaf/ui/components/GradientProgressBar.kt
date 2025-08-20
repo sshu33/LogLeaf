@@ -77,7 +77,7 @@ fun GradientProgressBar(
                     startX = 0f,
                     endX = width
                 ),
-                size = androidx.compose.ui.geometry.Size(width * progress, height)
+                size = androidx.compose.ui.geometry.Size(width * progress.coerceIn(0f, 1f), height)
             )
         }
     }
