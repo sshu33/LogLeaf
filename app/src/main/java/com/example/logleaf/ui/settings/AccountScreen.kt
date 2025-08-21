@@ -83,7 +83,16 @@ fun AccountScreen(
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(accounts) { account ->
+                        items(accounts.sortedBy {
+                            when (it.snsType) {
+                                SnsType.LOGLEAF -> -1
+                                SnsType.BLUESKY -> 0
+                                SnsType.GITHUB -> 2
+                                SnsType.MASTODON -> 1
+                                SnsType.FITBIT -> 3
+                                else -> 99
+                            }
+                        }) { account ->
                             when (account) {
                                 // Fitbit用の分岐を削除し、通常のListCardに統合
                                 else -> {
@@ -163,17 +172,38 @@ fun AccountScreen(
                                             }
                                         } else {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Switch(
-                                                    checked = account.isVisible,
-                                                    onCheckedChange = {
-                                                        viewModel.toggleAccountVisibility(account.userId)
-                                                    }
-                                                )
+                                                Box(
+                                                    modifier = Modifier
+                                                        .width(44.dp)
+                                                        .height(24.dp)
+                                                        .background(
+                                                            color = if (account.isVisible)
+                                                                account.snsType.brandColor.copy(alpha = 0.3f)
+                                                            else
+                                                                MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                                                            shape = RoundedCornerShape(12.dp)
+                                                        )
+                                                        .clickable { viewModel.toggleAccountVisibility(account.userId) }
+                                                        .padding(2.dp)
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(20.dp)
+                                                            .background(
+                                                                color = if (account.isVisible)
+                                                                    account.snsType.brandColor
+                                                                else
+                                                                    MaterialTheme.colorScheme.outline,
+                                                                shape = CircleShape
+                                                            )
+                                                            .align(if (account.isVisible) Alignment.CenterEnd else Alignment.CenterStart)
+                                                    )
+                                                }
                                                 Spacer(Modifier.width(8.dp))
                                                 Icon(
                                                     painter = painterResource(id = R.drawable.ic_delete),
                                                     contentDescription = "削除",
-                                                    tint = MaterialTheme.colorScheme.error,
+                                                    tint = Color(0xFFef4646), // お好みの色に
                                                     modifier = Modifier
                                                         .size(32.dp)
                                                         .clickable { accountToDelete = account }
@@ -928,7 +958,7 @@ fun FitbitMenuDialog(
                         modifier = Modifier.size(32.dp)
                     )
                     Spacer(modifier = Modifier.width(12.dp))
-                    Text(
+                    UserFontText(
                         text = account.displayName,
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold

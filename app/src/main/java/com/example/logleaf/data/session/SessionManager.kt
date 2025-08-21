@@ -103,6 +103,7 @@ class SessionManager(private val context: Context) {
                 is Account.Mastodon -> account.copy(isVisible = !account.isVisible)
                 is Account.GitHub -> account.copy(isVisible = !account.isVisible)
                 is Account.Fitbit -> account.copy(isVisible = !account.isVisible)
+                is Account.Internal -> account.copy(isVisible = !account.isVisible)
             }
         }
     }
@@ -113,7 +114,8 @@ class SessionManager(private val context: Context) {
                 is Account.Bluesky -> account.copy(needsReauthentication = true)
                 is Account.Mastodon -> account.copy(needsReauthentication = true)
                 is Account.GitHub -> account.copy(needsReauthentication = true)
-                is Account.Fitbit -> account.copy(needsReauthentication = true)  // ← この行を追加
+                is Account.Fitbit -> account.copy(needsReauthentication = true)
+                is Account.Internal -> account.copy(needsReauthentication = true) // ← この行を追加
             }
         }
         println("【SessionManager】アカウント($accountId)を要再認証としてマークしました。")
@@ -307,5 +309,23 @@ class SessionManager(private val context: Context) {
                 }
             }
         }
+    }
+
+    // LogLeaf アカウントの表示状態管理
+    private val _isLogLeafVisible = MutableStateFlow(true)
+    val isLogLeafVisible = _isLogLeafVisible.asStateFlow()
+
+    fun toggleLogLeafVisibility() {
+        val newValue = !_isLogLeafVisible.value
+        _isLogLeafVisible.value = newValue
+        // SharedPreferencesに保存
+        prefs.edit().putBoolean("logleaf_visible", newValue).apply()
+    }
+
+    // 初期化時に読み込み
+    init {
+        // 既存のコードの後に追加
+        _accountsFlow.value = loadAccountsFromPrefs()
+        _isLogLeafVisible.value = prefs.getBoolean("logleaf_visible", true)
     }
 }

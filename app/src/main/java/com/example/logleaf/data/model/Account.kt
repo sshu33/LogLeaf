@@ -14,6 +14,19 @@ sealed class Account {
     abstract val lastSyncedAt: String? // ← 全Accountの共通プロパティとして追加
 
     @Serializable
+    @SerialName("Account.Internal")
+    data class Internal(
+        val postCount: Int = 0,
+        override val needsReauthentication: Boolean = false,
+        override val isVisible: Boolean = true,
+        override val lastSyncedAt: String? = null
+    ) : Account() {
+        override val snsType: SnsType get() = SnsType.LOGLEAF
+        override val userId: String get() = "LOGLEAF_INTERNAL_POST"
+        override val displayName: String get() = "LogLeaf"
+    }
+
+    @Serializable
     @SerialName("Account.Bluesky")
     data class Bluesky(
         val did: String,

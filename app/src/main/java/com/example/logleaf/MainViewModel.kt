@@ -161,10 +161,23 @@ class MainViewModel(
 
     // データベースから取得した、常に最新の投稿リスト
     private val allPostsFlow: Flow<List<PostWithTagsAndImages>> =
-        // ★★★ 一時的に静的にして重複呼び出しを防ぐ ★★★
-        combine(flowOf(sessionManager.getAccounts()), _showHiddenPosts) { accounts, showHidden ->
-            val visibleAccountIds =
-                accounts.filter { it.isVisible }.map { it.userId } + "LOGLEAF_INTERNAL_POST"
+        combine(
+            sessionManager.accountsFlow,
+            sessionManager.isLogLeafVisible, // ← 追加
+            _showHiddenPosts
+        ) { accounts, isLogLeafVisible, showHidden ->
+            val visibleAccountIds = mutableListOf<String>()
+
+            // 既存のSNSアカウント
+            visibleAccountIds.addAll(
+                accounts.filter { it.isVisible }.map { it.userId }
+            )
+
+            // LogLeafアカウント（内部投稿）
+            if (isLogLeafVisible) {
+                visibleAccountIds.add("LOGLEAF_INTERNAL_POST")
+            }
+
             val includeHidden = if (showHidden) 1 else 0
             Pair(visibleAccountIds, includeHidden)
         }.flatMapLatest { (accountIds, includeHiddenFlag) ->
@@ -377,6 +390,7 @@ class MainViewModel(
                             }
                             is Account.GitHub -> gitHubApi.getPostsForAccount(account)
                             is Account.Fitbit -> emptyList()
+                            is Account.Internal -> emptyList()
                         }
                     }
                 }

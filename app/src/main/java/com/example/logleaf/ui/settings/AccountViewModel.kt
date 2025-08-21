@@ -10,6 +10,7 @@ import com.example.logleaf.data.session.SessionManager
 import com.example.logleaf.db.PostDao
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -19,28 +20,60 @@ class AccountViewModel(
     private val gitHubApi: GitHubApi // ← 追加！
 ) : ViewModel() {
 
-    val accounts: StateFlow<List<Account>> = sessionManager.accountsFlow
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
-        )
+    val accounts: StateFlow<List<Account>> = combine(
+        sessionManager.accountsFlow,
+        postDao.getPostsCountByAccountId("LOGLEAF_INTERNAL_POST"),
+        sessionManager.isLogLeafVisible
+    ) { sessionAccounts, internalPostCount, isLogLeafVisible ->
+        val allAccounts = mutableListOf<Account>()
+
+        // 内部投稿がある場合のみLogLeafアカウントを追加
+        if (internalPostCount > 0) {
+            allAccounts.add(
+                Account.Internal(
+                    postCount = internalPostCount,
+                    isVisible = isLogLeafVisible
+                )
+            )
+        }
+
+        allAccounts.addAll(sessionAccounts)
+        allAccounts
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
 
     fun toggleAccountVisibility(accountId: String) {
-        sessionManager.toggleAccountVisibility(accountId)
+        if (accountId == "LOGLEAF_INTERNAL_POST") {
+            // LogLeafアカウントの場合
+            sessionManager.toggleLogLeafVisibility()
+        } else {
+            // 既存のSNSアカウントの場合
+            sessionManager.toggleAccountVisibility(accountId)
+        }
     }
 
     fun deleteAccountAndPosts(account: Account, deletePostsAlso: Boolean = true) {
         viewModelScope.launch {
             when (account) {
+                is Account.Internal -> {
+                    // LogLeaf内部投稿の削除
+                    if (deletePostsAlso) {
+                        postDao.deletePostsByAccountId("LOGLEAF_INTERNAL_POST")
+                    }
+                    // Account.Internalは動的生成なので、アカウント削除処理は不要
+                }
                 is Account.Fitbit -> {
+                    // 既存のFitbit処理
                     if (deletePostsAlso) {
                         postDao.deletePostsByAccountId(account.userId)
                     }
-                    sessionManager.deleteAccount(account)  // ← ここで新しい処理が呼ばれる
+                    sessionManager.deleteAccount(account)
                 }
                 else -> {
-                    // 従来のSNSアカウント削除処理
+                    // 既存の他SNS処理
                     if (deletePostsAlso) {
                         postDao.deletePostsByAccountId(account.userId)
                     }
@@ -106,4 +139,6 @@ class AccountViewModel(
             }
         }
     }
+
+
 }

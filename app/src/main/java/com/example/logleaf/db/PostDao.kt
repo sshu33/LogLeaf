@@ -575,5 +575,8 @@ interface PostDao {
 
     @Query("UPDATE posts SET isHealthData = 1 WHERE id LIKE 'zepp_%'")
     suspend fun fixZeppHealthDataFlag(): Int
+
+    @Query("SELECT COUNT(*) FROM posts WHERE accountId = :accountId")
+    fun getPostsCountByAccountId(accountId: String): Flow<Int>
 }
 

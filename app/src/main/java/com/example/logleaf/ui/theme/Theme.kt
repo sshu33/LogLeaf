@@ -144,10 +144,10 @@ fun MinSizeSettingsTheme(
     // 最小サイズ制限付きの Typography を作成
     val minSizeTypography = Typography(
         titleLarge = currentTypography.titleLarge.copy(
-            fontSize = maxOf(currentTypography.titleLarge.fontSize.value, 28f).sp
+            fontSize = maxOf(currentTypography.titleLarge.fontSize.value, 24f).sp
         ),
         titleMedium = currentTypography.titleMedium.copy(
-            fontSize = maxOf(currentTypography.titleMedium.fontSize.value, 22f).sp
+            fontSize = maxOf(currentTypography.titleMedium.fontSize.value, 20f).sp
         ),
         bodyLarge = currentTypography.bodyLarge.copy(
             fontSize = maxOf(currentTypography.bodyLarge.fontSize.value, 18f).sp
